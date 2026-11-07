@@ -4,20 +4,9 @@
  * is issued; after that it belongs to the approval transaction (I3).
  */
 import { firstInvoiceNumberProblem } from "@sasimem/core";
-import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
-import { isOwner, type Numbering, readNumbering, setNext } from "../store/numbering.js";
-
-/** Signed in, and an owner of the org named in the request. Returns the org ID. */
-async function ownerOrg(request: CallableRequest<unknown>): Promise<string> {
-  const uid = request.auth?.uid;
-  if (uid === undefined) throw new HttpsError("unauthenticated", "Sign in first.");
-  const data = request.data as { orgId?: unknown } | null;
-  const orgId = data?.orgId;
-  if (typeof orgId !== "string" || orgId === "" || !(await isOwner(orgId, uid))) {
-    throw new HttpsError("permission-denied", "Only the organisation's owner can do this.");
-  }
-  return orgId;
-}
+import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { type Numbering, readNumbering, setNext } from "../store/numbering.js";
+import { ownerOrg } from "./auth.js";
 
 export const getNumbering = onCall<{ orgId: string }, Promise<Numbering>>(async (request) => readNumbering(await ownerOrg(request)));
 
