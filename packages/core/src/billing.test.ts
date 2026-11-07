@@ -200,4 +200,8 @@ describe("which months the tick drafts", () => {
   test("after a scheduler outage, a landlord who was already billing gets the missed month drafted (and so held)", () => {
     expect(due("2026-09-27T23:00:00Z", ["2026-08"])).toEqual(["2026-09", "2026-10"]);
   });
+
+  test("a landlord onboarding on the 28th is not billed for September, whose send time is already gone", () => {
+    expect(due("2026-09-27T23:00:00Z")).toEqual(["2026-10"]);
+  });
 });
