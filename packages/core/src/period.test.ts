@@ -26,3 +26,12 @@ test("a period runs from its first to its last calendar day, leap Februaries inc
   expect(period.lastDay(p("2026-02"))).toBe("2026-02-28");
   expect(period.lastDay(p("2028-02"))).toBe("2028-02-29");
 });
+
+test("a billing day past the end of the month is the month's last day", () => {
+  const p = period.parsePeriod;
+  expect(period.day(p("2026-10"), 31)).toBe("2026-10-31");
+  expect(period.day(p("2026-09"), 31)).toBe("2026-09-30");
+  expect(period.day(p("2026-02"), 31)).toBe("2026-02-28");
+  expect(period.day(p("2028-02"), 30)).toBe("2028-02-29");
+  expect(period.day(p("2026-10"), 1)).toBe("2026-10-01");
+});

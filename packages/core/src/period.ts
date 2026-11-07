@@ -45,3 +45,8 @@ function daysInMonth(p: Period): number {
 
 export const firstDay = (p: Period): CalendarDate => `${p}-01` as CalendarDate;
 export const lastDay = (p: Period): CalendarDate => `${p}-${pad(daysInMonth(p), 2)}` as CalendarDate;
+
+/** Day `n` of the period, clamped: the 31st in a 30-day month is the 30th. */
+export function day(p: Period, n: number): CalendarDate {
+  return `${p}-${pad(Math.min(n, daysInMonth(p)), 2)}` as CalendarDate;
+}
