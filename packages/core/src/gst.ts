@@ -10,5 +10,7 @@ import { type Toea, toea } from "./money.js";
  * Computed in integers as floor((amount * 10 + 50) / 100): never amount * 0.1.
  */
 export function gstOn(amount: Toea): Toea {
-  return toea(Math.floor((amount * 10 + 50) / 100));
+  const onMagnitude = Math.floor((Math.abs(amount) * 10 + 50) / 100);
+  // A credit mirrors the charge it reverses. "+ 0" turns -0 into 0.
+  return toea(amount < 0 ? -onMagnitude + 0 : onMagnitude);
 }

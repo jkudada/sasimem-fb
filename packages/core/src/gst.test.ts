@@ -13,3 +13,9 @@ test("GST rounds half a toea up, in integers", () => {
   expect(gst.gstOn(toea(15))).toBe(2);
   expect(gst.gstOn(toea(14))).toBe(1);
 });
+
+test("GST on a credit mirrors GST on the charge, rounding half away from zero", () => {
+  expect(gst.gstOn(toea(-5))).toBe(-1);
+  expect(gst.gstOn(toea(-4))).toBe(0);
+  expect(gst.gstOn(toea(-240_000))).toBe(-24_000);
+});
