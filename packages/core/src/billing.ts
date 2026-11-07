@@ -115,8 +115,17 @@ export function periodsToDraft({ org, tenancies, runPeriods, now }: DraftingRequ
   return [thisMonth, nextPeriod(thisMonth)].filter((period) => {
     if (runPeriods.includes(period)) return false; // the tick never redrafts a run that exists
     if (!tenancies.some((t) => isActiveIn(t, period))) return false;
-    const send = sendAt({ org, tenancies, period });
-    return now.getTime() >= send.getTime() - leadMs && now.getTime() <= send.getTime();
+    const send = sendAt({ org, tenancies, period }).getTime();
+    if (now.getTime() < send - leadMs) return false; // too early: the landlord need not think about it yet
+    if (now.getTime() > send) {
+      // The send time has passed. If the org was already billing before this month,
+      // that is a scheduler outage: draft it, so the tick holds it and the landlord
+      // hears. With no earlier run it is onboarding, and conjuring a held batch for
+      // a month already invoiced by hand would be noise. "Earlier", not "any": next
+      // month's run must not make this month look like history.
+      return runPeriods.some((r) => r < period);
+    }
+    return true;
   });
 }
 

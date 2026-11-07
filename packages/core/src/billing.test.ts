@@ -196,4 +196,8 @@ describe("which months the tick drafts", () => {
   test("a month with no active tenancy is not drafted", () => {
     expect(due("2026-09-28T00:00:00Z", [], [aTenancy().starting("2027-01-01").build()])).toEqual([]);
   });
+
+  test("after a scheduler outage, a landlord who was already billing gets the missed month drafted (and so held)", () => {
+    expect(due("2026-09-27T23:00:00Z", ["2026-08"])).toEqual(["2026-09", "2026-10"]);
+  });
 });
