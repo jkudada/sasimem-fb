@@ -80,3 +80,28 @@ export interface DraftInvoice extends Totals {
 
 export type RunStatus = "draft" | "awaitingApproval" | "approved" | "sent" | "held" | "cancelled";
 export type InvoiceStatus = "draft" | "excluded" | "approved" | "sent" | "paid" | "void";
+
+/** The org's profile: what the landlord sets in onboarding and settings. */
+export interface OrgProfile {
+  readonly name: string;
+  readonly address: string;
+  readonly email: string;
+  readonly gstRegistered: boolean;
+  readonly gstNumber: string;
+  readonly bankName: string;
+  readonly bankAccount: string;
+  readonly invoicePrefix: string;
+  readonly timezone: string;
+  readonly approvalLeadDays: number;
+  readonly sendHour: number;
+  readonly reminderAfterDays: number;
+  readonly reminderMode: ReminderMode;
+}
+
+/** createOrg's input: the profile plus where invoice numbering starts (plan §4, A3). */
+export interface OrgSetup extends OrgProfile {
+  readonly firstInvoiceNumber: number;
+}
+
+/** Field name → plain-English problem. Empty when everything is fine. */
+export type Problems<F extends string> = Partial<Record<F, string>>;
