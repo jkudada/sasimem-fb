@@ -30,6 +30,10 @@ service cloud.firestore {
       return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
     }
 
+    function validTenancy(d) {
+      return wholeIn(d.rentToea, 0, 1000000000);
+    }
+
     match /orgs/{orgId} {
       allow read: if isMember(orgId);
 
@@ -45,7 +49,7 @@ service cloud.firestore {
 
       match /tenancies/{tenancyId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId);
+        allow create: if isOwner(orgId) && validTenancy(request.resource.data);
       }
     }
   }

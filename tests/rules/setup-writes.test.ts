@@ -39,3 +39,11 @@ test("a property with an unknown use type, no units or extra fields is refused; 
   await assertFails(addDoc(tenants, { name: "Kila Trading", email: "kila", phone: "" }));
   await assertFails(addDoc(tenants, { name: "", email: "a@b.example", phone: "" }));
 });
+
+test("a tenancy whose rent is not a whole number of toea is refused (I7)", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { rentToea: 1200.5 })));
+  await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { rentToea: "1200" })));
+  await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { rentToea: -1 })));
+});
