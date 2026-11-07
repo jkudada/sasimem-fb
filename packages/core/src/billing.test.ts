@@ -61,3 +61,10 @@ describe("drafting one tenancy's invoice", () => {
     });
   });
 });
+
+test("the issue date is the billing day clamped to the month, and the due date follows the tenancy's terms", () => {
+  const tenancy = aTenancy().billedOn(31).dueIn(14).build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: parsePeriod("2026-02") });
+  expect(invoice.issueDate).toBe("2026-02-28");
+  expect(invoice.dueDate).toBe("2026-03-14");
+});
