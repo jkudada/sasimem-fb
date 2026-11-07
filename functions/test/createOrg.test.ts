@@ -24,6 +24,15 @@ describe("createOrg", () => {
     expect((await getAuth().getUser(uid)).customClaims).toEqual({ orgIds: [orgId] });
   });
 
+  test("a second call by the same user returns the same organisation and creates nothing new (one org per user, safe to retry)", async () => {
+    const uid = await newUser();
+    const first = await createOrg.run(request(uid, typedOrg));
+    const second = await createOrg.run(request(uid, { ...typedOrg, name: "Another Name" }));
+    expect(second.orgId).toBe(first.orgId);
+    expect((await adminDb().doc(`orgs/${first.orgId}`).get()).get("name")).toBe("Wari Holdings");
+    expect((await adminDb().doc(`users/${uid}`).get()).data()).toEqual({ orgIds: [first.orgId] });
+  });
+
   test("refuses an invalid profile with core's plain-English message, and writes nothing", async () => {
     const uid = await newUser();
     await expect(createOrg.run(request(uid, { ...typedOrg, gstRegistered: true, gstNumber: "" }))).rejects.toMatchObject({

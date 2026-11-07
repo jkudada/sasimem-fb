@@ -10,12 +10,16 @@ export async function createOrgFor(uid: string, setup: OrgSetup, now: Date): Pro
   const firestore = db();
   const orgRef = firestore.collection("orgs").doc();
   const { firstInvoiceNumber, ...profile } = setup;
-  await firestore.runTransaction(async (tx) => {
+  const userRef = firestore.doc(`users/${uid}`);
+  return firestore.runTransaction(async (tx) => {
+    // One organisation per user (product §5). A retried or doubled call gets the same org back.
+    const existing = (await tx.get(userRef)).get("orgIds") as string[] | undefined;
+    if (existing !== undefined && existing[0] !== undefined) return existing[0];
     tx.create(orgRef, { ...profile, createdAt: now });
     tx.create(orgRef.collection("members").doc(uid), { role: "owner", addedAt: now });
     // A landlord who already issued INV-0141 by hand continues at INV-0142 (plan A3).
     tx.create(orgRef.collection("private").doc("counter"), { nextInvoiceNumber: firstInvoiceNumber });
-    tx.set(firestore.doc(`users/${uid}`), { orgIds: [orgRef.id] });
+    tx.create(userRef, { orgIds: [orgRef.id] });
+    return orgRef.id;
   });
-  return orgRef.id;
 }
