@@ -204,4 +204,8 @@ describe("which months the tick drafts", () => {
   test("a landlord onboarding on the 28th is not billed for September, whose send time is already gone", () => {
     expect(due("2026-09-27T23:00:00Z")).toEqual(["2026-10"]);
   });
+
+  test("next month's run does not make this month look like history", () => {
+    expect(due("2026-09-27T23:00:00Z", ["2026-10"])).toEqual([]);
+  });
 });
