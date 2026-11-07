@@ -45,3 +45,7 @@ test("only an invoice that reached the tenant can be chased", () => {
 test("an invoice whose reminders the landlord paused is left alone", () => {
   expect(billing.reminderDue({ invoice: { ...sent, remindersPaused: true }, org, now: onTheDay })).toBe(false);
 });
+
+test("an invoice is reminded at most once, ever (I8)", () => {
+  expect(billing.reminderDue({ invoice: { ...sent, remindedAt: onTheDay }, org, now: new Date("2026-12-01T00:00:00Z") })).toBe(false);
+});
