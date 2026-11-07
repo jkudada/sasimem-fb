@@ -144,3 +144,12 @@ test("a new tenancy document copies its tenant's name and its property's address
   });
   expect(() => setup.newTenancyDocument({ propertyId: "p1", property, unitId: "nope", tenantId: "t1", tenant: { name: "K", email: "a@k.example", phone: "" }, terms })).toThrow(RangeError);
 });
+
+test("the profile Settings edits has the organisation's rules, without the first invoice number", () => {
+  const { firstInvoiceNumber: _, ...profile } = validOrg;
+  expect(setup.profileProblems(profile)).toEqual({});
+  expect(setup.profileProblems({ ...profile, gstRegistered: true }).gstNumber).toBe(
+    "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.",
+  );
+  expect(setup.profileProblems({ ...profile, sendHour: 24 }).sendHour).toBe("Choose an hour from 0 to 23.");
+});

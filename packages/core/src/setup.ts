@@ -6,24 +6,34 @@
 import { gstNumberProblem } from "./gst.js";
 import { amountProblem } from "./money.js";
 import { type CalendarDate, parseCalendarDate } from "./period.js";
-import type { OrgSetup, Problems, PropertyInput, TenancyDocument, TenancyInput, TenantInput } from "./types.js";
+import { tenancyCopies } from "./tenancies.js";
+import type { OrgProfile, OrgSetup, Problems, PropertyInput, TenancyDocument, TenancyInput, TenantInput } from "./types.js";
 
 export const MAX_NAME = 100;
 
-export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
-  const p: Problems<keyof OrgSetup> = {};
+/** The details Settings edits (everything but where numbering starts). */
+export function profileProblems(org: OrgProfile): Problems<keyof OrgProfile> {
+  const p: Problems<keyof OrgProfile> = {};
   if (org.name.trim() === "") p.name = "Enter the name that goes on your invoices.";
   else if (org.name.length > MAX_NAME) p.name = `Keep the name to ${MAX_NAME} characters or fewer.`;
   if (!looksLikeEmail(org.email)) p.email = EMAIL_PROBLEM;
   const gst = gstNumberProblem(org);
   if (gst !== null) p.gstNumber = gst;
   if (org.invoicePrefix.length > 10) p.invoicePrefix = "Keep the prefix to 10 characters or fewer.";
-  if (!wholeIn(org.firstInvoiceNumber, 1, Number.MAX_SAFE_INTEGER)) {
-    p.firstInvoiceNumber = "Enter the number your next invoice should have, such as 1 or 142.";
-  }
   if (!wholeIn(org.sendHour, 0, 23)) p.sendHour = "Choose an hour from 0 to 23.";
   if (!wholeIn(org.approvalLeadDays, 1, 28)) p.approvalLeadDays = "Choose from 1 to 28 days.";
   if (!wholeIn(org.reminderAfterDays, 0, 60)) p.reminderAfterDays = "Choose from 0 to 60 days.";
+  return p;
+}
+
+export const firstInvoiceNumberProblem = (n: number): string | null =>
+  wholeIn(n, 1, Number.MAX_SAFE_INTEGER) ? null : "Enter the number your next invoice should have, such as 1 or 142.";
+
+export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
+  const { firstInvoiceNumber, ...profile } = org;
+  const p: Problems<keyof OrgSetup> = profileProblems(profile);
+  const first = firstInvoiceNumberProblem(firstInvoiceNumber);
+  if (first !== null) p.firstInvoiceNumber = first;
   return p;
 }
 
@@ -117,10 +127,7 @@ export function newTenancyDocument(req: {
     propertyId: req.propertyId,
     unitId: unit.id,
     tenantId: req.tenantId,
-    tenantName: req.tenant.name,
-    unitLabel: unit.label,
-    propertyAddress: req.property.address,
-    useType: req.property.useType,
+    ...tenancyCopies({ unitId: unit.id, unitLabel: unit.label }, req.property, req.tenant),
     ...req.terms,
     referenceCode: req.terms.referenceCode.toUpperCase(),
     invoiced: false,
