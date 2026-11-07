@@ -193,3 +193,30 @@ export function markUnpaid(invoice: PaymentState): PaymentState {
 
 /** "INV-0142": the prefix and the number, zero-padded to four digits (never truncated). */
 export const invoiceNumber = (prefix: string, n: number): string => `${prefix}${String(n).padStart(4, "0")}`;
+
+export interface NumberingCandidate {
+  readonly id: string;
+  readonly tenancyId: string;
+  readonly tenantName: string;
+  readonly status: InvoiceStatus;
+}
+
+export interface Allocation {
+  readonly numbers: readonly { readonly invoiceId: string; readonly number: string }[];
+  readonly nextNumber: number;
+}
+
+/**
+ * Give out numbers to a run's invoices at approval, in a stable order: tenant name,
+ * then tenancy id (plain code-unit order, so it never depends on locale data).
+ * Pure: the approval transaction writes the result.
+ */
+export function allocateNumbers(req: { prefix: string; nextNumber: number; invoices: readonly NumberingCandidate[] }): Allocation {
+  const byName = (a: NumberingCandidate, b: NumberingCandidate): number =>
+    compare(a.tenantName, b.tenantName) || compare(a.tenancyId, b.tenancyId);
+  const ordered = [...req.invoices].sort(byName);
+  const numbers = ordered.map((inv, i) => ({ invoiceId: inv.id, number: invoiceNumber(req.prefix, req.nextNumber + i) }));
+  return { numbers, nextNumber: req.nextNumber + numbers.length };
+}
+
+const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);

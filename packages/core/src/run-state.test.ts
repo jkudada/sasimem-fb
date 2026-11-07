@@ -95,4 +95,24 @@ describe("invoice numbers", () => {
     expect(billing.invoiceNumber("INV-", 142)).toBe("INV-0142");
     expect(billing.invoiceNumber("WR/", 12345)).toBe("WR/12345");
   });
+
+  test("numbers are given in sequence from the counter, by tenant name and then tenancy id", () => {
+    const allocation = billing.allocateNumbers({
+      prefix: "INV-",
+      nextNumber: 142,
+      invoices: [
+        { id: "t3_2026-10", tenancyId: "t3", tenantName: "Peter Wari", status: "draft" },
+        { id: "t2_2026-10", tenancyId: "t2", tenantName: "Kila Trading", status: "draft" },
+        { id: "t1_2026-10", tenancyId: "t1", tenantName: "Kila Trading", status: "draft" },
+      ],
+    });
+    expect(allocation).toEqual({
+      numbers: [
+        { invoiceId: "t1_2026-10", number: "INV-0142" },
+        { invoiceId: "t2_2026-10", number: "INV-0143" },
+        { invoiceId: "t3_2026-10", number: "INV-0144" },
+      ],
+      nextNumber: 145,
+    });
+  });
 });
