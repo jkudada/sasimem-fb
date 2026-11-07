@@ -105,3 +105,14 @@ test("a credit is a negative charge and reduces the total", () => {
   expect(invoice.subtotalToea).toBe(100_000);
   expect(invoice.totalToea).toBe(100_000);
 });
+
+test("on commercial space a charge inherits GST, and an exempt override is honoured", () => {
+  const tenancy = aTenancy()
+    .commercial()
+    .withCharge(aCharge("Power").amount("K100").build())
+    .withCharge(aCharge("Bond interest").amount("K10").treatment("exempt").build())
+    .build();
+  const invoice = billing.draftInvoice({ org: anOrg().gstRegistered().build(), tenancy, period: OCT });
+  expect(invoice.lines[1]).toMatchObject({ gstApplicable: true, gstToea: 1_000 });
+  expect(invoice.lines[2]).toMatchObject({ gstApplicable: false, gstToea: 0 });
+});
