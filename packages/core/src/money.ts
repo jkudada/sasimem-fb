@@ -32,7 +32,15 @@ export function parseKina(text: string): Toea {
 
 /** K1,200.50 - thousands commas, always two places of toea. */
 export function formatKina(amount: Toea): string {
-  const kina = Math.trunc(amount / TOEA_PER_KINA);
-  const cents = amount % TOEA_PER_KINA;
-  return `K${kina.toLocaleString("en-US")}.${String(cents).padStart(2, "0")}`;
+  const sign = amount < 0 ? "-" : "";
+  const magnitude = Math.abs(amount);
+  const kina = Math.trunc(magnitude / TOEA_PER_KINA);
+  const cents = magnitude % TOEA_PER_KINA;
+  return `${sign}K${groupThousands(kina)}.${String(cents).padStart(2, "0")}`;
+}
+
+// Grouped by hand rather than with toLocaleString, so the output never depends
+// on the ICU data a browser or Node build happens to ship.
+function groupThousands(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }

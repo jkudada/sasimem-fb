@@ -65,3 +65,8 @@ test("formatKina shows zero and small amounts with a leading zero", () => {
   expect(formatKina(toea(5))).toBe("K0.05");
   expect(formatKina(toea(100))).toBe("K1.00");
 });
+
+test("formatKina puts the minus sign before the K on a credit", () => {
+  expect(formatKina(toea(-5_000))).toBe("-K50.00");
+  expect(formatKina(toea(-5))).toBe("-K0.05");
+});
