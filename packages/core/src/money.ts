@@ -16,6 +16,9 @@ export function toea(n: number): Toea {
 /** Read an amount the way a landlord types it. */
 export function parseKina(text: string): Toea {
   const cleaned = text.replace(/[K,\s]/g, "");
-  const whole = /^\d+$/.exec(cleaned)?.[0];
-  return toea(whole === undefined ? 0 : Number(whole) * TOEA_PER_KINA);
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(cleaned);
+  if (match === null) return toea(0);
+  const whole = Number(match[1] || "0");
+  const fraction = Number(((match[2] ?? "") + "00").slice(0, 2));
+  return toea(whole * TOEA_PER_KINA + fraction);
 }

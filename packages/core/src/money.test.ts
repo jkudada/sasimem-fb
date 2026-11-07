@@ -25,3 +25,9 @@ test("parseKina strips the K, thousands commas and whitespace a landlord types",
   expect(parseKina("K1,200")).toBe(120_000);
   expect(parseKina(" 1 200 ")).toBe(120_000);
 });
+
+test("parseKina reads toea after the decimal point, with one or two places", () => {
+  expect(parseKina("K1,200.50")).toBe(120_050);
+  expect(parseKina("237.5")).toBe(23_750);
+  expect(parseKina(".75")).toBe(75);
+});
