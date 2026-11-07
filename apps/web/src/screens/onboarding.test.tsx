@@ -51,4 +51,23 @@ describe("onboarding: your first tenant", () => {
     expect(await screen.findByText("That is more than K10,000,000.00. Check the amount.")).toBeTruthy();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  test("a complete form sends the property, tenant and terms, with the rent in toea and the start date defaulting to today", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(null);
+    render(<TenancyStep today={today} onSubmit={onSubmit} />);
+    type(/property address/i, "Lot 9, Gordons");
+    fireEvent.click(screen.getByLabelText(/a business uses it/i));
+    type(/unit name/i, "Shop 1");
+    type(/tenant's name/i, "Kila Trading");
+    type(/tenant's email/i, "accounts@kila.example");
+    type(/monthly rent/i, "K2,400.50");
+    type(/day of the month/i, "5");
+    type(/payment reference/i, "KILA");
+    fireEvent.click(screen.getByRole("button", { name: "Save and finish" }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      property: { address: "Lot 9, Gordons", useType: "commercial", units: [{ id: "u1", label: "Shop 1" }] },
+      tenant: { name: "Kila Trading", email: "accounts@kila.example", phone: "" },
+      terms: { rentToea: 240_050, startDate: "2026-09-20", endDate: null, billingDay: 5, dueDays: 7, referenceCode: "KILA" },
+    });
+  });
 });
