@@ -80,3 +80,74 @@ export interface DraftInvoice extends Totals {
 
 export type RunStatus = "draft" | "awaitingApproval" | "approved" | "sent" | "held" | "cancelled";
 export type InvoiceStatus = "draft" | "excluded" | "approved" | "sent" | "paid" | "void";
+
+/** The org's profile: what the landlord sets in onboarding and settings. */
+export interface OrgProfile {
+  readonly name: string;
+  readonly address: string;
+  readonly email: string;
+  readonly gstRegistered: boolean;
+  readonly gstNumber: string;
+  readonly bankName: string;
+  readonly bankAccount: string;
+  readonly invoicePrefix: string;
+  readonly timezone: string;
+  readonly approvalLeadDays: number;
+  readonly sendHour: number;
+  readonly reminderAfterDays: number;
+  readonly reminderMode: ReminderMode;
+}
+
+/** createOrg's input: the profile plus where invoice numbering starts (plan §4, A3). */
+export interface OrgSetup extends OrgProfile {
+  readonly firstInvoiceNumber: number;
+}
+
+/** Field name → plain-English problem. Empty when everything is fine. */
+export type Problems<F extends string> = Partial<Record<F, string>>;
+
+export interface Unit {
+  readonly id: string;
+  readonly label: string;
+}
+
+export interface PropertyInput {
+  readonly address: string;
+  readonly useType: UseType;
+  readonly units: readonly Unit[];
+}
+
+export interface TenantInput {
+  readonly name: string;
+  readonly email: string;
+  readonly phone: string;
+}
+
+/** A tenancy's terms as typed: dates are still text until validated. */
+export interface TenancyInput {
+  readonly rentToea: Toea;
+  readonly startDate: string;
+  readonly endDate: string | null;
+  readonly billingDay: number;
+  readonly dueDays: number;
+  readonly referenceCode: string;
+}
+
+/** A tenancy as stored (plan §4), with its denormalised copies. */
+export interface TenancyDocument {
+  readonly propertyId: string;
+  readonly unitId: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly unitLabel: string;
+  readonly propertyAddress: string;
+  readonly useType: UseType;
+  readonly rentToea: Toea;
+  readonly startDate: string;
+  readonly endDate: string | null;
+  readonly billingDay: number;
+  readonly dueDays: number;
+  readonly referenceCode: string;
+  readonly invoiced: boolean;
+  readonly extras: readonly Charge[];
+}

@@ -1,10 +1,10 @@
 # Pre-push: fast checks only, never emulators (plan §9.4). Target < 30 s.
+# T1 runs first and alone: its 100 ms per-test alarm measures wall time, and
+# running it beside typecheck and lint inflated a 60 ms test to 118 ms.
 pre-push:
-  parallel: true
+  piped: true
   commands:
-    typecheck:
-      run: pnpm typecheck
-    lint:
-      run: pnpm lint
-    unit:
+    1_unit:
       run: pnpm test:unit
+    2_typecheck_and_lint:
+      run: pnpm exec concurrently --kill-others-on-fail --raw "pnpm typecheck" "pnpm lint"

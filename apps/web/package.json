@@ -13,14 +13,25 @@
   "size-limit": [
     {
       "name": "sign-in route (JS, gzip)",
-      "path": "dist/assets/*.js",
+      "path": [
+        "dist/assets/index-*.js",
+        "dist/assets/SignIn-*.js",
+        "dist/assets/Field-*.js"
+      ],
       "limit": "70 KB",
+      "gzip": true
+    },
+    {
+      "name": "signed-in app shell (all JS, gzip)",
+      "path": "dist/assets/*.js",
+      "limit": "160 KB",
       "gzip": true
     }
   ],
   "dependencies": {
     "@preact/signals": "^2.11.4",
     "@sasimem/core": "workspace:*",
+    "firebase": "^13.2.0",
     "preact": "^11.2.0",
     "preact-iso": "^2.12.2"
   },

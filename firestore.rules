@@ -1,10 +1,121 @@
 rules_version = '2';
-// Step 1: closed. Step 2 opens member reads and validated setup writes (plan §5),
-// test-first in tests/rules.
+// Plan §5. Reads: members of an org. Writes: owners, for setup data only, validated
+// field by field. Everything touching money, numbering, approval or sending is
+// written by Cloud Functions through the Admin SDK and is closed here (I9).
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    function signedIn() { return request.auth != null; }
+    function isMember(orgId) {
+      return signedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+    function isOwner(orgId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
+    }
+
+    // Field validation mirrors core's setup.ts limits (docs/test-lists/step-2.md).
+    function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function wholeIn(v, min, max) { return v is int && v >= min && v <= max; }
+    function exactly(d, keys) { return d.keys().hasOnly(keys) && d.keys().hasAll(keys); }
+    function email(v) { return str(v, 3, 200) && v.matches('^[^\\s@]+@[^\\s@]+[.][^\\s@]+$'); }
+
+    function validProperty(d) {
+      return exactly(d, ['address', 'useType', 'units'])
+        && str(d.address, 1, 200)
+        && d.useType in ['residential', 'commercial']
+        && d.units is list && d.units.size() >= 1 && d.units.size() <= 50;
+    }
+
+    function PROFILE_FIELDS() {
+      return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
+              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode'];
+    }
+
+    function validProfile(d) {
+      return str(d.name, 1, 100) && str(d.address, 0, 200) && email(d.email)
+        && d.gstRegistered is bool && str(d.gstNumber, 0, 30)
+        && !(d.gstRegistered && d.gstNumber.trim().size() == 0) // printed on every tax invoice
+        && str(d.bankName, 0, 100) && str(d.bankAccount, 0, 50)
+        && str(d.invoicePrefix, 0, 10) && str(d.timezone, 1, 64)
+        && wholeIn(d.approvalLeadDays, 1, 28) && wholeIn(d.sendHour, 0, 23) && wholeIn(d.reminderAfterDays, 0, 60)
+        && d.reminderMode in ['auto', 'off'];
+    }
+
+    function validTenant(d) {
+      return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
+    }
+
+    function validExtra(e) {
+      return e is map
+        && exactly(e, ['id', 'description', 'amountToea', 'recurrence', 'period', 'active', 'gstTreatment'])
+        && str(e.id, 1, 64) && str(e.description, 1, 100)
+        && wholeIn(e.amountToea, -1000000000, 1000000000)
+        && e.recurrence in ['every', 'one']
+        && (e.period == null || (e.period is string && e.period.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')))
+        && e.active is bool
+        && e.gstTreatment in ['inherit', 'taxable', 'exempt'];
+    }
+    // Rules cannot loop, so the (at most 10) charges are checked by index.
+    function extraOk(xs, i) { return xs.size() <= i || validExtra(xs[i]); }
+    function validExtras(xs) {
+      return xs is list && xs.size() <= 10
+        && extraOk(xs, 0) && extraOk(xs, 1) && extraOk(xs, 2) && extraOk(xs, 3) && extraOk(xs, 4)
+        && extraOk(xs, 5) && extraOk(xs, 6) && extraOk(xs, 7) && extraOk(xs, 8) && extraOk(xs, 9);
+    }
+
+    function date(v) { return v is string && v.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'); }
+
+    // The copies a tenancy carries (plan §4) must be true when it is created.
+    function copiesMatch(orgId, d) {
+      // getAfter, so a property, tenant and tenancy created in one batch are checked together.
+      let tenant = getAfter(/databases/$(database)/documents/orgs/$(orgId)/tenants/$(d.tenantId)).data;
+      let property = getAfter(/databases/$(database)/documents/orgs/$(orgId)/properties/$(d.propertyId)).data;
+      return d.tenantName == tenant.name
+        && d.propertyAddress == property.address
+        && d.useType == property.useType
+        && {'id': d.unitId, 'label': d.unitLabel} in property.units;
+    }
+
+    function validTenancy(d) {
+      return wholeIn(d.rentToea, 0, 1000000000) && validExtras(d.extras)
+        && wholeIn(d.billingDay, 1, 31) && wholeIn(d.dueDays, 0, 90)
+        && exactly(d, ['propertyId', 'unitId', 'tenantId', 'tenantName', 'unitLabel', 'propertyAddress', 'useType',
+                       'rentToea', 'startDate', 'endDate', 'billingDay', 'dueDays', 'referenceCode', 'invoiced', 'extras'])
+        && str(d.propertyId, 1, 128) && str(d.unitId, 1, 128) && str(d.tenantId, 1, 128)
+        && date(d.startDate) && (d.endDate == null || (date(d.endDate) && d.endDate >= d.startDate))
+        && d.referenceCode is string && d.referenceCode.matches('^[A-Za-z0-9]{1,12}$')
+        && d.invoiced is bool;
+    }
+
+    match /orgs/{orgId} {
+      allow read: if isMember(orgId);
+      allow update: if isOwner(orgId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
+        && validProfile(request.resource.data);
+
+      match /properties/{propertyId} {
+        allow read: if isMember(orgId);
+        allow create: if isOwner(orgId) && validProperty(request.resource.data);
+      }
+
+      match /tenants/{tenantId} {
+        allow read: if isMember(orgId);
+        allow create: if isOwner(orgId) && validTenant(request.resource.data);
+      }
+
+      match /tenancies/{tenancyId} {
+        allow read: if isMember(orgId);
+        allow create: if isOwner(orgId) && validTenancy(request.resource.data)
+          && request.resource.data.invoiced == false
+          && copiesMatch(orgId, request.resource.data);
+        // invoiced is server-set; the copies are kept true by a trigger (step 3), and
+        // re-pointing a tenancy at another tenant or unit means a new tenancy.
+        allow update: if isOwner(orgId) && validTenancy(request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+               ['invoiced', 'propertyId', 'unitId', 'tenantId', 'tenantName', 'unitLabel', 'propertyAddress', 'useType']);
+        // A billed tenancy is ended (endDate), never deleted (plan §4).
+        allow delete: if isOwner(orgId) && resource.data.invoiced == false;
+      }
     }
   }
 }
