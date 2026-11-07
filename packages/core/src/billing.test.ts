@@ -98,3 +98,10 @@ test("additional charges keep the order the landlord added them in", () => {
   const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
   expect(invoice.lines.map((l) => l.description)).toEqual(["Rent - Flat 2", "Water", "Power", "Levy"]);
 });
+
+test("a credit is a negative charge and reduces the total", () => {
+  const tenancy = aTenancy().withRent("K1,200").withCharge(aCharge("Credit for repairs").amount("-K200").onlyIn("2026-10").build()).build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
+  expect(invoice.subtotalToea).toBe(100_000);
+  expect(invoice.totalToea).toBe(100_000);
+});
