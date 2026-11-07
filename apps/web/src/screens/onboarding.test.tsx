@@ -15,4 +15,22 @@ describe("onboarding: your details", () => {
     expect(await screen.findByText("A GST-registered landlord must enter their GST number: it is printed on every tax invoice.")).toBeTruthy();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  test("the next invoice number starts at 1, explains itself, and is sent with the details", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(null);
+    render(<OrgStep defaultEmail="mary@wari.example" onSubmit={onSubmit} />);
+    const first = screen.getByLabelText(/number for your next invoice/i) as HTMLInputElement;
+    expect(first.value).toBe("1");
+    expect(screen.getByText(/already sent invoices by hand/i)).toBeTruthy();
+    type(/name on your invoices/i, "Wari Holdings");
+    type(/your address/i, "Boroko");
+    type(/bank name/i, "BSP");
+    type(/bank account/i, "1000 2345");
+    type(/number for your next invoice/i, "142");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: "Wari Holdings", address: "Boroko", email: "mary@wari.example", gstRegistered: false, gstNumber: "",
+      bankName: "BSP", bankAccount: "1000 2345", firstInvoiceNumber: 142,
+    });
+  });
 });
