@@ -1,0 +1,128 @@
+# The merge path (plan §9.4). Every job starts at once; target <= 5 min wall clock,
+# hard cap 8. Each tier's test step carries its own hard cap from plan §9.2, and a
+# tier that exceeds it fails. All jobs are required checks on main.
+name: PR
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+
+jobs:
+  lint:
+    name: lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Lint
+        run: pnpm lint
+        timeout-minutes: 2
+      - name: Typecheck
+        run: pnpm typecheck
+        timeout-minutes: 2
+
+  unit:
+    name: T1 + T1p (unit, property)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: T1 unit, with coverage floors
+        run: pnpm test:unit --coverage
+        timeout-minutes: 1
+      - name: T1p property (200 runs per property, seed logged)
+        run: pnpm test:prop
+        timeout-minutes: 1
+
+  rules:
+    name: T2 rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          emulators: "true"
+      - name: T2 rules on the Firestore emulator
+        run: pnpm ci:rules
+        timeout-minutes: 3
+
+  integration:
+    name: T3 integration (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          emulators: "true"
+      # --passWithNoTests only because a shard can be empty while T3 is small;
+      # it never hides a test - every file lands in exactly one shard.
+      - name: T3 on the Firestore, Auth and Storage emulators
+        run: >-
+          pnpm exec firebase emulators:exec --project demo-sasimem --only auth,firestore,storage
+          "pnpm exec vitest run --project integration --slowTestThreshold 2000 --shard=${{ matrix.shard }}/3 --passWithNoTests"
+        timeout-minutes: 5
+
+  build:
+    name: build + size budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build the web app
+        run: pnpm build:web
+        timeout-minutes: 2
+      - name: Size budgets (plan §7)
+        run: pnpm size
+        timeout-minutes: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 1
+
+  e2e:
+    name: T4 e2e (shard ${{ matrix.shard }}/2)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium
+      # The four journeys arrive with the features they cover (steps 2-6); until then
+      # the job proves the pipeline. --pass-with-no-tests never hides a written test.
+      - name: T4 Chromium at 360 x 740
+        run: pnpm e2e --shard=${{ matrix.shard }}/2 --pass-with-no-tests
+        timeout-minutes: 6

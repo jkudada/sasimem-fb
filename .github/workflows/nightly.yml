@@ -1,0 +1,88 @@
+# Off the merge path: quality without the wait (plan §9.4). A failure opens an
+# issue and blocks the next production deploy, not merges.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 15 * * *" # 01:00 Port Moresby
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+
+jobs:
+  mutation:
+    name: Mutation testing (core >= 80%, money.ts and gst.ts 100%)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/cache@v4
+        with:
+          path: packages/core/reports/stryker-incremental.json
+          key: stryker-${{ github.sha }}
+          restore-keys: stryker-
+      - run: pnpm mutation
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: packages/core/reports/mutation
+
+  property:
+    name: Property tests at 10,000 runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # The seed is the run ID, logged by the setup file, so any failure replays exactly.
+      - run: pnpm test:prop
+        env:
+          FC_NUM_RUNS: "10000"
+          FC_SEED: ${{ github.run_id }}
+
+  e2e-matrix:
+    name: E2E matrix (Chromium, WebKit, Firefox at 360 px)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:web
+      - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium webkit firefox
+      - run: pnpm e2e --pass-with-no-tests
+        env:
+          E2E_ALL_BROWSERS: "1"
+
+  flake-detector:
+    name: Flake detector (T3 5x, shuffled)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          emulators: "true"
+      - run: >-
+          pnpm exec firebase emulators:exec --project demo-sasimem --only auth,firestore,storage
+          "for i in 1 2 3 4 5; do pnpm exec vitest run --project integration --sequence.shuffle || exit 1; done"
+
+  report:
+    name: Open an issue on failure
+    needs: [mutation, property, e2e-matrix, flake-detector]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh issue create --repo "$GITHUB_REPOSITORY"
+          --title "Nightly failed: $(date -u +%F)"
+          --body "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. This blocks the next production deploy (plan §9.4)."
