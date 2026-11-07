@@ -24,6 +24,10 @@ describe("createOrg", () => {
     expect((await getAuth().getUser(uid)).customClaims).toEqual({ orgIds: [orgId] });
   });
 
+  test("refuses a caller who is not signed in", async () => {
+    await expect(createOrg.run(request(null, typedOrg))).rejects.toMatchObject({ code: "unauthenticated", message: "Sign in first." });
+  });
+
   test("seeds the server-only counter from the first invoice number, 1 unless the landlord says otherwise", async () => {
     const fresh = await createOrg.run(request(await newUser(), typedOrg));
     expect((await adminDb().doc(`orgs/${fresh.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 1 });
