@@ -19,6 +19,9 @@ export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
   if (!wholeIn(org.firstInvoiceNumber, 1, Number.MAX_SAFE_INTEGER)) {
     p.firstInvoiceNumber = "Enter the number your next invoice should have, such as 1 or 142.";
   }
+  if (!wholeIn(org.sendHour, 0, 23)) p.sendHour = "Choose an hour from 0 to 23.";
+  if (!wholeIn(org.approvalLeadDays, 1, 28)) p.approvalLeadDays = "Choose from 1 to 28 days.";
+  if (!wholeIn(org.reminderAfterDays, 0, 60)) p.reminderAfterDays = "Choose from 0 to 60 days.";
   return p;
 }
 

@@ -49,3 +49,12 @@ test("the invoice prefix is at most 10 characters, and numbering starts at a who
   }
   expect(setup.orgProblems({ ...validOrg, firstInvoiceNumber: 142 }).firstInvoiceNumber).toBeUndefined();
 });
+
+test("send hour is 0-23, approval lead 1-28 days and reminder delay 0-60 days, in whole numbers", () => {
+  expect(setup.orgProblems({ ...validOrg, sendHour: 24 }).sendHour).toBe("Choose an hour from 0 to 23.");
+  expect(setup.orgProblems({ ...validOrg, sendHour: 7.5 }).sendHour).toBe("Choose an hour from 0 to 23.");
+  expect(setup.orgProblems({ ...validOrg, approvalLeadDays: 0 }).approvalLeadDays).toBe("Choose from 1 to 28 days.");
+  expect(setup.orgProblems({ ...validOrg, approvalLeadDays: 29 }).approvalLeadDays).toBe("Choose from 1 to 28 days.");
+  expect(setup.orgProblems({ ...validOrg, reminderAfterDays: 61 }).reminderAfterDays).toBe("Choose from 0 to 60 days.");
+  expect(setup.orgProblems({ ...validOrg, sendHour: 0, approvalLeadDays: 28, reminderAfterDays: 0 })).toEqual({});
+});
