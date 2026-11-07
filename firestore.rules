@@ -73,6 +73,7 @@ service cloud.firestore {
 
     match /orgs/{orgId} {
       allow read: if isMember(orgId);
+      allow update: if isOwner(orgId);
 
       match /properties/{propertyId} {
         allow read: if isMember(orgId);
