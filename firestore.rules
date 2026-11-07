@@ -94,6 +94,8 @@ service cloud.firestore {
         allow update: if isOwner(orgId) && validTenancy(request.resource.data)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
                ['invoiced', 'propertyId', 'unitId', 'tenantId', 'tenantName', 'unitLabel', 'propertyAddress', 'useType']);
+        // A billed tenancy is ended (endDate), never deleted (plan §4).
+        allow delete: if isOwner(orgId) && resource.data.invoiced == false;
       }
     }
   }

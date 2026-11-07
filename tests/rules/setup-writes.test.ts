@@ -1,5 +1,5 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { addDoc, collection, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, test } from "vitest";
 import { seedOrg, validTenancy } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
@@ -112,4 +112,21 @@ test("an owner cannot change invoiced, the tenancy's links, or its copied fields
     { useType: "commercial" }, { tenantId: "t2" }, { propertyId: "p2" }, { unitId: "u2" }]) {
     await assertFails(updateDoc(ref, change));
   }
+});
+
+test("an owner can delete a tenancy that was never invoiced", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const ref = await addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test("an invoiced tenancy can never be deleted: it is ended instead", async () => {
+  const s = await seedOrg(env);
+  const path = `orgs/${s.orgId}/tenancies/billed`;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), path), validTenancy(s, { invoiced: true }));
+  });
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  await assertFails(deleteDoc(doc(owner, path)));
 });
