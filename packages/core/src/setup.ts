@@ -77,5 +77,6 @@ export function tenancyProblems(tenancy: TenancyInput): Problems<keyof TenancyIn
   if (start === null) p.startDate = DATE_PROBLEM;
   if (tenancy.endDate !== null && end === null) p.endDate = DATE_PROBLEM;
   else if (start !== null && end !== null && end < start) p.endDate = "The end date is before the start date.";
+  if (!/^[A-Za-z0-9]{1,12}$/.test(tenancy.referenceCode)) p.referenceCode = "Use 1 to 12 letters or numbers, such as WARI.";
   return p;
 }

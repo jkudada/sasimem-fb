@@ -109,4 +109,11 @@ describe("tenancies", () => {
     expect(setup.tenancyProblems({ ...valid, endDate: "2025-12-31" }).endDate).toBe("The end date is before the start date.");
     expect(setup.tenancyProblems({ ...valid, endDate: "2026-01-01" }).endDate).toBeUndefined();
   });
+
+  test("the payment reference code is 1 to 12 letters or digits, since tenants type it at the bank", () => {
+    for (const bad of ["", "WARI KILA", "WARI-", "ABCDEFGHIJKLM"]) {
+      expect(setup.tenancyProblems({ ...valid, referenceCode: bad }).referenceCode, bad).toBe("Use 1 to 12 letters or numbers, such as WARI.");
+    }
+    expect(setup.tenancyProblems({ ...valid, referenceCode: "flat2b" }).referenceCode).toBeUndefined();
+  });
 });
