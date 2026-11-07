@@ -49,3 +49,7 @@ test("an invoice whose reminders the landlord paused is left alone", () => {
 test("an invoice is reminded at most once, ever (I8)", () => {
   expect(billing.reminderDue({ invoice: { ...sent, remindedAt: onTheDay }, org, now: new Date("2026-12-01T00:00:00Z") })).toBe(false);
 });
+
+test("an organisation can turn reminders off entirely", () => {
+  expect(billing.reminderDue({ invoice: sent, org: anOrg().remindersOff().build(), now: onTheDay })).toBe(false);
+});
