@@ -32,3 +32,8 @@ test("a line marked exempt carries no GST, even on commercial space", () => {
 test("a line marked taxable carries GST, even on residential space", () => {
   expect(gst.isTaxable({ orgGstRegistered: true, useType: "residential", treatment: "taxable" })).toBe(true);
 });
+
+test("a line that inherits is taxable on commercial space and exempt on residential", () => {
+  expect(gst.isTaxable({ orgGstRegistered: true, useType: "commercial", treatment: "inherit" })).toBe(true);
+  expect(gst.isTaxable({ orgGstRegistered: true, useType: "residential", treatment: "inherit" })).toBe(false);
+});
