@@ -30,7 +30,7 @@ test("an owner cannot change createdAt or add fields, nor be GST-registered with
   await assertFails(updateDoc(org, { reminderMode: "sometimes" }));
 });
 
-test("a member's stranger cannot update the organisation at all", async () => {
+test("a stranger cannot update someone else's organisation at all", async () => {
   const s = await seedOrg(env);
   await assertFails(updateDoc(doc(env.authenticatedContext("stranger").firestore(), `orgs/${s.orgId}`), { name: "Mine now" }));
 });
