@@ -5,4 +5,5 @@ export * from "./period.js";
 export * from "./billing.js";
 export * from "./setup.js";
 export * from "./tenancies.js";
+export * from "./approval.js";
 export type * from "./types.js";

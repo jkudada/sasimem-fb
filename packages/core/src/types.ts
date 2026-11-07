@@ -151,3 +151,40 @@ export interface TenancyDocument {
   readonly invoiced: boolean;
   readonly extras: readonly Charge[];
 }
+
+/** What an invoice prints, frozen at approval (plan §4). Later edits never reach it. */
+export interface InvoiceSnapshot {
+  readonly org: {
+    readonly name: string;
+    readonly address: string;
+    readonly email: string;
+    readonly logoPath: string | null;
+    readonly gstRegistered: boolean;
+    readonly gstNumber: string;
+    readonly bankName: string;
+    readonly bankAccount: string;
+  };
+  readonly tenantName: string;
+  readonly tenantEmail: string;
+  readonly unitLabel: string;
+  readonly propertyAddress: string;
+}
+
+/** An invoice as stored at orgs/{orgId}/invoices/{tenancyId}_{period} (plan §4). Server-written only. */
+export interface InvoiceDocument extends DraftInvoice {
+  readonly tenantId: string;
+  /** Copied at drafting, for the review screens and numbering order; the snapshot is what prints. */
+  readonly tenantName: string;
+  readonly unitLabel: string;
+  readonly status: InvoiceStatus;
+  /** Integer part of the number; null until approval. */
+  readonly numberSeq: number | null;
+  readonly number: string | null;
+  readonly snapshot: InvoiceSnapshot | null;
+  readonly pdfPath: string;
+  readonly sentAt: Date | null;
+  readonly paidAt: Date | null;
+  readonly paidNote: string;
+  readonly remindedAt: Date | null;
+  readonly remindersPaused: boolean;
+}
