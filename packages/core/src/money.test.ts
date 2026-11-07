@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatKina, parseKina, toea } from "./money.js";
+import { MAX_EDITABLE_TOEA, amountProblem, formatKina, parseKina, toea } from "./money.js";
 
 describe("toea", () => {
   test("accepts an integer number of toea", () => {
@@ -69,4 +69,12 @@ test("formatKina shows zero and small amounts with a leading zero", () => {
 test("formatKina puts the minus sign before the K on a credit", () => {
   expect(formatKina(toea(-5_000))).toBe("-K50.00");
   expect(formatKina(toea(-5))).toBe("-K0.05");
+});
+
+test("an amount above K10,000,000.00 is a validation message, and the limit itself is fine", () => {
+  expect(MAX_EDITABLE_TOEA).toBe(1_000_000_000);
+  expect(amountProblem(toea(1_000_000_000))).toBeNull();
+  expect(amountProblem(toea(-1_000_000_000))).toBeNull();
+  expect(amountProblem(toea(1_000_000_001))).toBe("That is more than K10,000,000.00. Check the amount.");
+  expect(amountProblem(toea(-1_000_000_001))).toBe("That is more than K10,000,000.00. Check the amount.");
 });

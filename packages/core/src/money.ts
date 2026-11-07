@@ -44,3 +44,14 @@ export function formatKina(amount: Toea): string {
 function groupThousands(n: number): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
+
+/** K10,000,000.00 - the largest amount a landlord may type (plan §3.1). */
+export const MAX_EDITABLE_TOEA = 1_000_000_000;
+
+/** A plain-English problem with an amount the landlord typed, or null. Not an error. */
+export function amountProblem(amount: Toea): string | null {
+  if (Math.abs(amount) > MAX_EDITABLE_TOEA) {
+    return `That is more than ${formatKina(toea(MAX_EDITABLE_TOEA))}. Check the amount.`;
+  }
+  return null;
+}
