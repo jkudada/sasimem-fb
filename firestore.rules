@@ -67,8 +67,9 @@ service cloud.firestore {
 
     // The copies a tenancy carries (plan §4) must be true when it is created.
     function copiesMatch(orgId, d) {
-      let tenant = get(/databases/$(database)/documents/orgs/$(orgId)/tenants/$(d.tenantId)).data;
-      let property = get(/databases/$(database)/documents/orgs/$(orgId)/properties/$(d.propertyId)).data;
+      // getAfter, so a property, tenant and tenancy created in one batch are checked together.
+      let tenant = getAfter(/databases/$(database)/documents/orgs/$(orgId)/tenants/$(d.tenantId)).data;
+      let property = getAfter(/databases/$(database)/documents/orgs/$(orgId)/properties/$(d.propertyId)).data;
       return d.tenantName == tenant.name
         && d.propertyAddress == property.address
         && d.useType == property.useType

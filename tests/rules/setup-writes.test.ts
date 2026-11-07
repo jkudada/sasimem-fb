@@ -1,5 +1,5 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { addDoc, collection, deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { afterAll, beforeAll, test } from "vitest";
 import { seedOrg, validTenancy } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
@@ -129,4 +129,18 @@ test("an invoiced tenancy can never be deleted: it is ended instead", async () =
   });
   const owner = env.authenticatedContext(s.ownerUid).firestore();
   await assertFails(deleteDoc(doc(owner, path)));
+});
+
+test("onboarding can create a property, its tenant and the tenancy together in one batch", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const org = `orgs/${s.orgId}`;
+  const batch = writeBatch(owner);
+  batch.set(doc(owner, `${org}/properties/p-new`), { address: "Lot 9, Gordons", useType: "commercial", units: [{ id: "u9", label: "Shop 1" }] });
+  batch.set(doc(owner, `${org}/tenants/t-new`), { name: "Kila Trading", email: "accounts@kila.example", phone: "" });
+  batch.set(doc(owner, `${org}/tenancies/x-new`), validTenancy(s, {
+    propertyId: "p-new", unitId: "u9", tenantId: "t-new", tenantName: "Kila Trading", unitLabel: "Shop 1",
+    propertyAddress: "Lot 9, Gordons", useType: "commercial",
+  }));
+  await assertSucceeds(batch.commit());
 });
