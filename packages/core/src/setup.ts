@@ -80,3 +80,19 @@ export function tenancyProblems(tenancy: TenancyInput): Problems<keyof TenancyIn
   if (!/^[A-Za-z0-9]{1,12}$/.test(tenancy.referenceCode)) p.referenceCode = "Use 1 to 12 letters or numbers, such as WARI.";
   return p;
 }
+
+/** What onboarding asks for; everything else has a default (plan §4). */
+export type OrgSetupInput = Pick<OrgSetup, "name" | "address" | "email" | "gstRegistered" | "gstNumber" | "bankName" | "bankAccount">
+  & Partial<OrgSetup>;
+
+export const ORG_DEFAULTS = {
+  invoicePrefix: "INV-",
+  timezone: "Pacific/Port_Moresby",
+  approvalLeadDays: 3,
+  sendHour: 8,
+  reminderAfterDays: 7,
+  reminderMode: "auto",
+  firstInvoiceNumber: 1,
+} as const satisfies Partial<OrgSetup>;
+
+export const withOrgDefaults = (input: OrgSetupInput): OrgSetup => ({ ...ORG_DEFAULTS, ...input });

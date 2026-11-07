@@ -117,3 +117,18 @@ describe("tenancies", () => {
     expect(setup.tenancyProblems({ ...valid, referenceCode: "flat2b" }).referenceCode).toBeUndefined();
   });
 });
+
+test("a new organisation starts with the plan's defaults for everything onboarding does not ask", () => {
+  const typed = { name: "Wari Holdings", address: "Boroko", email: "mary@wari.example", gstRegistered: false, gstNumber: "", bankName: "BSP", bankAccount: "1000" };
+  expect(setup.withOrgDefaults(typed)).toEqual({
+    ...typed,
+    invoicePrefix: "INV-",
+    timezone: "Pacific/Port_Moresby",
+    approvalLeadDays: 3,
+    sendHour: 8,
+    reminderAfterDays: 7,
+    reminderMode: "auto",
+    firstInvoiceNumber: 1,
+  });
+  expect(setup.withOrgDefaults({ ...typed, firstInvoiceNumber: 142, invoicePrefix: "WR-" })).toMatchObject({ firstInvoiceNumber: 142, invoicePrefix: "WR-" });
+});
