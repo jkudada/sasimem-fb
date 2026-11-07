@@ -155,3 +155,11 @@ export const releaseDue = (run: ScheduledRun, now: Date): boolean =>
 /** Tick step 4: a run not approved by its send time is held, never sent. */
 export const holdDue = (run: ScheduledRun, now: Date): boolean =>
   run.status === "awaitingApproval" && now.getTime() >= run.sendAt.getTime();
+
+export type ApprovalOutcome = "approve" | "alreadyApproved" | "refused";
+
+/** What an approval attempt should do, given the run's current status (§6.3 step 1). */
+export function approvalOutcome(status: RunStatus): ApprovalOutcome {
+  if (status === "approved" || status === "sent") return "alreadyApproved";
+  return "approve";
+}

@@ -38,3 +38,10 @@ describe("what the tick does to a run", () => {
     }
   });
 });
+
+describe("approving a run", () => {
+  test("approving a run that is already approved or sent changes nothing (I4: two taps, two tabs)", () => {
+    expect(billing.approvalOutcome("approved")).toBe("alreadyApproved");
+    expect(billing.approvalOutcome("sent")).toBe("alreadyApproved");
+  });
+});
