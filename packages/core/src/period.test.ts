@@ -80,3 +80,8 @@ test("a calendar date is a real YYYY-MM-DD date", () => {
     expect(() => period.parseCalendarDate(bad), bad).toThrow(SyntaxError);
   }
 });
+
+test("a calendar date reads as the landlord would write it: 1 October 2026", () => {
+  expect(period.dateLabel(period.parseCalendarDate("2026-10-01"))).toBe("1 October 2026");
+  expect(period.dateLabel(period.parseCalendarDate("2027-02-28"))).toBe("28 February 2027");
+});

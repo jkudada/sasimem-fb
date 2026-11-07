@@ -1,6 +1,6 @@
 // Bundle the Functions source with @sasimem/core compiled in, because Cloud
 // Functions installs dependencies from npm and cannot see a workspace package.
-// firebase-admin and firebase-functions stay external and are installed normally.
+// firebase-admin, firebase-functions, pdfkit and sharp stay external and are installed normally.
 import { build } from "esbuild";
 
 await build({
@@ -11,6 +11,7 @@ await build({
   target: "node22",
   format: "esm",
   sourcemap: true,
-  external: ["firebase-admin", "firebase-functions"],
+  // pdfkit reads its font metrics from its package folder, and sharp is native: both installed normally.
+  external: ["firebase-admin", "firebase-functions", "pdfkit", "sharp"],
   logLevel: "info",
 });
