@@ -88,3 +88,13 @@ test("a one-month charge appears in its month with no detail line", () => {
   const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
   expect(invoice.lines[1]).toMatchObject({ description: "Lock repair", detail: "", amountToea: 8_000 });
 });
+
+test("additional charges keep the order the landlord added them in", () => {
+  const tenancy = aTenancy()
+    .withCharge(aCharge("Water").build())
+    .withCharge(aCharge("Power").build())
+    .withCharge(aCharge("Levy").build())
+    .build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
+  expect(invoice.lines.map((l) => l.description)).toEqual(["Rent - Flat 2", "Water", "Power", "Levy"]);
+});
