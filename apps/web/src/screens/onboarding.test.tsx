@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/preact";
+import type { CalendarDate } from "@sasimem/core";
 import { describe, expect, test, vi } from "vitest";
 import { OrgStep } from "./OrgStep.js";
+import { TenancyStep } from "./TenancyStep.js";
 
 const type = (label: RegExp, value: string) => fireEvent.input(screen.getByLabelText(label), { target: { value } });
 
@@ -32,5 +34,21 @@ describe("onboarding: your details", () => {
       name: "Wari Holdings", address: "Boroko", email: "mary@wari.example", gstRegistered: false, gstNumber: "",
       bankName: "BSP", bankAccount: "1000 2345", firstInvoiceNumber: 142,
     });
+  });
+});
+
+describe("onboarding: your first tenant", () => {
+  const today = "2026-09-20" as CalendarDate;
+
+  test("the rent is read the way a landlord types it, and a mistyped or huge amount is a message, not a save", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(null);
+    render(<TenancyStep today={today} onSubmit={onSubmit} />);
+    type(/monthly rent/i, "twelve hundred");
+    fireEvent.click(screen.getByRole("button", { name: "Save and finish" }));
+    expect(await screen.findByText("Enter an amount like K1,200.00.")).toBeTruthy();
+    type(/monthly rent/i, "K20,000,000");
+    fireEvent.click(screen.getByRole("button", { name: "Save and finish" }));
+    expect(await screen.findByText("That is more than K10,000,000.00. Check the amount.")).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
