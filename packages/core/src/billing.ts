@@ -73,6 +73,7 @@ export function draftInvoice({ org, tenancy, period }: DraftRequest): DraftInvoi
  * a privately agreed figure). Only the rent line changes; charges stay as configured.
  */
 export function withRent(invoice: DraftInvoice, rentToea: Toea): DraftInvoice {
+  if (rentToea < 0) throw new RangeError("rent cannot be negative");
   const lines = invoice.lines.map((l) =>
     l.kind === "rent" ? { ...l, amountToea: rentToea, gstToea: l.gstApplicable ? gstOn(rentToea) : toea(0) } : l,
   );

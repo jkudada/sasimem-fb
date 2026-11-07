@@ -136,3 +136,8 @@ describe("a manual rent override for one month", () => {
     expect(edited).toMatchObject({ subtotalToea: 160_000, gstToea: 16_000, totalToea: 176_000 });
   });
 });
+
+test("a negative rent is refused: a credit is a separate charge", () => {
+  const draft = billing.draftInvoice({ org: anOrg().build(), tenancy: aTenancy().build(), period: OCT });
+  expect(() => billing.withRent(draft, parseKina("-1"))).toThrow(RangeError);
+});
