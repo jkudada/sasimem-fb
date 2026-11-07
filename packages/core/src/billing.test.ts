@@ -116,3 +116,11 @@ test("on commercial space a charge inherits GST, and an exempt override is honou
   expect(invoice.lines[1]).toMatchObject({ gstApplicable: true, gstToea: 1_000 });
   expect(invoice.lines[2]).toMatchObject({ gstApplicable: false, gstToea: 0 });
 });
+
+test("an unregistered landlord letting commercial space charges no GST and issues an INVOICE", () => {
+  const tenancy = aTenancy().commercial().withCharge(aCharge("Power").treatment("taxable").build()).build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
+  expect(invoice.gstToea).toBe(0);
+  expect(invoice.lines.every((l) => !l.gstApplicable)).toBe(true);
+  expect(invoice.documentTitle).toBe("INVOICE");
+});
