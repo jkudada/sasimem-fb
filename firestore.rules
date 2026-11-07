@@ -68,7 +68,8 @@ service cloud.firestore {
 
       match /tenancies/{tenancyId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId) && validTenancy(request.resource.data);
+        allow create: if isOwner(orgId) && validTenancy(request.resource.data)
+          && request.resource.data.invoiced == false;
       }
     }
   }

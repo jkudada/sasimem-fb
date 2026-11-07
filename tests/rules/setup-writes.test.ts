@@ -68,3 +68,9 @@ test("a tenancy billed on day 0 or day 32 is refused", async () => {
   await assertFails(addDoc(tenancies, validTenancy(s, { dueDays: 91 })));
   await assertSucceeds(addDoc(tenancies, validTenancy(s, { billingDay: 31, dueDays: 0 })));
 });
+
+test("a tenancy cannot be created marked invoiced: only the server sets that", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { invoiced: true })));
+});
