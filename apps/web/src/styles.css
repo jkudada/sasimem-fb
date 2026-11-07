@@ -1,0 +1,24 @@
+/* Plain CSS with tokens, mobile-first (plan §7). Works at 320 px; tap targets >= 44 px. */
+:root {
+  --ink: #1c2321; --muted: #5b6662; --line: #c9d1ce; --paper: #fbfbf9; --accent: #0d6b4f; --problem: #a3261b;
+  --gap: 16px; --radius: 8px; --tap: 44px;
+  font: 16px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+.narrow { max-width: 32rem; margin: 0 auto; padding: var(--gap); }
+h1 { font-size: 1.5rem; margin: 0.5rem 0 1rem; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+form { display: grid; gap: var(--gap); }
+.field { display: grid; gap: 4px; }
+.field-label { font-weight: 600; }
+.field-hint, .note { color: var(--muted); font-size: 0.9rem; }
+.field-problem, [role="alert"] { color: var(--problem); font-size: 0.95rem; }
+input:not([type="checkbox"]):not([type="radio"]) { min-height: var(--tap); padding: 8px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius); width: 100%; }
+.check { display: flex; gap: 12px; align-items: center; min-height: var(--tap); }
+.check input { width: 22px; height: 22px; }
+fieldset { border: 0; padding: 0; margin: 0; }
+button { min-height: var(--tap); padding: 0 20px; font: inherit; font-weight: 600; border: 0; border-radius: var(--radius); background: var(--accent); color: #fff; width: 100%; }
+button.quiet { background: transparent; color: var(--accent); margin-top: 8px; }
+button:disabled { opacity: 0.6; }
+a { color: var(--accent); }
