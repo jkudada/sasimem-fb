@@ -16,11 +16,13 @@ export function toea(n: number): Toea {
 /** Read an amount the way a landlord types it. */
 export function parseKina(text: string): Toea {
   const cleaned = text.replace(/[K,\s]/g, "");
-  const match = /^(\d*)(?:\.(\d*))?$/.exec(cleaned);
+  const match = /^(-?)(\d*)(?:\.(\d*))?$/.exec(cleaned);
   if (match === null) return toea(0);
-  const whole = Number(match[1] || "0");
-  const digits = match[2] ?? "";
+  const sign = match[1] === "-" ? -1 : 1;
+  const whole = Number(match[2] || "0");
+  const digits = match[3] ?? "";
   const fraction = Number((digits + "00").slice(0, 2));
   const roundUp = (digits[2] ?? "0") >= "5" ? 1 : 0;
-  return toea(whole * TOEA_PER_KINA + fraction + roundUp);
+  // Round the magnitude, then apply the sign: half away from zero, as Decimal does.
+  return toea(sign * (whole * TOEA_PER_KINA + fraction + roundUp));
 }

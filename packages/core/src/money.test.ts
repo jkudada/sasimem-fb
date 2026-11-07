@@ -38,3 +38,9 @@ test("parseKina rounds half a toea up, not to even, and never drifts like float 
   expect(parseKina("0.0049")).toBe(0);
   expect(parseKina("1.005")).toBe(101); // 1.005 * 100 === 100.49999999999999 in floats
 });
+
+test("parseKina reads a minus sign as a credit, rounding half a toea away from zero", () => {
+  expect(parseKina("-50")).toBe(-5_000);
+  expect(parseKina("-K50.00")).toBe(-5_000);
+  expect(parseKina("-0.005")).toBe(-1);
+});
