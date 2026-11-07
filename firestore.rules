@@ -48,9 +48,17 @@ service cloud.firestore {
         && extraOk(xs, 5) && extraOk(xs, 6) && extraOk(xs, 7) && extraOk(xs, 8) && extraOk(xs, 9);
     }
 
+    function date(v) { return v is string && v.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'); }
+
     function validTenancy(d) {
       return wholeIn(d.rentToea, 0, 1000000000) && validExtras(d.extras)
-        && wholeIn(d.billingDay, 1, 31) && wholeIn(d.dueDays, 0, 90);
+        && wholeIn(d.billingDay, 1, 31) && wholeIn(d.dueDays, 0, 90)
+        && exactly(d, ['propertyId', 'unitId', 'tenantId', 'tenantName', 'unitLabel', 'propertyAddress', 'useType',
+                       'rentToea', 'startDate', 'endDate', 'billingDay', 'dueDays', 'referenceCode', 'invoiced', 'extras'])
+        && str(d.propertyId, 1, 128) && str(d.unitId, 1, 128) && str(d.tenantId, 1, 128)
+        && date(d.startDate) && (d.endDate == null || (date(d.endDate) && d.endDate >= d.startDate))
+        && d.referenceCode is string && d.referenceCode.matches('^[A-Za-z0-9]{1,12}$')
+        && d.invoiced is bool;
     }
 
     match /orgs/{orgId} {

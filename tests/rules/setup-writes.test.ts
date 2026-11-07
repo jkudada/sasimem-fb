@@ -74,3 +74,14 @@ test("a tenancy cannot be created marked invoiced: only the server sets that", a
   const owner = env.authenticatedContext(s.ownerUid).firestore();
   await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { invoiced: true })));
 });
+
+test("a tenancy with a malformed date, an end before its start, a bad reference code or an unknown field is refused", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const tenancies = collection(owner, `orgs/${s.orgId}/tenancies`);
+  await assertFails(addDoc(tenancies, validTenancy(s, { startDate: "1 Jan 2026" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { endDate: "2025-12-31" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { referenceCode: "WARI-1" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { totalOwedToea: 0 })));
+  await assertSucceeds(addDoc(tenancies, validTenancy(s, { endDate: "2026-12-31" })));
+});
