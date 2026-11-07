@@ -58,6 +58,10 @@ describe("the invoice PDF (plan §6.5)", () => {
     expect(Math.max(...(sizes[0] ?? [Infinity]))).toBeLessThanOrEqual(400);
   });
 
+  test("the same invoice always renders to the same bytes, so a lost upload race writes nothing different", async () => {
+    expect((await renderInvoicePdf(invoice(), null)).equals(await renderInvoicePdf(invoice(), null))).toBe(true);
+  });
+
   test("a WebP logo is converted, since PDF embeds only PNG and JPEG", async () => {
     const webp = await sharp({ create: { width: 50, height: 20, channels: 3, background: "#0d6b4f" } }).webp().toBuffer();
     const pdf = await renderInvoicePdf(invoice(), webp);

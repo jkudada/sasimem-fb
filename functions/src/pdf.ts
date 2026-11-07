@@ -1,6 +1,7 @@
 /**
  * The invoice PDF (plan §6.5): one A4 page, PDFKit's built-in Helvetica (no embedded
- * fonts), rendered only from the invoice's frozen snapshot. Pure: bytes in, bytes out.
+ * fonts), rendered only from the invoice's frozen snapshot. Pure and deterministic:
+ * the same invoice and logo always give the same bytes.
  * Budget ≤ 150 KB with a logo, so logos are downscaled to ≤ 400 px here.
  */
 import { type CalendarDate, type InvoiceDocument, type Toea, dateLabel, formatKina } from "@sasimem/core";
@@ -29,7 +30,11 @@ export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | 
   const k = (t: number) => formatKina(t as Toea);
   const date = (d: string) => dateLabel(d as CalendarDate);
 
-  const doc = new PDFDocument({ size: "A4", margin: 50, compress: opts.compress ?? true, info: { Title: `${invoice.documentTitle} ${invoice.number}`, Author: org.name } });
+  const doc = new PDFDocument({ size: "A4", margin: 50, compress: opts.compress ?? true, info: {
+    Title: `${invoice.documentTitle} ${invoice.number}`, Author: org.name,
+    // Fixed, so the same invoice always renders to the same bytes (see store/pdfs.ts).
+    CreationDate: new Date(`${invoice.issueDate}T00:00:00Z`),
+  } });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
