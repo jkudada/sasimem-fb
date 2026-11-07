@@ -10,6 +10,6 @@ test("the tick runs every hour, and a failed run is retried (plan §6.4)", () =>
 });
 
 test("every function that sends email can read the Resend key; the approval page also signs its forms", () => {
-  for (const name of ["tick", "draftNow", "reissueApproval"] as const) expect(secrets(name), name).toEqual(["RESEND_API_KEY"]);
+  for (const name of ["tick", "draftNow", "reissueApproval", "resendInvoice"] as const) expect(secrets(name), name).toEqual(["RESEND_API_KEY"]);
   expect(secrets("approvalPage")).toEqual(["APPROVAL_SIGNING_KEY", "RESEND_API_KEY"]);
 });

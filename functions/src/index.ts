@@ -8,6 +8,7 @@ import { OutboxMailer } from "./mail/mailer.js";
 import { ResendMailer } from "./mail/resend.js";
 import { APP_URL, APPROVAL_SIGNING_KEY, MAIL_FROM, RESEND_API_KEY } from "./params.js";
 import { makeTick } from "./tick.js";
+import { makePaymentCallables } from "./callables/payments.js";
 
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
@@ -24,3 +25,12 @@ export const draftNow = makeDraftNow(deps);
 export const reissueApproval = makeReissueApproval(deps);
 export const approvalPage = makeApprovalPage({ ...deps, signingKey: () => APPROVAL_SIGNING_KEY.value() });
 export const tick = makeTick(deps);
+
+const payments = makePaymentCallables(deps);
+export const markPaid = payments.markPaid;
+export const markUnpaid = payments.markUnpaid;
+export const pauseReminders = payments.pauseReminders;
+export const voidInvoice = payments.voidInvoice;
+export const invoicePdf = payments.invoicePdf;
+export const resendInvoice = payments.resendInvoice;
+export const exportCsv = payments.exportCsv;

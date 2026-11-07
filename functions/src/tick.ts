@@ -17,7 +17,7 @@ import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
 import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } from "./store/runs.js";
 import { RESEND_API_KEY } from "./params.js";
-import { holdRun, requestApproval } from "./store/tokens.js";
+import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
 
 export type TickDeps = NotifyDeps;
 
@@ -85,10 +85,11 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
       return;
     }
     tally.sent++;
+    if (outcome.invoices.length === 0) return; // everyone left out: nothing to send, nothing to track
     const failures = await sendToTenants(deps, run.orgId, outcome.invoices);
-    if (outcome.invoices.length > 0) {
-      await sendDispatch(deps, run.orgId, await orgOf(run.orgId), run.period, dispatchLines(outcome.invoices, failures));
-    }
+    const tracking = deps.newToken();
+    await mintTrackingToken(run.orgId, run.period, now, tracking);
+    await sendDispatch(deps, run.orgId, await orgOf(run.orgId), run.period, dispatchLines(outcome.invoices, failures), tracking);
     if (failures.size > 0) throw [...failures.values()][0];
   });
 

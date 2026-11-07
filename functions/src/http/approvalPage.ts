@@ -1,26 +1,30 @@
 /**
- * The approval page (plan §6.1): GET /a/{token}, POST /a/{token}, POST /a/{token}/fresh.
- * One server-rendered HTML page, inline CSS, no required JavaScript, ≤ 30 KB.
- * Nothing here can send: it can only move a run to approved; the tick releases it.
+ * The approval page (plan §6.1): GET/POST /a/{token}, POST /a/{token}/fresh, and after
+ * sending the tracking page (the same link), POST /a/{token}/paid, and GET /a/{token}/owed.
+ * Server-rendered HTML, inline CSS, no required JavaScript, ≤ 30 KB.
+ * Nothing here can send: it can only move a run to approved (the tick releases it) and
+ * tick invoices paid, which emails nobody.
  *
  * handleApproval is a plain request → response function so T3 can call it; the
  * onRequest wrapper in index.ts adapts it to Express.
  */
 import { createHash } from "node:crypto";
 import {
-  type InvoiceDocument, type Period, type RunStatus, type Toea,
-  formatKina, isEditable, periodLabel, readApprovalForm,
+  type CalendarDate, type InvoiceDocument, type Period, type RunStatus, type Toea,
+  arrears, dateLabel, formatKina, invoiceChip, isEditable, localDate, owedTotal, paidSummary, periodLabel, readApprovalForm,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import type { RunDeps } from "../callables/runs.js";
-import { sendFreshLink } from "../notify.js";
+import { sendFreshLink, sendFreshTrackingLink } from "../notify.js";
+import { Refused } from "../store/edits.js";
+import { setPaid, setUnpaid } from "../store/payments.js";
 import { checkNonce, makeNonce } from "../links.js";
 import { whenLabel } from "../mail/templates.js";
 import { approveRun } from "../store/approval.js";
 import { renderMissingPdfs } from "../store/pdfs.js";
 import { db } from "../admin.js";
 import { type OrgDoc, refs } from "../store/runs.js";
-import { lookupToken, replaceToken } from "../store/tokens.js";
+import { lookupToken, mintTrackingToken, replaceToken } from "../store/tokens.js";
 
 export interface PageDeps extends RunDeps {
   readonly signingKey: () => string;
@@ -41,33 +45,54 @@ export interface PageResponse {
 // ------------------------------------------------------------------ routing
 
 export async function handleApproval(req: PageRequest, deps: PageDeps): Promise<PageResponse> {
-  const match = /\/a\/([^/]+)(\/fresh)?\/?$/.exec(req.path);
+  const match = /\/a\/([^/]+)(?:\/(fresh|paid|owed))?\/?$/.exec(req.path);
   if (match === null) return page(404, "Not found", NOT_FOUND);
   const token = match[1] ?? "";
+  const action = match[2];
   const now = deps.now();
   const found = await lookupToken(token, now);
   if (found.state === "unknown") return page(404, "Link not recognised", NOT_FOUND);
 
   const nonceOk = () => checkNonce(deps.signingKey(), token, req.form["nonce"] ?? "", now);
+  const nonce = () => makeNonce(deps.signingKey(), token, now);
 
-  if (match[2] !== undefined) {
+  if (action === "fresh") {
     if (req.method !== "POST") return redirect(`/a/${token}`);
     if (!nonceOk()) return page(400, "Please try again", staleForm(token));
     return freshLinkRequested(found.orgId, found.period, now, deps);
   }
 
-  if (found.state === "dead") return page(410, "This link no longer works", deadLink(token, makeNonce(deps.signingKey(), token, now)));
+  if (found.state === "dead") return page(410, "This link no longer works", deadLink(token, nonce()));
+
+  if (action === "owed") return owedPage(found.orgId, token, nonce(), now);
+
+  if (action === "paid") {
+    if (req.method !== "POST") return redirect(`/a/${token}`);
+    if (!nonceOk()) return page(400, "Please try again", staleForm(token));
+    const id = req.form["invoice"] ?? "";
+    if (!/^[A-Za-z0-9_-]{1,140}$/.test(id)) return page(400, "Please try again", staleForm(token));
+    try {
+      const tick = { actor: "approval-link", now };
+      await (req.form["paid"] === "1" ? setPaid(found.orgId, id, { ...tick, note: "" }) : setUnpaid(found.orgId, id, tick));
+    } catch (e) {
+      if (!(e instanceof Refused)) throw e;
+      return page(409, "That did not change", `<h1>That did not change</h1><p>${esc(e.message)}</p><p><a href="/a/${esc(token)}">Back</a></p>`);
+    }
+    return redirect(req.form["back"] === "owed" ? `/a/${token}/owed` : `/a/${token}`);
+  }
+
   const view = await loadView(found.orgId, found.period);
+  if (view.status === "sent") return page(200, title(view), trackingPage(view, token, nonce(), localDate(now, view.org.timezone)));
   if (req.method === "POST") {
     if (!nonceOk()) return page(400, "Please try again", staleForm(token));
     if (!isEditable(view.status)) return redirect(`/a/${token}`);
     const read = readApprovalForm(req.form, view.editable.map((i) => i.id));
-    if (!read.ok) return page(422, title(view), runPage(view, token, makeNonce(deps.signingKey(), token, now), { typed: req.form, problems: read.problems }));
+    if (!read.ok) return page(422, title(view), runPage(view, token, nonce(), { typed: req.form, problems: read.problems }));
     await approveRun(found.orgId, found.period, { actor: "approval-link", now, edits: read });
     await renderMissingPdfs(found.orgId, found.period);
     return redirect(`/a/${token}`);
   }
-  return page(200, title(view), runPage(view, token, makeNonce(deps.signingKey(), token, now)));
+  return page(200, title(view), runPage(view, token, nonce()));
 }
 
 // ------------------------------------------------------------------ data
@@ -112,7 +137,11 @@ async function freshLinkRequested(orgId: string, period: Period, now: Date, deps
   });
   if (claimed) {
     const token = deps.newToken();
-    if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, orgId, org, period, token);
+    const status = (await r.run(period).get()).get("status") as RunStatus;
+    if (status === "sent") {
+      await mintTrackingToken(orgId, period, now, token);
+      await sendFreshTrackingLink(deps, orgId, org, period, token);
+    } else if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, orgId, org, period, token);
     else return page(200, "Nothing to approve", `<h1>Nothing to approve</h1><p>${esc(periodLabel(period))} is no longer waiting for approval.</p>`);
   }
   return page(200, "A new link is on its way", `<h1>Check your email</h1><p>A new link is on its way to ${esc(mask(org.email))}. It replaces every earlier link.</p>`);
@@ -139,7 +168,6 @@ function runPage(v: View, token: string, nonce: string, again?: { typed: PageReq
   const when = whenLabel(v.sendAt, v.org.timezone);
   const head = `<h1>${esc(periodLabel(v.period))} invoices</h1><p class="m">${esc(v.org.name)}</p>`;
   if (v.status === "approved") return `${head}<p class="ok">Approved - goes out at ${esc(when)}.</p>${numberedList(v)}`;
-  if (v.status === "sent") return `${head}<p class="ok">Sent to your tenants.</p>${numberedList(v)}`;
   if (v.status === "cancelled") return `${head}<p>This month's invoices were cancelled.</p>`;
 
   const lead = v.status === "held"
@@ -169,6 +197,39 @@ function row(inv: InvoiceDocument & { id: string }, again?: { typed: PageRequest
 <label class="c"><input type="checkbox" name="include.${esc(inv.id)}"${ticked ? " checked" : ""}> Invoice<span class="sr"> ${esc(inv.tenantName)}</span> this month</label>${extras.length > 0 ? `<p class="m">Plus ${k(other)} in other charges${inv.gstToea > 0 ? ", GST included" : ""}.</p>` : ""}</div>`;
 }
 
+type Issued = InvoiceDocument & { readonly id: string };
+
+/** One button that ticks an invoice paid, or takes the tick back. A form each: no JavaScript. */
+function paidForm(inv: Issued, token: string, nonce: string, back?: "owed"): string {
+  const paid = inv.status === "paid";
+  return `<form method="post" action="/a/${esc(token)}/paid"><input type="hidden" name="nonce" value="${esc(nonce)}"><input type="hidden" name="invoice" value="${esc(inv.id)}"><input type="hidden" name="paid" value="${paid ? 0 : 1}">${back === undefined ? "" : '<input type="hidden" name="back" value="owed">'}<button class="${paid ? "q" : ""}">${paid ? "Not paid after all" : "Mark paid"}<span class="sr"> - ${esc(inv.number ?? "")} ${esc(inv.tenantName)}</span></button></form>`;
+}
+
+function trackingPage(v: View, token: string, nonce: string, today: CalendarDate): string {
+  const issued = v.invoices.filter((i) => i.number !== null).sort((a, b) => (a.numberSeq ?? 0) - (b.numberSeq ?? 0));
+  const sum = paidSummary(issued);
+  const rows = issued.map((i) => {
+    const chip = invoiceChip(i, today);
+    const tickable = i.status === "sent" || i.status === "paid";
+    return `<div class="r"><p><b>${esc(i.number ?? "")}</b> · ${esc(i.tenantName)} · ${k(i.totalToea)}</p><p class="m">due ${esc(dateLabel(i.dueDate))} · <span class="${chip === "Paid" ? "ok" : chip === "Overdue" ? "w" : ""}">${chip}</span></p>${tickable ? paidForm(i, token, nonce) : ""}</div>`;
+  }).join("");
+  return `<h1>${esc(periodLabel(v.period))} invoices</h1><p class="m">${esc(v.org.name)} · sent to your tenants</p>
+<p class="tot">${sum.paid} of ${sum.issued} paid${sum.unpaidToea > 0 ? ` · ${k(sum.unpaidToea)} still unpaid` : ""}</p>${rows}
+<p><a href="/a/${esc(token)}/owed">Everything still owed, all months</a></p><p class="m">Ticking paid emails nobody.</p>`;
+}
+
+async function owedPage(orgId: string, token: string, nonce: string, now: Date): Promise<PageResponse> {
+  const r = refs(orgId);
+  const [org, sent] = await Promise.all([r.org.get(), r.org.collection("invoices").where("status", "==", "sent").get()]);
+  const o = org.data() as OrgDoc;
+  const today = localDate(now, o.timezone);
+  const groups = arrears(sent.docs.map((d) => ({ ...(d.data() as InvoiceDocument), id: d.id })));
+  const body = groups.map((g) => `<h2>${esc(g.tenantName)} · ${k(g.totalToea)}</h2>${g.invoices.map((i) =>
+    `<div class="r"><p><b>${esc(i.number ?? "")}</b> · ${esc(periodLabel(i.period))} · ${k(i.totalToea)}</p><p class="m">due ${esc(dateLabel(i.dueDate))} · ${invoiceChip(i, today)}</p>${paidForm(i, token, nonce, "owed")}</div>`).join("")}`).join("");
+  return page(200, `${o.name}: owed`, `<h1>Still owed</h1><p class="m">${esc(o.name)}</p>
+<p class="tot">${groups.length === 0 ? "Nothing owed. Every invoice sent has been paid." : `${k(owedTotal(groups))} owed`}</p>${body}<p class="m">Oldest debt first. Ticking paid emails nobody.</p>`);
+}
+
 function numberedList(v: View): string {
   const items = v.invoices.filter((i) => i.number !== null).map((i) => `<li>${esc(i.number ?? "")} · ${esc(i.tenantName)} · ${k(i.totalToea)}</li>`).join("");
   return items === "" ? "" : `<ul>${items}</ul>`;
@@ -179,7 +240,7 @@ const STYLE = `body{font:16px/1.45 system-ui,sans-serif;color:#1c2321;background
 h1{font-size:1.4rem;margin:.5rem 0}.m{color:#5b6662;font-size:.9rem}.r{border-bottom:1px solid #c9d1ce;padding:12px 0}.r p{margin:0 0 8px}
 label{display:block;margin:6px 0}input[inputmode]{display:block;width:100%;min-height:44px;padding:8px 12px;font:inherit;border:1px solid #c9d1ce;border-radius:8px;box-sizing:border-box}
 .c{display:flex;gap:12px;align-items:center;min-height:44px}.c input{width:22px;height:22px}.p,.w{color:#a3261b}.ok{color:#0d6b4f;font-weight:600}
-.tot{font-size:1.2rem;text-align:right}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}button{width:100%;min-height:48px;font:inherit;font-weight:600;border:0;border-radius:8px;background:#0d6b4f;color:#fff}`;
+.tot{font-size:1.2rem;text-align:right}h2{font-size:1.1rem;margin:1.2rem 0 0}form{margin:0}.r button{width:auto;min-height:44px;padding:0 16px}.q{background:#fff;color:#0d6b4f;border:1px solid #0d6b4f}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}button{width:100%;min-height:48px;font:inherit;font-weight:600;border:0;border-radius:8px;background:#0d6b4f;color:#fff}`;
 const SCRIPT = `(function(){var f=document.forms[0];if(!f)return;function t(s){s=s.replace(/[K,\\s]/g,"");return /^\\d*\\.?\\d*$/.test(s)&&s!==""?Math.round(parseFloat(s)*100):NaN}
 function u(){var n=0,ok=true;f.querySelectorAll("[data-g]").forEach(function(i){var c=i.closest(".r").querySelector("[type=checkbox]");if(!c.checked)return;var r=t(i.value);if(isNaN(r)){ok=false;return}
 n+=r+(i.dataset.g==="1"?Math.floor((r*10+50)/100):0)+Number(i.dataset.o)});var e=document.getElementById("tot");e.textContent=ok?"K"+(n/100).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,","):"-"}

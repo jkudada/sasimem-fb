@@ -51,6 +51,24 @@ export function freshLink(req: { to: string; orgName: string; period: Period; li
   };
 }
 
+export function freshTrackingLink(req: { to: string; orgName: string; period: Period; link: string }): Mail {
+  return {
+    to: req.to,
+    subject: `Your new link for ${periodLabel(req.period)}`,
+    text: [
+      `Hello ${req.orgName},`,
+      "",
+      `Here is a new link to see who has paid their ${periodLabel(req.period)} invoices, and to tick them paid:`,
+      req.link,
+      "",
+      "Everything still owed, across all months:",
+      `${req.link}/owed`,
+      "",
+      "These links work for 60 days. Do not forward them.",
+    ].join("\n"),
+  };
+}
+
 export function heldNotice(req: { to: string; orgName: string; period: Period; link: string; sendAt: Date; timezone: string }): Mail {
   return {
     to: req.to,
@@ -77,7 +95,7 @@ export interface DispatchLine {
   readonly sent: boolean;
 }
 
-export function dispatchNotice(req: { to: string; orgName: string; period: Period; lines: readonly DispatchLine[] }): Mail {
+export function dispatchNotice(req: { to: string; orgName: string; period: Period; lines: readonly DispatchLine[]; trackLink: string }): Mail {
   const sent = req.lines.filter((l) => l.sent);
   const failed = req.lines.filter((l) => !l.sent);
   const total = sent.reduce((t, l) => t + l.totalToea, 0) as Toea;
@@ -92,7 +110,15 @@ export function dispatchNotice(req: { to: string; orgName: string; period: Perio
       ...req.lines.map((l) => `${l.tenantName}: ${l.sent ? `${l.number}, ${formatKina(l.totalToea)}` : `not sent - check their email address (${l.number})`}`),
       "",
       `Total sent: ${formatKina(total)}`,
-      ...(failed.length > 0 ? ["", `${failed.length === 1 ? "One invoice was" : `${failed.length} invoices were`} not sent. Correct the email address, then send it from the invoices screen.`] : []),
+      ...(failed.length > 0 ? ["", `${failed.length === 1 ? "One invoice was" : `${failed.length} invoices were`} not sent. Correct the email address, then use "Email again" on the month's invoices in Sasimem.`] : []),
+      "",
+      "Tick each invoice paid as the money arrives:",
+      req.trackLink,
+      "",
+      "Everything still owed, across all months:",
+      `${req.trackLink}/owed`,
+      "",
+      "These links work for 60 days. Do not forward them.",
     ].join("\n"),
   };
 }
