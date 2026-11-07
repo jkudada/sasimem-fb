@@ -68,3 +68,10 @@ test("the issue date is the billing day clamped to the month, and the due date f
   expect(invoice.issueDate).toBe("2026-02-28");
   expect(invoice.dueDate).toBe("2026-03-14");
 });
+
+test("commercial rent for a registered landlord carries GST and makes a TAX INVOICE", () => {
+  const tenancy = aTenancy().commercial().withRent("K2,400").build();
+  const invoice = billing.draftInvoice({ org: anOrg().gstRegistered().build(), tenancy, period: OCT });
+  expect(invoice.lines[0]).toMatchObject({ gstApplicable: true, gstToea: 24_000 });
+  expect(invoice).toMatchObject({ subtotalToea: 240_000, gstToea: 24_000, totalToea: 264_000, documentTitle: "TAX INVOICE" });
+});

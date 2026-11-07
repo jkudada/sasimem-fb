@@ -2,9 +2,10 @@
  * Billing rules (plan §3.4-§3.6): drafting, scheduling, the state machine and
  * reminders. Pure functions over plain data; every time-dependent rule takes `now`.
  */
-import { toea } from "./money.js";
+import { documentTitle, gstOn, isTaxable } from "./gst.js";
+import { type Toea, toea } from "./money.js";
 import { addDays, day, firstDay, lastDay, type Period, periodLabel, shortCode } from "./period.js";
-import type { BillingOrg, Charge, DraftInvoice, Line, Tenancy, Totals } from "./types.js";
+import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
 export function isActiveIn(tenancy: Tenancy, period: Period): boolean {
@@ -43,11 +44,13 @@ export interface DraftRequest {
 }
 
 /** The invoice a tenancy should get for a period, from current tenancy data. */
-export function draftInvoice({ tenancy, period }: DraftRequest): DraftInvoice {
+export function draftInvoice({ org, tenancy, period }: DraftRequest): DraftInvoice {
   const issueDate = day(period, tenancy.billingDay);
-  const lines: Line[] = [
-    { kind: "rent", description: `Rent - ${tenancy.unitLabel}`, detail: rentDetail(period), amountToea: tenancy.rentToea, gstApplicable: false, gstToea: toea(0) },
-  ];
+  const line = (kind: LineKind, description: string, detail: string, amountToea: Toea, treatment: GstTreatment): Line => {
+    const gstApplicable = isTaxable({ orgGstRegistered: org.gstRegistered, useType: tenancy.useType, treatment });
+    return { kind, description, detail, amountToea, gstApplicable, gstToea: gstApplicable ? gstOn(amountToea) : toea(0) };
+  };
+  const lines: Line[] = [line("rent", `Rent - ${tenancy.unitLabel}`, rentDetail(period), tenancy.rentToea, "inherit")];
   return {
     tenancyId: tenancy.id,
     period,
@@ -56,6 +59,6 @@ export function draftInvoice({ tenancy, period }: DraftRequest): DraftInvoice {
     paymentReference: paymentReference(tenancy, period),
     lines,
     ...totals(lines),
-    documentTitle: "INVOICE",
+    documentTitle: documentTitle({ orgGstRegistered: org.gstRegistered, hasTaxableLine: lines.some((l) => l.gstApplicable) }),
   };
 }
