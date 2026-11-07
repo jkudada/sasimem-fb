@@ -42,3 +42,7 @@ test("an unknown treatment is an error, not a silent exemption", () => {
   const maybe = "maybe" as gst.TaxableQuestion["treatment"];
   expect(() => gst.isTaxable({ orgGstRegistered: true, useType: "commercial", treatment: maybe })).toThrow(TypeError);
 });
+
+test("the document is an INVOICE when no line is taxable", () => {
+  expect(gst.documentTitle({ orgGstRegistered: true, hasTaxableLine: false })).toBe("INVOICE");
+});

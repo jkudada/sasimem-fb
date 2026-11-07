@@ -37,3 +37,10 @@ export function isTaxable(q: TaxableQuestion): boolean {
       throw new TypeError(`unknown GST treatment: ${JSON.stringify(q.treatment satisfies never)}`);
   }
 }
+
+export type DocumentTitle = "INVOICE" | "TAX INVOICE";
+
+/** The words printed at the top of the page. */
+export function documentTitle(_: { readonly orgGstRegistered: boolean; readonly hasTaxableLine: boolean }): DocumentTitle {
+  return "INVOICE";
+}

@@ -16,6 +16,8 @@ export default tseslint.config(
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
+      // "_x" marks a parameter deliberately unused, e.g. a triangulation step that hard-codes its answer.
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-restricted-syntax": ["error", ...focusedOrSkipped],
     },
   },
