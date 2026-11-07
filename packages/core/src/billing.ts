@@ -4,7 +4,7 @@
  */
 import { documentTitle, gstOn, isTaxable } from "./gst.js";
 import { type Toea, toea } from "./money.js";
-import { addDays, day, firstDay, lastDay, type Period, periodLabel, shortCode } from "./period.js";
+import { addDays, day, firstDay, lastDay, type Period, periodLabel, shortCode, zonedInstant } from "./period.js";
 import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
@@ -85,4 +85,16 @@ export function chargeProblem(charge: Pick<Charge, "recurrence" | "period">): st
   if (charge.recurrence === "one" && charge.period === null) return "A one-month charge needs the month it applies to.";
   if (charge.recurrence === "every" && charge.period !== null) return "A recurring charge must not name a single month.";
   return null;
+}
+
+export interface ScheduleRequest {
+  readonly org: Pick<BillingOrg, "timezone" | "sendHour">;
+  readonly tenancies: readonly Tenancy[];
+  readonly period: Period;
+}
+
+/** When a period's approved batch goes out: the earliest active billing day at the send hour, landlord time. */
+export function sendAt({ org, tenancies, period }: ScheduleRequest): Date {
+  const days = tenancies.filter((t) => isActiveIn(t, period)).map((t) => t.billingDay);
+  return zonedInstant(day(period, Math.min(...days)), org.sendHour, org.timezone);
 }

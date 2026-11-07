@@ -149,3 +149,19 @@ test("a one-month charge needs its month, and a recurring charge must not name o
   expect(billing.chargeProblem({ ...base, recurrence: "one", period: OCT })).toBeNull();
   expect(billing.chargeProblem({ ...base, recurrence: "every", period: null })).toBeNull();
 });
+
+describe("when a month's batch is sent and drafted", () => {
+  // Port Moresby is UTC+10 with no daylight saving. October's batch, billed on the
+  // 1st at 08:00 local, goes out at 2026-09-30T22:00Z; with 3 lead days, drafting
+  // may start at 2026-09-27T22:00Z.
+  const org = anOrg().sendingAt(8).leadDays(3).build();
+
+  test("the batch goes out on the earliest billing day among active tenancies, at the send hour, landlord time", () => {
+    const tenancies = [
+      aTenancy().billedOn(5).build(),
+      aTenancy().billedOn(3).build(),
+      aTenancy().billedOn(1).ending("2026-09-30").build(), // ended: does not count
+    ];
+    expect(billing.sendAt({ org, tenancies, period: OCT }).toISOString()).toBe("2026-10-02T22:00:00.000Z");
+  });
+});
