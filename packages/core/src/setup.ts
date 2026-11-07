@@ -6,7 +6,7 @@
 import { gstNumberProblem } from "./gst.js";
 import { amountProblem } from "./money.js";
 import { type CalendarDate, parseCalendarDate } from "./period.js";
-import type { OrgSetup, Problems, PropertyInput, TenancyInput, TenantInput } from "./types.js";
+import type { OrgSetup, Problems, PropertyInput, TenancyDocument, TenancyInput, TenantInput } from "./types.js";
 
 export const MAX_NAME = 100;
 
@@ -96,3 +96,34 @@ export const ORG_DEFAULTS = {
 } as const satisfies Partial<OrgSetup>;
 
 export const withOrgDefaults = (input: OrgSetupInput): OrgSetup => ({ ...ORG_DEFAULTS, ...input });
+
+/**
+ * The document for a new tenancy. The copies of the tenant's name and the
+ * property's address, unit label and use come from here and nowhere else; the
+ * security rules check them against the originals. Reference codes are stored
+ * upper-case, as they are printed.
+ */
+export function newTenancyDocument(req: {
+  propertyId: string;
+  property: PropertyInput;
+  unitId: string;
+  tenantId: string;
+  tenant: TenantInput;
+  terms: TenancyInput;
+}): TenancyDocument {
+  const unit = req.property.units.find((u) => u.id === req.unitId);
+  if (unit === undefined) throw new RangeError(`no unit ${req.unitId} in this property`);
+  return {
+    propertyId: req.propertyId,
+    unitId: unit.id,
+    tenantId: req.tenantId,
+    tenantName: req.tenant.name,
+    unitLabel: unit.label,
+    propertyAddress: req.property.address,
+    useType: req.property.useType,
+    ...req.terms,
+    referenceCode: req.terms.referenceCode.toUpperCase(),
+    invoiced: false,
+    extras: [],
+  };
+}

@@ -132,3 +132,15 @@ test("a new organisation starts with the plan's defaults for everything onboardi
   });
   expect(setup.withOrgDefaults({ ...typed, firstInvoiceNumber: 142, invoicePrefix: "WR-" })).toMatchObject({ firstInvoiceNumber: 142, invoicePrefix: "WR-" });
 });
+
+test("a new tenancy document copies its tenant's name and its property's address, unit label and use", () => {
+  const property = { address: "Lot 9, Gordons", useType: "commercial" as const, units: [{ id: "u1", label: "Shop 1" }, { id: "u2", label: "Shop 2" }] };
+  const terms = { rentToea: toea(240_000), startDate: "2026-10-01", endDate: null, billingDay: 1, dueDays: 14, referenceCode: "kila" };
+  expect(setup.newTenancyDocument({ propertyId: "p1", property, unitId: "u2", tenantId: "t1", tenant: { name: "Kila Trading", email: "a@k.example", phone: "" }, terms })).toEqual({
+    propertyId: "p1", unitId: "u2", tenantId: "t1",
+    tenantName: "Kila Trading", unitLabel: "Shop 2", propertyAddress: "Lot 9, Gordons", useType: "commercial",
+    rentToea: 240_000, startDate: "2026-10-01", endDate: null, billingDay: 1, dueDays: 14, referenceCode: "KILA",
+    invoiced: false, extras: [],
+  });
+  expect(() => setup.newTenancyDocument({ propertyId: "p1", property, unitId: "nope", tenantId: "t1", tenant: { name: "K", email: "a@k.example", phone: "" }, terms })).toThrow(RangeError);
+});

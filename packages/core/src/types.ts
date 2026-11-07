@@ -132,3 +132,22 @@ export interface TenancyInput {
   readonly dueDays: number;
   readonly referenceCode: string;
 }
+
+/** A tenancy as stored (plan §4), with its denormalised copies. */
+export interface TenancyDocument {
+  readonly propertyId: string;
+  readonly unitId: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly unitLabel: string;
+  readonly propertyAddress: string;
+  readonly useType: UseType;
+  readonly rentToea: Toea;
+  readonly startDate: string;
+  readonly endDate: string | null;
+  readonly billingDay: number;
+  readonly dueDays: number;
+  readonly referenceCode: string;
+  readonly invoiced: boolean;
+  readonly extras: readonly Charge[];
+}
