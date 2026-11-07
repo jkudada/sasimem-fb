@@ -7,6 +7,8 @@
  * anything involving a timezone goes through date-fns-tz.
  */
 
+import { formatInTimeZone } from "date-fns-tz";
+
 export type Period = string & { readonly __brand: "Period" };
 export type CalendarDate = string & { readonly __brand: "CalendarDate" };
 
@@ -76,3 +78,8 @@ export function addDays(date: CalendarDate, days: number): CalendarDate {
 
 /** The period a calendar date falls in. */
 export const periodOf = (date: CalendarDate): Period => date.slice(0, 7) as Period;
+
+/** The calendar date it is at instant `now` in timezone `tz` - "today" for that landlord. */
+export function localDate(now: Date, tz: string): CalendarDate {
+  return formatInTimeZone(now, tz, "yyyy-MM-dd") as CalendarDate;
+}

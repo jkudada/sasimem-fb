@@ -53,3 +53,11 @@ test("adding days to a calendar date crosses month and year ends", () => {
   expect(period.addDays(d("2028-02-28"), 1)).toBe("2028-02-29");
   expect(period.addDays(d("2026-03-01"), -1)).toBe("2026-02-28");
 });
+
+test("today is the landlord's calendar day in their timezone, not the server's", () => {
+  // 14:00 UTC on 30 September is already midnight, 1 October, in Port Moresby (UTC+10).
+  const now = new Date("2026-09-30T14:00:00Z");
+  expect(period.localDate(now, "Pacific/Port_Moresby")).toBe("2026-10-01");
+  expect(period.localDate(new Date("2026-09-30T13:59:59Z"), "Pacific/Port_Moresby")).toBe("2026-09-30");
+  expect(period.localDate(now, "UTC")).toBe("2026-09-30");
+});
