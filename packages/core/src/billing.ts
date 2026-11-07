@@ -151,3 +151,7 @@ export function approvalRequestDue(run: ScheduledRun, org: Pick<BillingOrg, "app
 /** Tick step 3: only an approved run is ever released to tenants, and only at its send time (I6). */
 export const releaseDue = (run: ScheduledRun, now: Date): boolean =>
   run.status === "approved" && now.getTime() >= run.sendAt.getTime();
+
+/** Tick step 4: a run not approved by its send time is held, never sent. */
+export const holdDue = (run: ScheduledRun, now: Date): boolean =>
+  run.status === "awaitingApproval" && now.getTime() >= run.sendAt.getTime();
