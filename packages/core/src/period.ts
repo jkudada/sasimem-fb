@@ -50,3 +50,19 @@ export const lastDay = (p: Period): CalendarDate => `${p}-${pad(daysInMonth(p), 
 export function day(p: Period, n: number): CalendarDate {
   return `${p}-${pad(Math.min(n, daysInMonth(p)), 2)}` as CalendarDate;
 }
+
+// English month names, written out rather than taken from Intl, so the label
+// never depends on the device's locale data.
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+  "August", "September", "October", "November", "December"] as const;
+
+function monthName(p: Period): string {
+  return MONTHS[parts(p).month - 1] ?? "";
+}
+
+/** "October 2026", for email subjects and line details. */
+export const periodLabel = (p: Period): string => `${monthName(p)} ${parts(p).year}`;
+
+/** "OCT26", the month part of a payment reference such as WARI-OCT26. */
+export const shortCode = (p: Period): string =>
+  `${monthName(p).slice(0, 3).toUpperCase()}${pad(parts(p).year % 100, 2)}`;

@@ -35,3 +35,12 @@ test("a billing day past the end of the month is the month's last day", () => {
   expect(period.day(p("2028-02"), 30)).toBe("2028-02-29");
   expect(period.day(p("2026-10"), 1)).toBe("2026-10-01");
 });
+
+test("a period reads as October 2026 and abbreviates to OCT26 for payment references", () => {
+  const p = period.parsePeriod;
+  expect(period.periodLabel(p("2026-10"))).toBe("October 2026");
+  expect(period.periodLabel(p("2027-01"))).toBe("January 2027");
+  expect(period.shortCode(p("2026-10"))).toBe("OCT26");
+  expect(period.shortCode(p("2030-05"))).toBe("MAY30");
+  expect(period.shortCode(p("2009-12"))).toBe("DEC09");
+});
