@@ -19,3 +19,8 @@ test("GST on a credit mirrors GST on the charge, rounding half away from zero", 
   expect(gst.gstOn(toea(-4))).toBe(0);
   expect(gst.gstOn(toea(-240_000))).toBe(-24_000);
 });
+
+test("an unregistered landlord never charges GST, even on commercial space or a line marked taxable", () => {
+  expect(gst.isTaxable({ orgGstRegistered: false, useType: "commercial", treatment: "inherit" })).toBe(false);
+  expect(gst.isTaxable({ orgGstRegistered: false, useType: "commercial", treatment: "taxable" })).toBe(false);
+});
