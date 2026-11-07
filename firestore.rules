@@ -26,6 +26,21 @@ service cloud.firestore {
         && d.units is list && d.units.size() >= 1 && d.units.size() <= 50;
     }
 
+    function PROFILE_FIELDS() {
+      return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
+              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode'];
+    }
+
+    function validProfile(d) {
+      return str(d.name, 1, 100) && str(d.address, 0, 200) && email(d.email)
+        && d.gstRegistered is bool && str(d.gstNumber, 0, 30)
+        && !(d.gstRegistered && d.gstNumber.trim().size() == 0) // printed on every tax invoice
+        && str(d.bankName, 0, 100) && str(d.bankAccount, 0, 50)
+        && str(d.invoicePrefix, 0, 10) && str(d.timezone, 1, 64)
+        && wholeIn(d.approvalLeadDays, 1, 28) && wholeIn(d.sendHour, 0, 23) && wholeIn(d.reminderAfterDays, 0, 60)
+        && d.reminderMode in ['auto', 'off'];
+    }
+
     function validTenant(d) {
       return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
     }
@@ -73,7 +88,9 @@ service cloud.firestore {
 
     match /orgs/{orgId} {
       allow read: if isMember(orgId);
-      allow update: if isOwner(orgId);
+      allow update: if isOwner(orgId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
+        && validProfile(request.resource.data);
 
       match /properties/{propertyId} {
         allow read: if isMember(orgId);
