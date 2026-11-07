@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { aCharge, aTenancy, anOrg } from "../testing/index.js";
 import * as billing from "./billing.js";
+import { parseKina } from "./money.js";
 import { parsePeriod } from "./period.js";
 
 const OCT = parsePeriod("2026-10");
@@ -123,4 +124,15 @@ test("an unregistered landlord letting commercial space charges no GST and issue
   expect(invoice.gstToea).toBe(0);
   expect(invoice.lines.every((l) => !l.gstApplicable)).toBe(true);
   expect(invoice.documentTitle).toBe("INVOICE");
+});
+
+describe("a manual rent override for one month", () => {
+  test("changing the rent recomputes its GST and the totals from the lines; charges are untouched", () => {
+    const tenancy = aTenancy().commercial().withRent("K2,000").withCharge(aCharge("Power").amount("K100").build()).build();
+    const draft = billing.draftInvoice({ org: anOrg().gstRegistered().build(), tenancy, period: OCT });
+    const edited = billing.withRent(draft, parseKina("K1,500"));
+    expect(edited.lines[0]).toMatchObject({ amountToea: 150_000, gstToea: 15_000 });
+    expect(edited.lines[1]).toEqual(draft.lines[1]);
+    expect(edited).toMatchObject({ subtotalToea: 160_000, gstToea: 16_000, totalToea: 176_000 });
+  });
 });

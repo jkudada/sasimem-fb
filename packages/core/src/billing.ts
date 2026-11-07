@@ -67,3 +67,14 @@ export function draftInvoice({ org, tenancy, period }: DraftRequest): DraftInvoi
     documentTitle: documentTitle({ orgGstRegistered: org.gstRegistered, hasTaxableLine: lines.some((l) => l.gstApplicable) }),
   };
 }
+
+/**
+ * The same draft with a different rent this month (a part month, a waived month,
+ * a privately agreed figure). Only the rent line changes; charges stay as configured.
+ */
+export function withRent(invoice: DraftInvoice, rentToea: Toea): DraftInvoice {
+  const lines = invoice.lines.map((l) =>
+    l.kind === "rent" ? { ...l, amountToea: rentToea, gstToea: l.gstApplicable ? gstOn(rentToea) : toea(0) } : l,
+  );
+  return { ...invoice, lines, ...totals(lines) };
+}
