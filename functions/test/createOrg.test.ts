@@ -24,6 +24,23 @@ describe("createOrg", () => {
     expect((await getAuth().getUser(uid)).customClaims).toEqual({ orgIds: [orgId] });
   });
 
+  test("refuses an invalid profile with core's plain-English message, and writes nothing", async () => {
+    const uid = await newUser();
+    await expect(createOrg.run(request(uid, { ...typedOrg, gstRegistered: true, gstNumber: "" }))).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.",
+      details: { problems: { gstNumber: "A GST-registered landlord must enter their GST number: it is printed on every tax invoice." } },
+    });
+    expect((await adminDb().doc(`users/${uid}`).get()).exists).toBe(false);
+  });
+
+  test("refuses data that is not an organisation at all", async () => {
+    const uid = await newUser();
+    await expect(createOrg.run(request(uid, { name: 42 } as never))).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(createOrg.run(request(uid, { ...typedOrg, firstInvoiceNumber: 1.5 }))).rejects.toMatchObject({ code: "invalid-argument" });
+    expect((await adminDb().doc(`users/${uid}`).get()).exists).toBe(false);
+  });
+
   test("refuses a caller who is not signed in", async () => {
     await expect(createOrg.run(request(null, typedOrg))).rejects.toMatchObject({ code: "unauthenticated", message: "Sign in first." });
   });
