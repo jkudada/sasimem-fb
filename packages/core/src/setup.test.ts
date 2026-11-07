@@ -77,6 +77,12 @@ describe("properties", () => {
     const twins = [{ id: "a", label: "Flat 1" }, { id: "b", label: "flat 1 " }];
     expect(setup.propertyProblems({ ...valid, units: twins }).units).toBe("Two units have the same name.");
   });
+
+  test("a property has at most 20 units (the rules check each one)", () => {
+    const units = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `u${i}`, label: `Flat ${i}` }));
+    expect(setup.propertyProblems({ ...valid, units: units(20) }).units).toBeUndefined();
+    expect(setup.propertyProblems({ ...valid, units: units(21) }).units).toBe("A property can have up to 20 units.");
+  });
 });
 
 test("a tenant needs a name and a valid email, because invoices are emailed; the phone is optional", () => {
@@ -143,4 +149,19 @@ test("a new tenancy document copies its tenant's name and its property's address
     invoiced: false, extras: [],
   });
   expect(() => setup.newTenancyDocument({ propertyId: "p1", property, unitId: "nope", tenantId: "t1", tenant: { name: "K", email: "a@k.example", phone: "" }, terms })).toThrow(RangeError);
+});
+
+test("the profile Settings edits has the organisation's rules, without the first invoice number", () => {
+  const { firstInvoiceNumber: _, ...profile } = validOrg;
+  expect(setup.profileProblems(profile)).toEqual({});
+  expect(setup.profileProblems({ ...profile, gstRegistered: true }).gstNumber).toBe(
+    "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.",
+  );
+  expect(setup.profileProblems({ ...profile, sendHour: 24 }).sendHour).toBe("Choose an hour from 0 to 23.");
+});
+
+test("a logo is an image of at most 200 KB, the same limit Storage enforces", () => {
+  expect(setup.logoProblem({ type: "image/png", size: 200 * 1024 })).toBeNull();
+  expect(setup.logoProblem({ type: "image/png", size: 200 * 1024 + 1 })).toBe("Choose a logo smaller than 200 KB.");
+  expect(setup.logoProblem({ type: "application/pdf", size: 10 })).toBe("Choose a picture: PNG, JPEG, WebP or GIF.");
 });

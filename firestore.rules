@@ -19,16 +19,33 @@ service cloud.firestore {
     function exactly(d, keys) { return d.keys().hasOnly(keys) && d.keys().hasAll(keys); }
     function email(v) { return str(v, 3, 200) && v.matches('^[^\\s@]+@[^\\s@]+[.][^\\s@]+$'); }
 
+    // Rules cannot loop, so the (at most 20) units are checked by index, like charges.
+    function validUnit(u) { return u is map && exactly(u, ['id', 'label']) && str(u.id, 1, 64) && str(u.label.trim(), 1, 100); }
+    function unitOk(us, i) { return us.size() <= i || validUnit(us[i]); }
+    function validUnits(us) {
+      return us is list && us.size() >= 1 && us.size() <= 20
+        && unitOk(us, 0) && unitOk(us, 1) && unitOk(us, 2) && unitOk(us, 3) && unitOk(us, 4)
+        && unitOk(us, 5) && unitOk(us, 6) && unitOk(us, 7) && unitOk(us, 8) && unitOk(us, 9)
+        && unitOk(us, 10) && unitOk(us, 11) && unitOk(us, 12) && unitOk(us, 13) && unitOk(us, 14)
+        && unitOk(us, 15) && unitOk(us, 16) && unitOk(us, 17) && unitOk(us, 18) && unitOk(us, 19);
+    }
+
     function validProperty(d) {
       return exactly(d, ['address', 'useType', 'units'])
         && str(d.address, 1, 200)
         && d.useType in ['residential', 'commercial']
-        && d.units is list && d.units.size() >= 1 && d.units.size() <= 50;
+        && validUnits(d.units);
     }
 
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
-              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode'];
+              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath'];
+    }
+
+    // A logo lives in the org's own folder; storage.rules guards the file itself.
+    function validLogo(orgId, d) {
+      return !('logoPath' in d)
+        || (d.logoPath is string && d.logoPath.matches('^logos/' + orgId + '/[A-Za-z0-9_-]{1,64}[.](png|jpg|jpeg|webp|gif)$'));
     }
 
     function validProfile(d) {
@@ -91,16 +108,20 @@ service cloud.firestore {
       allow read: if isMember(orgId);
       allow update: if isOwner(orgId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
-        && validProfile(request.resource.data);
+        && validProfile(request.resource.data) && validLogo(orgId, request.resource.data);
 
       match /properties/{propertyId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId) && validProperty(request.resource.data);
+        allow create, update: if isOwner(orgId) && validProperty(request.resource.data);
+        // A property a tenancy uses is kept by the UI (core's deleteProblem); rules cannot
+        // query. A tenancy carries its own copies, so drafting survives either way.
+        allow delete: if isOwner(orgId);
       }
 
       match /tenants/{tenantId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId) && validTenant(request.resource.data);
+        allow create, update: if isOwner(orgId) && validTenant(request.resource.data);
+        allow delete: if isOwner(orgId); // as for properties
       }
 
       match /tenancies/{tenancyId} {

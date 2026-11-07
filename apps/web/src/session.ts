@@ -57,6 +57,9 @@ export const actions: Actions = {
       return callableMessage(e);
     }
   },
+  async setupStore(orgId: string) {
+    return (await import("./setup-store.js")).setupStore(orgId);
+  },
   async saveFirstTenancy(first: FirstTenancy) {
     const s = session.value;
     if (s.status !== "signedIn" || s.orgId === null) return "Sign in first.";
