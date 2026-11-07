@@ -214,7 +214,7 @@ export interface Allocation {
 export function allocateNumbers(req: { prefix: string; nextNumber: number; invoices: readonly NumberingCandidate[] }): Allocation {
   const byName = (a: NumberingCandidate, b: NumberingCandidate): number =>
     compare(a.tenantName, b.tenantName) || compare(a.tenancyId, b.tenancyId);
-  const ordered = [...req.invoices].sort(byName);
+  const ordered = req.invoices.filter((inv) => inv.status !== "excluded").sort(byName);
   const numbers = ordered.map((inv, i) => ({ invoiceId: inv.id, number: invoiceNumber(req.prefix, req.nextNumber + i) }));
   return { numbers, nextNumber: req.nextNumber + numbers.length };
 }

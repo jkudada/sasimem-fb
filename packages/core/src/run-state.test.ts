@@ -96,6 +96,19 @@ describe("invoice numbers", () => {
     expect(billing.invoiceNumber("WR/", 12345)).toBe("WR/12345");
   });
 
+  test("an excluded invoice gets no number, and the sequence has no gap for it", () => {
+    const allocation = billing.allocateNumbers({
+      prefix: "INV-",
+      nextNumber: 1,
+      invoices: [
+        { id: "a", tenancyId: "a", tenantName: "Anna", status: "draft" },
+        { id: "b", tenancyId: "b", tenantName: "Ben", status: "excluded" },
+        { id: "c", tenancyId: "c", tenantName: "Cath", status: "draft" },
+      ],
+    });
+    expect(allocation).toEqual({ numbers: [{ invoiceId: "a", number: "INV-0001" }, { invoiceId: "c", number: "INV-0002" }], nextNumber: 3 });
+  });
+
   test("numbers are given in sequence from the counter, by tenant name and then tenancy id", () => {
     const allocation = billing.allocateNumbers({
       prefix: "INV-",
