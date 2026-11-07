@@ -32,3 +32,9 @@ describe("which additional charges apply", () => {
 test("a charge the landlord switched off never applies", () => {
   expect(billing.chargeApplies(aCharge().every().inactive().build(), OCT)).toBe(false);
 });
+
+test("a one-month charge applies only in the month it names", () => {
+  const repair = aCharge("Repair").onlyIn("2026-10").build();
+  expect(billing.chargeApplies(repair, OCT)).toBe(true);
+  expect(billing.chargeApplies(repair, parsePeriod("2026-11"))).toBe(false);
+});
