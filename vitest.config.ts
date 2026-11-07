@@ -17,5 +17,16 @@ export default defineConfig({
     reporters: ["default", "./tools/slow-test-reporter.ts"],
     // No automatic retries in T1-T3 (plan §9.5). Listed explicitly so nobody adds one.
     retry: 0,
+    // Coverage is reported, never a target to game (plan §9.5). These are floors.
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["**/*.test.ts", "**/index.ts", "**/types.ts"],
+      reporter: ["text-summary", "json-summary"],
+      thresholds: {
+        "**/packages/core/src/**/*.ts": { branches: 95 },
+        "**/functions/src/**/*.ts": { lines: 85 },
+      },
+    },
   },
 });
