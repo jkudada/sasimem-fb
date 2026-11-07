@@ -167,6 +167,11 @@ export function approvalOutcome(status: RunStatus): ApprovalOutcome {
 export const canExclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "draft";
 export const canInclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "excluded";
 
+/** A rule refused an action; callers turn it into a plain-English message. */
+export class NotAllowed extends Error {
+  override readonly name = "NotAllowed";
+}
+
 export interface PaymentState {
   readonly status: InvoiceStatus;
   readonly paidAt: Date | null;
@@ -175,5 +180,6 @@ export interface PaymentState {
 /** Tick an invoice paid. Emails nobody (§3.5). */
 export function markPaid(invoice: PaymentState, now: Date): PaymentState {
   if (invoice.status === "paid") return invoice;
+  if (invoice.status !== "sent") throw new NotAllowed(`an invoice that is ${invoice.status} cannot be marked paid`);
   return { status: "paid", paidAt: now };
 }
