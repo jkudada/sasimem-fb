@@ -24,7 +24,7 @@ describe("the app shell", () => {
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 
-  test("a new landlord goes from their details to their first tenant to home", async () => {
+  test("once a new landlord's details are saved, they go straight on to their first tenant", async () => {
     const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", orgId: null });
     const actions = noActions();
     actions.createOrg = vi.fn(async () => {
@@ -32,19 +32,23 @@ describe("the app shell", () => {
       return null;
     });
     render(<App session={session} actions={actions} today={() => "2026-09-20"} />);
-
     expect(await screen.findByRole("heading", { name: "Your details" })).toBeTruthy();
     type(/name on your invoices/i, "Wari Holdings");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
     expect(await screen.findByRole("heading", { name: "Your first tenant" })).toBeTruthy();
+  });
+
+  test("a tenant added from home is saved, and the landlord is back home", async () => {
+    const actions = noActions();
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add a tenant" }));
+    await screen.findByRole("heading", { name: "Your first tenant" });
     type(/property address/i, "Lot 9");
     type(/tenant's name/i, "Kila Trading");
     type(/tenant's email/i, "a@kila.example");
     type(/monthly rent/i, "1200");
     type(/payment reference/i, "KILA");
     fireEvent.click(screen.getByRole("button", { name: "Save and finish" }));
-
     expect(await screen.findByRole("heading", { name: "You're set up" })).toBeTruthy();
     expect(actions.saveFirstTenancy).toHaveBeenCalledTimes(1);
   });
