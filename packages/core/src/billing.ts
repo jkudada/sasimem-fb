@@ -5,7 +5,7 @@
 import { documentTitle, gstOn, isTaxable } from "./gst.js";
 import { type Toea, toea } from "./money.js";
 import { addDays, day, firstDay, lastDay, localDate, nextPeriod, type Period, periodLabel, periodOf, shortCode, zonedInstant } from "./period.js";
-import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, RunStatus, Tenancy, Totals } from "./types.js";
+import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, InvoiceStatus, LineKind, RunStatus, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
 export function isActiveIn(tenancy: Tenancy, period: Period): boolean {
@@ -163,3 +163,6 @@ export function approvalOutcome(status: RunStatus): ApprovalOutcome {
   if (status === "approved" || status === "sent") return "alreadyApproved";
   return isEditable(status) ? "approve" : "refused";
 }
+
+export const canExclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "draft";
+export const canInclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "excluded";

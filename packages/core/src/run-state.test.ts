@@ -52,3 +52,15 @@ describe("approving a run", () => {
     expect(billing.approvalOutcome("cancelled")).toBe("refused");
   });
 });
+
+describe("taking a tenant out of the month's batch", () => {
+  test("a draft invoice can be excluded, and an excluded one re-included, only while the run is editable", () => {
+    expect(billing.canExclude("awaitingApproval", "draft")).toBe(true);
+    expect(billing.canInclude("held", "excluded")).toBe(true);
+    expect(billing.canExclude("approved", "approved")).toBe(false);
+    expect(billing.canExclude("approved", "draft")).toBe(false);
+    expect(billing.canInclude("sent", "excluded")).toBe(false);
+    expect(billing.canExclude("draft", "excluded")).toBe(false);
+    expect(billing.canInclude("draft", "draft")).toBe(false);
+  });
+});
