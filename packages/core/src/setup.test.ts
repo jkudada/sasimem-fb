@@ -32,4 +32,10 @@ describe("organisation details", () => {
     }
     expect(setup.orgProblems(validOrg).email).toBeUndefined();
   });
+
+  test("a GST-registered organisation needs its GST number, using the GST rule's own message", () => {
+    expect(setup.orgProblems({ ...validOrg, gstRegistered: true, gstNumber: " " }).gstNumber).toBe(
+      "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.",
+    );
+  });
 });

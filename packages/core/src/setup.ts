@@ -3,6 +3,7 @@
  * typed. Screens show these; security rules enforce the same limits; createOrg
  * refuses on any of them. Problems are messages, not exceptions.
  */
+import { gstNumberProblem } from "./gst.js";
 import type { OrgSetup, Problems } from "./types.js";
 
 export const MAX_NAME = 100;
@@ -12,6 +13,8 @@ export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
   if (org.name.trim() === "") p.name = "Enter the name that goes on your invoices.";
   else if (org.name.length > MAX_NAME) p.name = `Keep the name to ${MAX_NAME} characters or fewer.`;
   if (!looksLikeEmail(org.email)) p.email = EMAIL_PROBLEM;
+  const gst = gstNumberProblem(org);
+  if (gst !== null) p.gstNumber = gst;
   return p;
 }
 
