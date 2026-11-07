@@ -39,5 +39,9 @@ export function propertyProblems(property: PropertyInput): Problems<keyof Proper
   if (property.address.trim() === "") p.address = "Enter the property's address.";
   else if (property.address.length > MAX_ADDRESS) p.address = `Keep the address to ${MAX_ADDRESS} characters or fewer.`;
   if (property.useType !== "residential" && property.useType !== "commercial") p.useType = "Choose residential or commercial.";
+  const labels = property.units.map((u) => u.label.trim().toLowerCase());
+  if (labels.length === 0) p.units = "Add at least one unit, even if it is the whole building.";
+  else if (labels.some((l) => l === "")) p.units = "Give every unit a name, such as Flat 1.";
+  else if (new Set(labels).size !== labels.length) p.units = "Two units have the same name.";
   return p;
 }

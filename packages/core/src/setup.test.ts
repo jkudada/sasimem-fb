@@ -69,4 +69,11 @@ describe("properties", () => {
     expect(setup.propertyProblems(odd).useType).toBe("Choose residential or commercial.");
     expect(setup.propertyProblems(valid)).toEqual({});
   });
+
+  test("a property has at least one unit, and unit labels are filled in and different", () => {
+    expect(setup.propertyProblems({ ...valid, units: [] }).units).toBe("Add at least one unit, even if it is the whole building.");
+    expect(setup.propertyProblems({ ...valid, units: [{ id: "a", label: " " }] }).units).toBe("Give every unit a name, such as Flat 1.");
+    const twins = [{ id: "a", label: "Flat 1" }, { id: "b", label: "flat 1 " }];
+    expect(setup.propertyProblems({ ...valid, units: twins }).units).toBe("Two units have the same name.");
+  });
 });
