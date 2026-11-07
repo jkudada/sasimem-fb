@@ -109,10 +109,11 @@ export interface DraftingRequest {
 }
 
 /** The periods the tick should draft now (plan §3.4). */
-export function periodsToDraft({ org, tenancies, now }: DraftingRequest): Period[] {
+export function periodsToDraft({ org, tenancies, runPeriods, now }: DraftingRequest): Period[] {
   const thisMonth = periodOf(localDate(now, org.timezone)); // the landlord's month, not the server's
   const leadMs = org.approvalLeadDays * DAY_MS;
   return [thisMonth, nextPeriod(thisMonth)].filter((period) => {
+    if (runPeriods.includes(period)) return false; // the tick never redrafts a run that exists
     const send = sendAt({ org, tenancies, period });
     return now.getTime() >= send.getTime() - leadMs && now.getTime() <= send.getTime();
   });

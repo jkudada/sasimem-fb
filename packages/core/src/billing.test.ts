@@ -188,4 +188,8 @@ describe("which months the tick drafts", () => {
     expect(due("2026-09-27T21:59:59Z")).toEqual([]);
     expect(due("2026-09-27T22:00:00Z")).toEqual(["2026-10"]);
   });
+
+  test("a month that already has a run is never drafted again by the tick", () => {
+    expect(due("2026-09-28T00:00:00Z", ["2026-10"])).toEqual([]);
+  });
 });
