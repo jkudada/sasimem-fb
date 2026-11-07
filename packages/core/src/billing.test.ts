@@ -141,3 +141,11 @@ test("a negative rent is refused: a credit is a separate charge", () => {
   const draft = billing.draftInvoice({ org: anOrg().build(), tenancy: aTenancy().build(), period: OCT });
   expect(() => billing.withRent(draft, parseKina("-1"))).toThrow(RangeError);
 });
+
+test("a one-month charge needs its month, and a recurring charge must not name one", () => {
+  const base = aCharge().build();
+  expect(billing.chargeProblem({ ...base, recurrence: "one", period: null })).toBe("A one-month charge needs the month it applies to.");
+  expect(billing.chargeProblem({ ...base, recurrence: "every", period: OCT })).toBe("A recurring charge must not name a single month.");
+  expect(billing.chargeProblem({ ...base, recurrence: "one", period: OCT })).toBeNull();
+  expect(billing.chargeProblem({ ...base, recurrence: "every", period: null })).toBeNull();
+});

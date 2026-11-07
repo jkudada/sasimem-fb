@@ -79,3 +79,10 @@ export function withRent(invoice: DraftInvoice, rentToea: Toea): DraftInvoice {
   );
   return { ...invoice, lines, ...totals(lines) };
 }
+
+/** A validation message for an additional charge, or null. */
+export function chargeProblem(charge: Pick<Charge, "recurrence" | "period">): string | null {
+  if (charge.recurrence === "one" && charge.period === null) return "A one-month charge needs the month it applies to.";
+  if (charge.recurrence === "every" && charge.period !== null) return "A recurring charge must not name a single month.";
+  return null;
+}
