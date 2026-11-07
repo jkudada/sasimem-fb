@@ -105,3 +105,14 @@ export interface OrgSetup extends OrgProfile {
 
 /** Field name → plain-English problem. Empty when everything is fine. */
 export type Problems<F extends string> = Partial<Record<F, string>>;
+
+export interface Unit {
+  readonly id: string;
+  readonly label: string;
+}
+
+export interface PropertyInput {
+  readonly address: string;
+  readonly useType: UseType;
+  readonly units: readonly Unit[];
+}

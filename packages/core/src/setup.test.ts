@@ -58,3 +58,15 @@ test("send hour is 0-23, approval lead 1-28 days and reminder delay 0-60 days, i
   expect(setup.orgProblems({ ...validOrg, reminderAfterDays: 61 }).reminderAfterDays).toBe("Choose from 0 to 60 days.");
   expect(setup.orgProblems({ ...validOrg, sendHour: 0, approvalLeadDays: 28, reminderAfterDays: 0 })).toEqual({});
 });
+
+describe("properties", () => {
+  const valid = { address: "Section 12, Lot 4, Boroko", useType: "residential" as const, units: [{ id: "u1", label: "Flat 1" }] };
+
+  test("a property needs an address of at most 200 characters and a use type of residential or commercial", () => {
+    expect(setup.propertyProblems({ ...valid, address: " " }).address).toBe("Enter the property's address.");
+    expect(setup.propertyProblems({ ...valid, address: "x".repeat(201) }).address).toBe("Keep the address to 200 characters or fewer.");
+    const odd = { ...valid, useType: "industrial" as unknown as "residential" };
+    expect(setup.propertyProblems(odd).useType).toBe("Choose residential or commercial.");
+    expect(setup.propertyProblems(valid)).toEqual({});
+  });
+});

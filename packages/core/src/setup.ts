@@ -4,7 +4,7 @@
  * refuses on any of them. Problems are messages, not exceptions.
  */
 import { gstNumberProblem } from "./gst.js";
-import type { OrgSetup, Problems } from "./types.js";
+import type { OrgSetup, Problems, PropertyInput } from "./types.js";
 
 export const MAX_NAME = 100;
 
@@ -31,3 +31,13 @@ const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteg
 
 /** Deliberately loose: the real check is whether mail arrives. */
 export const looksLikeEmail = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+
+export const MAX_ADDRESS = 200;
+
+export function propertyProblems(property: PropertyInput): Problems<keyof PropertyInput> {
+  const p: Problems<keyof PropertyInput> = {};
+  if (property.address.trim() === "") p.address = "Enter the property's address.";
+  else if (property.address.length > MAX_ADDRESS) p.address = `Keep the address to ${MAX_ADDRESS} characters or fewer.`;
+  if (property.useType !== "residential" && property.useType !== "commercial") p.useType = "Choose residential or commercial.";
+  return p;
+}
