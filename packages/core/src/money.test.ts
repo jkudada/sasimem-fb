@@ -44,3 +44,8 @@ test("parseKina reads a minus sign as a credit, rounding half a toea away from z
   expect(parseKina("-K50.00")).toBe(-5_000);
   expect(parseKina("-0.005")).toBe(-1);
 });
+
+test("parseKina rejects an empty amount rather than reading it as zero", () => {
+  expect(() => parseKina("")).toThrow(SyntaxError);
+  expect(() => parseKina(" K ")).toThrow(SyntaxError);
+});

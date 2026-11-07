@@ -16,6 +16,7 @@ export function toea(n: number): Toea {
 /** Read an amount the way a landlord types it. */
 export function parseKina(text: string): Toea {
   const cleaned = text.replace(/[K,\s]/g, "");
+  if (cleaned === "") throw new SyntaxError("empty amount");
   const match = /^(-?)(\d*)(?:\.(\d*))?$/.exec(cleaned);
   if (match === null) return toea(0);
   const sign = match[1] === "-" ? -1 : 1;
