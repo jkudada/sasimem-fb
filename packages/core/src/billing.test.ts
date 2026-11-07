@@ -170,3 +170,16 @@ test("with no active tenancy the send day is the 1st, as in the reference app", 
   const org = anOrg().sendingAt(8).build();
   expect(billing.sendAt({ org, tenancies: [], period: OCT }).toISOString()).toBe("2026-09-30T22:00:00.000Z");
 });
+
+describe("which months the tick drafts", () => {
+  // October's batch goes out 2026-09-30T22:00Z (1st, 08:00 Port Moresby);
+  // with 3 lead days it may be drafted from 2026-09-27T22:00Z.
+  const org = anOrg().sendingAt(8).leadDays(3).build();
+  const tenancies = [aTenancy().starting("2026-01-01").billedOn(1).build()];
+  const due = (nowIso: string, runPeriods: string[] = [], ts = tenancies, o = org) =>
+    billing.periodsToDraft({ org: o, tenancies: ts, runPeriods: runPeriods.map(parsePeriod), now: new Date(nowIso) });
+
+  test("nothing is drafted long before the lead time", () => {
+    expect(due("2026-08-31T21:00:00Z")).toEqual([]); // 1 September, 07:00 local
+  });
+});

@@ -99,3 +99,16 @@ export function sendAt({ org, tenancies, period }: ScheduleRequest): Date {
   const earliest = days.length > 0 ? Math.min(...days) : 1;
   return zonedInstant(day(period, earliest), org.sendHour, org.timezone);
 }
+
+export interface DraftingRequest {
+  readonly org: Pick<BillingOrg, "timezone" | "sendHour" | "approvalLeadDays">;
+  readonly tenancies: readonly Tenancy[];
+  /** Periods that already have a run for this org. */
+  readonly runPeriods: readonly Period[];
+  readonly now: Date;
+}
+
+/** The periods the tick should draft now (plan §3.4). */
+export function periodsToDraft(_request: DraftingRequest): Period[] {
+  return [];
+}
