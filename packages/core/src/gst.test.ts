@@ -24,3 +24,11 @@ test("an unregistered landlord never charges GST, even on commercial space or a 
   expect(gst.isTaxable({ orgGstRegistered: false, useType: "commercial", treatment: "inherit" })).toBe(false);
   expect(gst.isTaxable({ orgGstRegistered: false, useType: "commercial", treatment: "taxable" })).toBe(false);
 });
+
+test("a line marked exempt carries no GST, even on commercial space", () => {
+  expect(gst.isTaxable({ orgGstRegistered: true, useType: "commercial", treatment: "exempt" })).toBe(false);
+});
+
+test("a line marked taxable carries GST, even on residential space", () => {
+  expect(gst.isTaxable({ orgGstRegistered: true, useType: "residential", treatment: "taxable" })).toBe(true);
+});

@@ -25,5 +25,6 @@ export interface TaxableQuestion {
 /** Whether one invoice line attracts GST. */
 export function isTaxable(q: TaxableQuestion): boolean {
   if (!q.orgGstRegistered) return false; // an unregistered supplier cannot charge GST
+  if (q.treatment === "exempt") return false;
   return true;
 }
