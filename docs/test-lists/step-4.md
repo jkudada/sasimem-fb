@@ -80,10 +80,10 @@ Choices the plan leaves open (say if any is wrong):
 - [x] an approved run's page shows "Approved - goes out {date, local time}" and no form
 
 ## Web (T1)
-- [ ] home: this month's status and the one action that matters ("Generate this month's invoices now", "Review 5 invoices", "Approved - goes out ...")
-- [ ] review screen: each invoice's tenant, rent and total; rent edits and include/exclude call the callables
-- [ ] review screen: approve, and rebuild with its warning that rent edits are discarded
-- [ ] the callables' plain messages are shown; offline says a connection is needed
+- [x] home: this month's status and the one action that matters ("Generate this month's invoices now", "Review 5 invoices", "Approved - goes out ...")
+- [x] review screen: each invoice's tenant, rent and total; rent edits and include/exclude call the callables
+- [x] review screen: approve, and rebuild with its warning that rent edits are discarded
+- [x] the callables' plain messages are shown; offline says a connection is needed
 
 ## T4 journeys (Playwright, emulators)
 - [ ] journey 1: onboarding to first draft

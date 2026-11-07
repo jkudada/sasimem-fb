@@ -11,6 +11,8 @@ import "./SignedIn.js";
 import "./screens/Home.js";
 import "./screens/Tenants.js";
 import "./screens/Settings.js";
+import "./screens/MonthCard.js";
+import "./screens/Review.js";
 import type { Setup, SetupStore } from "./setup.js";
 
 const setup: Setup = {
@@ -27,6 +29,8 @@ const fakeStore = (): SetupStore => ({
   createTenancy: vi.fn(), updateTenancy: vi.fn(), deleteTenancy: vi.fn(), saveProfile: vi.fn(),
   uploadLogo: vi.fn(), removeLogo: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
   numbering: vi.fn().mockResolvedValue({ next: 1, started: false }), setNextNumber: vi.fn(),
+  month: vi.fn().mockResolvedValue(null),
+  draftNow: vi.fn(), setRent: vi.fn(), exclude: vi.fn(), include: vi.fn(), rebuildRun: vi.fn(), approveRun: vi.fn(),
 });
 
 const noActions = (): Actions => ({
@@ -125,6 +129,21 @@ describe("signed-in routes", () => {
     render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
     fireEvent.change(await screen.findByLabelText(/logo/i), { target: { files: [new File(["x"], "logo.png", { type: "image/png" })] } });
     expect((await screen.findByRole("img", { name: "Your logo" })).getAttribute("src")).toBe("https://logo.example/1.png");
+  });
+
+  test("home offers this month's one action, and each month has its own review address", async () => {
+    const actions = noActions();
+    const store = fakeStore();
+    store.month = vi.fn(async (period: string) => (period === "2026-09" ? {
+      period, status: "awaitingApproval", sendAt: new Date("2026-08-31T22:00:00Z"), totalToea: 120_000, invoiceCount: 1,
+      invoices: [{ id: "k1_2026-09", tenantName: "Kila Trading", unitLabel: "Shop 1", status: "draft", rentToea: 120_000, totalToea: 120_000, number: null }],
+    } : null)) as never;
+    actions.setupStore = vi.fn(async () => store);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    const review = await screen.findByRole("link", { name: "Review 1 invoice" });
+    expect(review.getAttribute("href")).toBe("/month/2026-09");
+    fireEvent.click(review);
+    expect(await screen.findByRole("heading", { name: "September 2026 invoices" })).toBeTruthy();
   });
 
   test("an unknown address goes home", async () => {

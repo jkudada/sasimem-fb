@@ -4,7 +4,7 @@
  * save. Screens get plain data and functions that resolve to a plain-English
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
-import type { OrgProfile, PropertyInput, TenancyDocument, TenantInput } from "@sasimem/core";
+import type { InvoiceStatus, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 
 export type WithId<T> = T & { readonly id: string };
 
@@ -42,6 +42,39 @@ export interface SetupStore {
   logoUrl(path: string): Promise<string | null>;
   numbering(): Promise<Numbering | string>;
   setNextNumber(next: number): Promise<string | null>;
+  /** A month's run and its invoices; null when it has not been drafted. A string is a problem. */
+  month(period: Period): Promise<Month | null | string>;
+  draftNow(period: Period): Promise<Outcome>;
+  setRent(invoiceId: string, rentToea: Toea): Promise<Outcome>;
+  exclude(invoiceId: string): Promise<Outcome>;
+  include(invoiceId: string): Promise<Outcome>;
+  rebuildRun(period: Period): Promise<Outcome>;
+  approveRun(period: Period): Promise<Outcome>;
+}
+
+/** What a run callable said, in plain words, and whether it worked. */
+export interface Outcome {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+export interface MonthInvoice {
+  readonly id: string;
+  readonly tenantName: string;
+  readonly unitLabel: string;
+  readonly status: InvoiceStatus;
+  readonly rentToea: Toea;
+  readonly totalToea: Toea;
+  readonly number: string | null;
+}
+
+export interface Month {
+  readonly period: Period;
+  readonly status: RunStatus;
+  readonly sendAt: Date;
+  readonly totalToea: Toea;
+  readonly invoiceCount: number;
+  readonly invoices: readonly MonthInvoice[];
 }
 
 /** A short random ID for a new unit or charge; unique within its list is enough. */

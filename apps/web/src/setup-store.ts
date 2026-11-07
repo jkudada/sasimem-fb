@@ -4,14 +4,17 @@
  * save, no live listeners. A landlord has 1-20 tenancies, so that is a handful of
  * small documents. Storage loads only when Settings shows or changes the logo.
  */
-import { type OrgProfile, type PropertyInput, type TenancyDocument, type TenantInput, logoExtension } from "@sasimem/core";
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, setDoc, updateDoc,
+  type InvoiceDocument, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
+  logoExtension,
+} from "@sasimem/core";
+import {
+  type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
 } from "firebase/firestore/lite";
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { Numbering, Org, Setup, SetupStore, TenancyEdit, WithId } from "./setup.js";
+import type { Month, Numbering, Org, Outcome, Setup, SetupStore, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 const COULD_NOT_SAVE = "That could not be saved. Please try again.";
@@ -39,6 +42,18 @@ let connected = false;
 
 const withIds = <T,>(snap: Awaited<ReturnType<typeof getDocs>>): WithId<T>[] =>
   snap.docs.map((d) => ({ ...(d.data() as T), id: d.id }));
+
+/** Call a run callable; its own message is plain English, a dropped connection gets ours. */
+async function call(name: string, data: Record<string, unknown>, success: (reply: { message?: string }) => string): Promise<Outcome> {
+  try {
+    const reply = (await httpsCallable<Record<string, unknown>, { message?: string }>(functions, name)(data)).data;
+    return { ok: true, message: success(reply) };
+  } catch (e) {
+    const code = typeof e === "object" && e !== null && "code" in e ? String(e.code) : "";
+    const offline = !navigator.onLine || code === "functions/unavailable" || code === "functions/deadline-exceeded";
+    return { ok: false, message: !offline && code.startsWith("functions/") && e instanceof Error ? e.message : OFFLINE };
+  }
+}
 
 export function setupStore(orgId: string): SetupStore {
   const org = `orgs/${orgId}`;
@@ -96,6 +111,40 @@ export function setupStore(orgId: string): SetupStore {
         return OFFLINE;
       }
     },
+
+    async month(period: Period): Promise<Month | null | string> {
+      try {
+        const [run, invoices] = await Promise.all([
+          getDoc(ref(`runs/${period}`)),
+          getDocs(query(collection(db, `${org}/invoices`), where("period", "==", period))),
+        ]);
+        if (!run.exists()) return null;
+        const r = run.data();
+        return {
+          period,
+          status: r["status"] as RunStatus,
+          sendAt: (r["sendAt"] as Timestamp).toDate(),
+          totalToea: r["totalToea"] as Toea,
+          invoiceCount: r["invoiceCount"] as number,
+          invoices: invoices.docs
+            .map((d) => {
+              const i = d.data() as InvoiceDocument;
+              const rent = i.lines.find((l) => l.kind === "rent");
+              return { id: d.id, tenantName: i.tenantName, unitLabel: i.unitLabel, status: i.status, rentToea: (rent?.amountToea ?? 0) as Toea, totalToea: i.totalToea, number: i.number };
+            })
+            .sort((a, b) => a.tenantName.localeCompare(b.tenantName)),
+        };
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    draftNow: (period) => call("draftNow", { orgId, period }, (r) => r.message ?? ""),
+    setRent: (invoiceId, rentToea) => call("setRent", { orgId, invoiceId, rentToea }, () => "Rent saved."),
+    exclude: (invoiceId) => call("exclude", { orgId, invoiceId }, () => ""),
+    include: (invoiceId) => call("include", { orgId, invoiceId }, () => ""),
+    rebuildRun: (period) => call("rebuildRun", { orgId, period }, () => "Rebuilt from your tenancy details."),
+    approveRun: (period) => call("approveRun", { orgId, period }, (r) => r.message ?? "Approved."),
 
     async setNextNumber(next) {
       try {
