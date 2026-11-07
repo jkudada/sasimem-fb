@@ -8,12 +8,27 @@ service cloud.firestore {
     function isMember(orgId) {
       return signedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
     }
+    function isOwner(orgId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
+    }
 
     match /orgs/{orgId} {
       allow read: if isMember(orgId);
 
+      match /properties/{propertyId} {
+        allow read: if isMember(orgId);
+        allow create: if isOwner(orgId);
+      }
+
+      match /tenants/{tenantId} {
+        allow read: if isMember(orgId);
+        allow create: if isOwner(orgId);
+      }
+
       match /tenancies/{tenancyId} {
         allow read: if isMember(orgId);
+        allow create: if isOwner(orgId);
       }
     }
   }
