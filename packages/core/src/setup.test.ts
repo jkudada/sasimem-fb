@@ -96,4 +96,10 @@ describe("tenancies", () => {
     expect(setup.tenancyProblems({ ...valid, dueDays: 91 }).dueDays).toBe("Choose from 0 to 90 days.");
     expect(setup.tenancyProblems({ ...valid, billingDay: 31, dueDays: 0 })).toEqual({});
   });
+
+  test("the rent is not negative and not above the editable maximum", () => {
+    expect(setup.tenancyProblems({ ...valid, rentToea: toea(-1) }).rentToea).toBe("Rent cannot be negative. Add a credit as a separate charge.");
+    expect(setup.tenancyProblems({ ...valid, rentToea: toea(1_000_000_001) }).rentToea).toBe("That is more than K10,000,000.00. Check the amount.");
+    expect(setup.tenancyProblems({ ...valid, rentToea: toea(0) }).rentToea).toBeUndefined();
+  });
 });

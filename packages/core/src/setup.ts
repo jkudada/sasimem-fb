@@ -4,6 +4,7 @@
  * refuses on any of them. Problems are messages, not exceptions.
  */
 import { gstNumberProblem } from "./gst.js";
+import { amountProblem } from "./money.js";
 import type { OrgSetup, Problems, PropertyInput, TenancyInput, TenantInput } from "./types.js";
 
 export const MAX_NAME = 100;
@@ -58,5 +59,7 @@ export function tenancyProblems(tenancy: TenancyInput): Problems<keyof TenancyIn
   const p: Problems<keyof TenancyInput> = {};
   if (!wholeIn(tenancy.billingDay, 1, 31)) p.billingDay = "Choose a day of the month from 1 to 31.";
   if (!wholeIn(tenancy.dueDays, 0, 90)) p.dueDays = "Choose from 0 to 90 days.";
+  const rent = tenancy.rentToea < 0 ? "Rent cannot be negative. Add a credit as a separate charge." : amountProblem(tenancy.rentToea);
+  if (rent !== null) p.rentToea = rent;
   return p;
 }
