@@ -53,3 +53,7 @@ test("an invoice is reminded at most once, ever (I8)", () => {
 test("an organisation can turn reminders off entirely", () => {
   expect(billing.reminderDue({ invoice: sent, org: anOrg().remindersOff().build(), now: onTheDay })).toBe(false);
 });
+
+test("an invoice with no record of reaching the tenant is never chased", () => {
+  expect(billing.reminderDue({ invoice: { ...sent, sentAt: null }, org, now: onTheDay })).toBe(false);
+});

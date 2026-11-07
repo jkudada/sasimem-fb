@@ -246,5 +246,6 @@ export function reminderDue(req: {
   if (org.reminderMode === "off") return false;
   if (invoice.status !== "sent" || invoice.paidAt !== null) return false;
   if (invoice.remindersPaused || invoice.remindedAt !== null) return false;
+  if (invoice.sentAt === null) return false;
   return localDate(now, org.timezone) >= addDays(invoice.dueDate, org.reminderAfterDays);
 }
