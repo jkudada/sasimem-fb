@@ -9,10 +9,12 @@ import { db } from "../admin.js";
 export async function createOrgFor(uid: string, setup: OrgSetup, now: Date): Promise<string> {
   const firestore = db();
   const orgRef = firestore.collection("orgs").doc();
-  const { firstInvoiceNumber: _first, ...profile } = setup;
+  const { firstInvoiceNumber, ...profile } = setup;
   await firestore.runTransaction(async (tx) => {
     tx.create(orgRef, { ...profile, createdAt: now });
     tx.create(orgRef.collection("members").doc(uid), { role: "owner", addedAt: now });
+    // A landlord who already issued INV-0141 by hand continues at INV-0142 (plan A3).
+    tx.create(orgRef.collection("private").doc("counter"), { nextInvoiceNumber: firstInvoiceNumber });
     tx.set(firestore.doc(`users/${uid}`), { orgIds: [orgRef.id] });
   });
   return orgRef.id;

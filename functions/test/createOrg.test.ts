@@ -23,4 +23,11 @@ describe("createOrg", () => {
     expect((await adminDb().doc(`users/${uid}`).get()).data()).toEqual({ orgIds: [orgId] });
     expect((await getAuth().getUser(uid)).customClaims).toEqual({ orgIds: [orgId] });
   });
+
+  test("seeds the server-only counter from the first invoice number, 1 unless the landlord says otherwise", async () => {
+    const fresh = await createOrg.run(request(await newUser(), typedOrg));
+    expect((await adminDb().doc(`orgs/${fresh.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 1 });
+    const continuing = await createOrg.run(request(await newUser(), { ...typedOrg, firstInvoiceNumber: 142 }));
+    expect((await adminDb().doc(`orgs/${continuing.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 142 });
+  });
 });
