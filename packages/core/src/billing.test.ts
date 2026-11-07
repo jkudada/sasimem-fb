@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { aCharge, aTenancy } from "../testing/index.js";
+import { aCharge, aTenancy, anOrg } from "../testing/index.js";
 import * as billing from "./billing.js";
 import { parsePeriod } from "./period.js";
 
@@ -41,4 +41,23 @@ test("a one-month charge applies only in the month it names", () => {
 
 test("the payment reference is the tenancy's code, upper-cased, then the month: WARI-OCT26", () => {
   expect(billing.paymentReference(aTenancy().reference("wari").build(), OCT)).toBe("WARI-OCT26");
+});
+
+describe("drafting one tenancy's invoice", () => {
+  test("a residential tenancy gets a rent-only INVOICE with no GST", () => {
+    const tenancy = aTenancy().id("t1").unit("Flat 2").withRent("K1,200").reference("wari").build();
+    const invoice = billing.draftInvoice({ org: anOrg().gstRegistered().build(), tenancy, period: OCT });
+    expect(invoice).toEqual({
+      tenancyId: "t1",
+      period: "2026-10",
+      issueDate: "2026-10-01",
+      dueDate: "2026-10-08",
+      paymentReference: "WARI-OCT26",
+      lines: [{ kind: "rent", description: "Rent - Flat 2", detail: "1 - 31 October 2026", amountToea: 120_000, gstApplicable: false, gstToea: 0 }],
+      subtotalToea: 120_000,
+      gstToea: 0,
+      totalToea: 120_000,
+      documentTitle: "INVOICE",
+    });
+  });
 });
