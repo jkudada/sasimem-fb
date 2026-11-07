@@ -1,10 +1,20 @@
 rules_version = '2';
-// Step 1: closed. Step 2 opens member reads and validated setup writes (plan §5),
-// test-first in tests/rules.
+// Plan §5. Reads: members of an org. Writes: owners, for setup data only, validated
+// field by field. Everything touching money, numbering, approval or sending is
+// written by Cloud Functions through the Admin SDK and is closed here (I9).
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    function signedIn() { return request.auth != null; }
+    function isMember(orgId) {
+      return signedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    match /orgs/{orgId} {
+      allow read: if isMember(orgId);
+
+      match /tenancies/{tenancyId} {
+        allow read: if isMember(orgId);
+      }
     }
   }
 }
