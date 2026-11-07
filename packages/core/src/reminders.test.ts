@@ -30,3 +30,8 @@ test("the landlord's calendar day decides, not the server's", () => {
   expect(billing.reminderDue({ invoice: sent, org, now: onTheDay })).toBe(true);
   expect(billing.reminderDue({ invoice: sent, org: anOrg().remindAfter(7).inTimezone("UTC").build(), now: onTheDay })).toBe(false);
 });
+
+test("a paid invoice is never chased, whether or not its status says so", () => {
+  expect(billing.reminderDue({ invoice: { ...sent, status: "paid", paidAt: onTheDay }, org, now: onTheDay })).toBe(false);
+  expect(billing.reminderDue({ invoice: { ...sent, paidAt: onTheDay }, org, now: onTheDay })).toBe(false);
+});

@@ -243,5 +243,6 @@ export function reminderDue(req: {
   now: Date;
 }): boolean {
   const { invoice, org, now } = req;
+  if (invoice.paidAt !== null) return false;
   return localDate(now, org.timezone) >= addDays(invoice.dueDate, org.reminderAfterDays);
 }
