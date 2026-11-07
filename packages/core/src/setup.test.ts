@@ -77,3 +77,10 @@ describe("properties", () => {
     expect(setup.propertyProblems({ ...valid, units: twins }).units).toBe("Two units have the same name.");
   });
 });
+
+test("a tenant needs a name and a valid email, because invoices are emailed; the phone is optional", () => {
+  const valid = { name: "Peter Kila", email: "peter@kila.example", phone: "" };
+  expect(setup.tenantProblems({ ...valid, name: "" }).name).toBe("Enter the tenant's name.");
+  expect(setup.tenantProblems({ ...valid, email: "peter" }).email).toBe("Enter an email address like name@example.com.");
+  expect(setup.tenantProblems(valid)).toEqual({});
+});

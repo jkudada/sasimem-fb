@@ -116,3 +116,9 @@ export interface PropertyInput {
   readonly useType: UseType;
   readonly units: readonly Unit[];
 }
+
+export interface TenantInput {
+  readonly name: string;
+  readonly email: string;
+  readonly phone: string;
+}

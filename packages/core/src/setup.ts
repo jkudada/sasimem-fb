@@ -4,7 +4,7 @@
  * refuses on any of them. Problems are messages, not exceptions.
  */
 import { gstNumberProblem } from "./gst.js";
-import type { OrgSetup, Problems, PropertyInput } from "./types.js";
+import type { OrgSetup, Problems, PropertyInput, TenantInput } from "./types.js";
 
 export const MAX_NAME = 100;
 
@@ -43,5 +43,13 @@ export function propertyProblems(property: PropertyInput): Problems<keyof Proper
   if (labels.length === 0) p.units = "Add at least one unit, even if it is the whole building.";
   else if (labels.some((l) => l === "")) p.units = "Give every unit a name, such as Flat 1.";
   else if (new Set(labels).size !== labels.length) p.units = "Two units have the same name.";
+  return p;
+}
+
+export function tenantProblems(tenant: TenantInput): Problems<keyof TenantInput> {
+  const p: Problems<keyof TenantInput> = {};
+  if (tenant.name.trim() === "") p.name = "Enter the tenant's name.";
+  else if (tenant.name.length > MAX_NAME) p.name = `Keep the name to ${MAX_NAME} characters or fewer.`;
+  if (!looksLikeEmail(tenant.email)) p.email = EMAIL_PROBLEM;
   return p;
 }
