@@ -29,3 +29,10 @@ export function parseKina(text: string): Toea {
   // Round the magnitude, then apply the sign: half away from zero, as Decimal does.
   return toea(sign * (whole * TOEA_PER_KINA + fraction + roundUp));
 }
+
+/** K1,200.50 - thousands commas, always two places of toea. */
+export function formatKina(amount: Toea): string {
+  const kina = Math.trunc(amount / TOEA_PER_KINA);
+  const cents = amount % TOEA_PER_KINA;
+  return `K${kina.toLocaleString("en-US")}.${String(cents).padStart(2, "0")}`;
+}

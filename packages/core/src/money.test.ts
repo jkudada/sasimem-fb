@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseKina, toea } from "./money.js";
+import { formatKina, parseKina, toea } from "./money.js";
 
 describe("toea", () => {
   test("accepts an integer number of toea", () => {
@@ -54,4 +54,8 @@ test("parseKina rejects anything that is not an amount", () => {
   for (const rubbish of ["abc", "1.2.3", "1-2", "-", ".", "1e3", "12x"]) {
     expect(() => parseKina(rubbish), rubbish).toThrow(SyntaxError);
   }
+});
+
+test("formatKina renders an amount the way a PNG invoice reads", () => {
+  expect(formatKina(toea(120_050))).toBe("K1,200.50");
 });
