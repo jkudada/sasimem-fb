@@ -88,3 +88,11 @@ describe("paid ticks", () => {
     expect(billing.markPaid({ status: "paid", paidAt: monday }, tuesday)).toEqual({ status: "paid", paidAt: monday });
   });
 });
+
+describe("invoice numbers", () => {
+  test("an invoice number is the org's prefix and the number padded to four digits", () => {
+    expect(billing.invoiceNumber("INV-", 7)).toBe("INV-0007");
+    expect(billing.invoiceNumber("INV-", 142)).toBe("INV-0142");
+    expect(billing.invoiceNumber("WR/", 12345)).toBe("WR/12345");
+  });
+});

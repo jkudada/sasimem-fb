@@ -188,3 +188,8 @@ export function markPaid(invoice: PaymentState, now: Date): PaymentState {
 export function markUnpaid(invoice: PaymentState): PaymentState {
   return invoice.status === "paid" ? { status: "sent", paidAt: null } : invoice;
 }
+
+// ---------------------------------------------------------------- numbering (§6.3, I3)
+
+/** "INV-0142": the prefix and the number, zero-padded to four digits (never truncated). */
+export const invoiceNumber = (prefix: string, n: number): string => `${prefix}${String(n).padStart(4, "0")}`;
