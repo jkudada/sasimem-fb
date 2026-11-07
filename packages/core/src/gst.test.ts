@@ -6,3 +6,10 @@ test("GST is ten per cent of the amount", () => {
   expect(gst.gstOn(toea(240_000))).toBe(24_000);
   expect(gst.gstOn(toea(18_000))).toBe(1_800);
 });
+
+test("GST rounds half a toea up, in integers", () => {
+  expect(gst.gstOn(toea(5))).toBe(1);
+  expect(gst.gstOn(toea(4))).toBe(0);
+  expect(gst.gstOn(toea(15))).toBe(2);
+  expect(gst.gstOn(toea(14))).toBe(1);
+});
