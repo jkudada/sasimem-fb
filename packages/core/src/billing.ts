@@ -54,7 +54,7 @@ export function draftInvoice({ org, tenancy, period }: DraftRequest): DraftInvoi
     line("rent", `Rent - ${tenancy.unitLabel}`, rentDetail(period), tenancy.rentToea, "inherit"),
     ...tenancy.extras
       .filter((charge) => chargeApplies(charge, period))
-      .map((charge) => line("extra", charge.description, periodLabel(period), charge.amountToea, charge.gstTreatment)),
+      .map((charge) => line("extra", charge.description, charge.recurrence === "every" ? periodLabel(period) : "", charge.amountToea, charge.gstTreatment)),
   ];
   return {
     tenancyId: tenancy.id,

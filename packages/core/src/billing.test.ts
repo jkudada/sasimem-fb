@@ -82,3 +82,9 @@ test("a recurring charge follows the rent, with the month as its detail", () => 
   expect(invoice.lines[1]).toEqual({ kind: "extra", description: "Water", detail: "October 2026", amountToea: 5_000, gstApplicable: false, gstToea: 0 });
   expect(invoice.totalToea).toBe(125_000);
 });
+
+test("a one-month charge appears in its month with no detail line", () => {
+  const tenancy = aTenancy().withCharge(aCharge("Lock repair").amount("K80").onlyIn("2026-10").build()).build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
+  expect(invoice.lines[1]).toMatchObject({ description: "Lock repair", detail: "", amountToea: 8_000 });
+});
