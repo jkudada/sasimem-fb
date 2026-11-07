@@ -18,7 +18,9 @@ export function parseKina(text: string): Toea {
   const cleaned = text.replace(/[K,\s]/g, "");
   if (cleaned === "") throw new SyntaxError("empty amount");
   const match = /^(-?)(\d*)(?:\.(\d*))?$/.exec(cleaned);
-  if (match === null) return toea(0);
+  if (match === null || (match[2] === "" && (match[3] ?? "") === "")) {
+    throw new SyntaxError(`not an amount: ${JSON.stringify(text)}`);
+  }
   const sign = match[1] === "-" ? -1 : 1;
   const whole = Number(match[2] || "0");
   const digits = match[3] ?? "";

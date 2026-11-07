@@ -49,3 +49,9 @@ test("parseKina rejects an empty amount rather than reading it as zero", () => {
   expect(() => parseKina("")).toThrow(SyntaxError);
   expect(() => parseKina(" K ")).toThrow(SyntaxError);
 });
+
+test("parseKina rejects anything that is not an amount", () => {
+  for (const rubbish of ["abc", "1.2.3", "1-2", "-", ".", "1e3", "12x"]) {
+    expect(() => parseKina(rubbish), rubbish).toThrow(SyntaxError);
+  }
+});
