@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { toea } from "./money.js";
 import * as setup from "./setup.js";
 import type { OrgSetup } from "./types.js";
 
@@ -83,4 +84,16 @@ test("a tenant needs a name and a valid email, because invoices are emailed; the
   expect(setup.tenantProblems({ ...valid, name: "" }).name).toBe("Enter the tenant's name.");
   expect(setup.tenantProblems({ ...valid, email: "peter" }).email).toBe("Enter an email address like name@example.com.");
   expect(setup.tenantProblems(valid)).toEqual({});
+});
+
+describe("tenancies", () => {
+  const valid = { rentToea: toea(120_000), startDate: "2026-01-01", endDate: null, billingDay: 1, dueDays: 7, referenceCode: "WARI" };
+
+  test("the billing day is a whole number from 1 to 31, and due days from 0 to 90", () => {
+    for (const bad of [0, 32, 1.5]) {
+      expect(setup.tenancyProblems({ ...valid, billingDay: bad }).billingDay, String(bad)).toBe("Choose a day of the month from 1 to 31.");
+    }
+    expect(setup.tenancyProblems({ ...valid, dueDays: 91 }).dueDays).toBe("Choose from 0 to 90 days.");
+    expect(setup.tenancyProblems({ ...valid, billingDay: 31, dueDays: 0 })).toEqual({});
+  });
 });

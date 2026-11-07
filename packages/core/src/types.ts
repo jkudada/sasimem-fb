@@ -122,3 +122,13 @@ export interface TenantInput {
   readonly email: string;
   readonly phone: string;
 }
+
+/** A tenancy's terms as typed: dates are still text until validated. */
+export interface TenancyInput {
+  readonly rentToea: Toea;
+  readonly startDate: string;
+  readonly endDate: string | null;
+  readonly billingDay: number;
+  readonly dueDays: number;
+  readonly referenceCode: string;
+}
