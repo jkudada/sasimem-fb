@@ -159,3 +159,9 @@ test("the profile Settings edits has the organisation's rules, without the first
   );
   expect(setup.profileProblems({ ...profile, sendHour: 24 }).sendHour).toBe("Choose an hour from 0 to 23.");
 });
+
+test("a logo is an image of at most 200 KB, the same limit Storage enforces", () => {
+  expect(setup.logoProblem({ type: "image/png", size: 200 * 1024 })).toBeNull();
+  expect(setup.logoProblem({ type: "image/png", size: 200 * 1024 + 1 })).toBe("Choose a logo smaller than 200 KB.");
+  expect(setup.logoProblem({ type: "application/pdf", size: 10 })).toBe("Choose a picture: PNG, JPEG, WebP or GIF.");
+});

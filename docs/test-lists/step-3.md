@@ -42,13 +42,13 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
 - [x] storage: nothing else in the bucket is readable or writable (PDFs are server only)
 
 ## Functions (T3, real emulators)
-- [ ] syncTenancyCopies: renaming a tenant updates every tenancy that names them, in this org only
-- [ ] syncTenancyCopies: a property's new address, use or unit label reaches its tenancies
-- [ ] syncTenancyCopies: an update that changes no copied field writes nothing
-- [ ] setNextInvoiceNumber: an owner sets where numbering starts; it is stored as a whole number
-- [ ] setNextInvoiceNumber: refused once any invoice number has been issued
-- [ ] setNextInvoiceNumber: refused for a non-member and for a number below 1
-- [ ] the trigger and the callable run in australia-southeast1 (region test covers them)
+- [x] syncTenancyCopies: renaming a tenant updates every tenancy that names them, in this org only
+- [x] syncTenancyCopies: a property's new address, use or unit label reaches its tenancies
+- [x] syncTenancyCopies: an update that changes no copied field writes nothing
+- [x] getNumbering / setNextInvoiceNumber: an owner sees and sets where numbering starts
+- [x] setNextInvoiceNumber: refused once any invoice number has been issued
+- [x] setNextInvoiceNumber: refused for a non-member and for a number below 1
+- [x] the trigger and the callable run in australia-southeast1 (region test covers them)
 
 ## Web (T1 components)
 - [ ] home: links to properties, tenants and settings; sign out

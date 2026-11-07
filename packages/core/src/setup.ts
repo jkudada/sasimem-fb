@@ -136,3 +136,16 @@ export function newTenancyDocument(req: {
     extras: [],
   };
 }
+
+export const MAX_LOGO_BYTES = 200 * 1024;
+const LOGO_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
+
+/** A logo the landlord picked (storage.rules enforces the same limits). */
+export function logoProblem(file: { readonly type: string; readonly size: number }): string | null {
+  if (!(file.type in LOGO_TYPES)) return "Choose a picture: PNG, JPEG, WebP or GIF.";
+  if (file.size > MAX_LOGO_BYTES) return "Choose a logo smaller than 200 KB.";
+  return null;
+}
+
+/** The file extension for a logo's type; the rules accept only these. */
+export const logoExtension = (type: string): string => LOGO_TYPES[type] ?? "png";
