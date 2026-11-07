@@ -89,7 +89,11 @@ service cloud.firestore {
         allow create: if isOwner(orgId) && validTenancy(request.resource.data)
           && request.resource.data.invoiced == false
           && copiesMatch(orgId, request.resource.data);
-        allow update: if isOwner(orgId) && validTenancy(request.resource.data);
+        // invoiced is server-set; the copies are kept true by a trigger (step 3), and
+        // re-pointing a tenancy at another tenant or unit means a new tenancy.
+        allow update: if isOwner(orgId) && validTenancy(request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+               ['invoiced', 'propertyId', 'unitId', 'tenantId', 'tenantName', 'unitLabel', 'propertyAddress', 'useType']);
       }
     }
   }

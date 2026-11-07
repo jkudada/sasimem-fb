@@ -103,3 +103,13 @@ test("an owner can change a tenancy's rent and terms", async () => {
   const ref = await addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s));
   await assertSucceeds(updateDoc(ref, { rentToea: 130_000, billingDay: 5, endDate: "2026-12-31" }));
 });
+
+test("an owner cannot change invoiced, the tenancy's links, or its copied fields", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const ref = await addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s));
+  for (const change of [{ invoiced: true }, { tenantName: "Renamed" }, { unitLabel: "Flat 9" }, { propertyAddress: "X" },
+    { useType: "commercial" }, { tenantId: "t2" }, { propertyId: "p2" }, { unitId: "u2" }]) {
+    await assertFails(updateDoc(ref, change));
+  }
+});
