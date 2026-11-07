@@ -114,6 +114,7 @@ export function periodsToDraft({ org, tenancies, runPeriods, now }: DraftingRequ
   const leadMs = org.approvalLeadDays * DAY_MS;
   return [thisMonth, nextPeriod(thisMonth)].filter((period) => {
     if (runPeriods.includes(period)) return false; // the tick never redrafts a run that exists
+    if (!tenancies.some((t) => isActiveIn(t, period))) return false;
     const send = sendAt({ org, tenancies, period });
     return now.getTime() >= send.getTime() - leadMs && now.getTime() <= send.getTime();
   });

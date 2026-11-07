@@ -192,4 +192,8 @@ describe("which months the tick drafts", () => {
   test("a month that already has a run is never drafted again by the tick", () => {
     expect(due("2026-09-28T00:00:00Z", ["2026-10"])).toEqual([]);
   });
+
+  test("a month with no active tenancy is not drafted", () => {
+    expect(due("2026-09-28T00:00:00Z", [], [aTenancy().starting("2027-01-01").build()])).toEqual([]);
+  });
 });
