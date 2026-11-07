@@ -39,3 +39,13 @@ describe("organisation details", () => {
     );
   });
 });
+
+test("the invoice prefix is at most 10 characters, and numbering starts at a whole number of 1 or more", () => {
+  expect(setup.orgProblems({ ...validOrg, invoicePrefix: "INVOICE-NO-" }).invoicePrefix).toBe("Keep the prefix to 10 characters or fewer.");
+  for (const bad of [0, -1, 1.5, Number.NaN]) {
+    expect(setup.orgProblems({ ...validOrg, firstInvoiceNumber: bad }).firstInvoiceNumber, String(bad)).toBe(
+      "Enter the number your next invoice should have, such as 1 or 142.",
+    );
+  }
+  expect(setup.orgProblems({ ...validOrg, firstInvoiceNumber: 142 }).firstInvoiceNumber).toBeUndefined();
+});

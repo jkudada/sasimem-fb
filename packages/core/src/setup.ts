@@ -15,10 +15,16 @@ export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
   if (!looksLikeEmail(org.email)) p.email = EMAIL_PROBLEM;
   const gst = gstNumberProblem(org);
   if (gst !== null) p.gstNumber = gst;
+  if (org.invoicePrefix.length > 10) p.invoicePrefix = "Keep the prefix to 10 characters or fewer.";
+  if (!wholeIn(org.firstInvoiceNumber, 1, Number.MAX_SAFE_INTEGER)) {
+    p.firstInvoiceNumber = "Enter the number your next invoice should have, such as 1 or 142.";
+  }
   return p;
 }
 
 const EMAIL_PROBLEM = "Enter an email address like name@example.com.";
+
+const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteger(n) && n >= min && n <= max;
 
 /** Deliberately loose: the real check is whether mail arrives. */
 export const looksLikeEmail = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
