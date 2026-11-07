@@ -66,3 +66,13 @@ export const periodLabel = (p: Period): string => `${monthName(p)} ${parts(p).ye
 /** "OCT26", the month part of a payment reference such as WARI-OCT26. */
 export const shortCode = (p: Period): string =>
   `${monthName(p).slice(0, 3).toUpperCase()}${pad(parts(p).year % 100, 2)}`;
+
+/** The calendar date `days` after `date` (negative goes back). */
+export function addDays(date: CalendarDate, days: number): CalendarDate {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return `${pad(t.getUTCFullYear(), 4)}-${pad(t.getUTCMonth() + 1, 2)}-${pad(t.getUTCDate(), 2)}` as CalendarDate;
+}
+
+/** The period a calendar date falls in. */
+export const periodOf = (date: CalendarDate): Period => date.slice(0, 7) as Period;

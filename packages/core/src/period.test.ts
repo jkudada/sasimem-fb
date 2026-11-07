@@ -44,3 +44,12 @@ test("a period reads as October 2026 and abbreviates to OCT26 for payment refere
   expect(period.shortCode(p("2030-05"))).toBe("MAY30");
   expect(period.shortCode(p("2009-12"))).toBe("DEC09");
 });
+
+test("adding days to a calendar date crosses month and year ends", () => {
+  const d = (s: string) => s as period.CalendarDate;
+  expect(period.addDays(d("2026-10-01"), 7)).toBe("2026-10-08");
+  expect(period.addDays(d("2026-10-25"), 14)).toBe("2026-11-08");
+  expect(period.addDays(d("2026-12-31"), 1)).toBe("2027-01-01");
+  expect(period.addDays(d("2028-02-28"), 1)).toBe("2028-02-29");
+  expect(period.addDays(d("2026-03-01"), -1)).toBe("2026-02-28");
+});
