@@ -44,7 +44,7 @@ describe("what is owed (plan §7, screen 6)", () => {
 
   test("the total owed adds every group; paid, void and unsent invoices are not owed", () => {
     expect(p.owedTotal(p.arrears(invoices))).toBe(330_000);
-    expect(p.owedTotal(p.arrears([invoices[3]!, invoices[4]!, invoices[5]!]))).toBe(0);
+    expect(p.owedTotal(p.arrears(invoices.slice(3)))).toBe(0);
   });
 });
 
