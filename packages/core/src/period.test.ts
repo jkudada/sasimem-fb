@@ -67,3 +67,8 @@ test("08:00 on a landlord's date in Port Moresby is 22:00 UTC the day before", (
   expect(sendAt.toISOString()).toBe("2026-09-30T22:00:00.000Z");
   expect(period.zonedInstant("2026-10-01" as period.CalendarDate, 8, "UTC").toISOString()).toBe("2026-10-01T08:00:00.000Z");
 });
+
+test("a calendar date falls in the period of its year and month", () => {
+  expect(period.periodOf("2026-10-31" as period.CalendarDate)).toBe("2026-10");
+  expect(period.periodOf("2027-01-01" as period.CalendarDate)).toBe("2027-01");
+});
