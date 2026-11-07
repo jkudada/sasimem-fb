@@ -17,3 +17,12 @@ test("the next and previous months roll over the year", () => {
   expect(period.previousPeriod(period.parsePeriod("2026-01"))).toBe("2025-12");
   expect(period.nextPeriod(period.parsePeriod("2026-09"))).toBe("2026-10");
 });
+
+test("a period runs from its first to its last calendar day, leap Februaries included", () => {
+  const p = period.parsePeriod;
+  expect(period.firstDay(p("2026-10"))).toBe("2026-10-01");
+  expect(period.lastDay(p("2026-10"))).toBe("2026-10-31");
+  expect(period.lastDay(p("2026-09"))).toBe("2026-09-30");
+  expect(period.lastDay(p("2026-02"))).toBe("2026-02-28");
+  expect(period.lastDay(p("2028-02"))).toBe("2028-02-29");
+});

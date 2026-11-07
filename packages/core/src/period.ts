@@ -37,3 +37,11 @@ export function shiftPeriod(p: Period, months: number): Period {
 
 export const nextPeriod = (p: Period): Period => shiftPeriod(p, 1);
 export const previousPeriod = (p: Period): Period => shiftPeriod(p, -1);
+
+function daysInMonth(p: Period): number {
+  const { year, month } = parts(p);
+  return new Date(Date.UTC(year, month, 0)).getUTCDate(); // day 0 of the next month
+}
+
+export const firstDay = (p: Period): CalendarDate => `${p}-01` as CalendarDate;
+export const lastDay = (p: Period): CalendarDate => `${p}-${pad(daysInMonth(p), 2)}` as CalendarDate;
