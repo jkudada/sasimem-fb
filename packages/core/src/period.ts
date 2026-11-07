@@ -88,3 +88,13 @@ export function localDate(now: Date, tz: string): CalendarDate {
 export function zonedInstant(date: CalendarDate, hour: number, tz: string): Date {
   return fromZonedTime(`${date}T${pad(hour, 2)}:00:00`, tz);
 }
+
+/** A real calendar date written YYYY-MM-DD; throws on anything else, including 30 February. */
+export function parseCalendarDate(text: string): CalendarDate {
+  const trimmed = text.trim();
+  const match = /^(\d{4})-(0[1-9]|1[0-2])-(\d{2})$/.exec(trimmed);
+  if (match === null || Number(match[3]) < 1 || Number(match[3]) > daysInMonth(trimmed.slice(0, 7) as Period)) {
+    throw new SyntaxError("expected a date like 2026-10-01, got " + JSON.stringify(text));
+  }
+  return trimmed as CalendarDate;
+}

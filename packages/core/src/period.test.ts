@@ -72,3 +72,11 @@ test("a calendar date falls in the period of its year and month", () => {
   expect(period.periodOf("2026-10-31" as period.CalendarDate)).toBe("2026-10");
   expect(period.periodOf("2027-01-01" as period.CalendarDate)).toBe("2027-01");
 });
+
+test("a calendar date is a real YYYY-MM-DD date", () => {
+  expect(period.parseCalendarDate(" 2026-10-01 ")).toBe("2026-10-01");
+  expect(period.parseCalendarDate("2028-02-29")).toBe("2028-02-29");
+  for (const bad of ["2026-02-30", "2026-02-29", "2026-10-1", "2026-13-01", "01/10/2026", ""]) {
+    expect(() => period.parseCalendarDate(bad), bad).toThrow(SyntaxError);
+  }
+});
