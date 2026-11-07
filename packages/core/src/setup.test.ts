@@ -77,6 +77,12 @@ describe("properties", () => {
     const twins = [{ id: "a", label: "Flat 1" }, { id: "b", label: "flat 1 " }];
     expect(setup.propertyProblems({ ...valid, units: twins }).units).toBe("Two units have the same name.");
   });
+
+  test("a property has at most 20 units (the rules check each one)", () => {
+    const units = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `u${i}`, label: `Flat ${i}` }));
+    expect(setup.propertyProblems({ ...valid, units: units(20) }).units).toBeUndefined();
+    expect(setup.propertyProblems({ ...valid, units: units(21) }).units).toBe("A property can have up to 20 units.");
+  });
 });
 
 test("a tenant needs a name and a valid email, because invoices are emailed; the phone is optional", () => {

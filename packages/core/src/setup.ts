@@ -55,6 +55,7 @@ const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteg
 export const looksLikeEmail = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 
 export const MAX_ADDRESS = 200;
+export const MAX_UNITS = 20;
 
 export function propertyProblems(property: PropertyInput): Problems<keyof PropertyInput> {
   const p: Problems<keyof PropertyInput> = {};
@@ -64,6 +65,7 @@ export function propertyProblems(property: PropertyInput): Problems<keyof Proper
   const labels = property.units.map((u) => u.label.trim().toLowerCase());
   if (labels.length === 0) p.units = "Add at least one unit, even if it is the whole building.";
   else if (labels.some((l) => l === "")) p.units = "Give every unit a name, such as Flat 1.";
+  else if (labels.length > MAX_UNITS) p.units = `A property can have up to ${MAX_UNITS} units.`;
   else if (new Set(labels).size !== labels.length) p.units = "Two units have the same name.";
   return p;
 }
