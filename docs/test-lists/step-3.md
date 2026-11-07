@@ -51,20 +51,21 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
 - [x] the trigger and the callable run in australia-southeast1 (region test covers them)
 
 ## Web (T1 components)
-- [ ] home: links to properties, tenants and settings; sign out
-- [ ] properties: lists each address with its units
-- [ ] property form: edits address, use and units; core's problems shown; a unit with a tenancy cannot be removed
-- [ ] tenants: lists each name and email; a tenant with a tenancy cannot be deleted
-- [ ] tenant form: core's problems shown; saves name, email, phone
-- [ ] tenancy form: picks a property, unit and tenant; terms parsed as in onboarding
-- [ ] tenancy form: adds, edits, pauses and removes charges; amounts parsed from kina; credits allowed
-- [ ] tenancy form: GST treatment reads "same as the rent" and says what that means here
-- [ ] tenancy: ending sets the end date; delete is offered only when it was never invoiced
-- [ ] tenancies are listed under their property as upcoming, current or ended
-- [ ] settings: edits letterhead, bank, GST and timing with core's problems; saves the profile
-- [ ] settings: a logo over 200 KB or not an image is refused before upload
-- [ ] settings: next invoice number shows a plain message once numbering has started
-- [ ] routing: signed-in routes for each screen; an unknown path goes home
+- [x] home: links to properties, tenants and settings; sign out
+- [x] properties: lists each address with its units
+- [x] property form: edits address, use and units; core's problems shown; a unit with a tenancy cannot be removed
+- [x] tenants: lists each name and email; a tenant with a tenancy cannot be deleted
+- [x] tenant form: core's problems shown; saves name, email, phone
+- [x] tenancy form: picks a property, unit and tenant; terms parsed as in onboarding
+- [x] tenancy form: adds, edits, pauses and removes charges; amounts parsed from kina; credits allowed
+- [x] tenancy form: GST treatment reads "same as the rent" and says what that means here
+- [x] tenancy: ending sets the end date; delete is offered only when it was never invoiced
+- [x] tenancies are listed under their property as upcoming, current or ended
+- [x] settings: edits letterhead, bank, GST and timing with core's problems; saves the profile
+- [x] settings: a logo over 200 KB or not an image is refused before upload
+- [x] settings: next invoice number shows a plain message once numbering has started
+- [x] routing: signed-in routes for each screen; an unknown path goes home
+- [x] after onboarding's first tenant, the landlord lands on home (replaces step 2's "You're set up" page)
 
 ## Size budgets
-- [ ] sign-in route still ≤ 70 KB gzip; signed-in shell ≤ 160 KB gzip with the new screens and Storage
+- [x] sign-in route still ≤ 70 KB gzip (50.3 KB, now counting the shared JSX chunk Vite split out); signed-in shell ≤ 160 KB (110.3 KB)

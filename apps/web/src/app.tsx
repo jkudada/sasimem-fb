@@ -2,37 +2,21 @@
  * The app shell: picks the one screen that matters for the session. Screens are
  * lazy, so the sign-in route carries only Preact, Auth and the sign-in form.
  */
-import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
+import { type ReadonlySignal, useSignal } from "@preact/signals";
 import type { CalendarDate, OrgSetupInput } from "@sasimem/core";
-import type { ComponentType } from "preact";
 import { LocationProvider, Route, Router } from "preact-iso";
+import { lazyScreen } from "./lazy.js";
 import { screenFor, type Session } from "./route.js";
+import type { SetupStore } from "./setup.js";
 import type { SignInAction } from "./screens/SignIn.js";
 import type { FirstTenancy } from "./screens/TenancyStep.js";
-
-/**
- * A screen loaded on first use, showing "Loading…" meanwhile. Plain signals rather
- * than suspense: preact-iso's Router only re-routes on a URL change, and onboarding
- * changes screen without one.
- */
-function lazyScreen<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> {
-  const loaded = signal<ComponentType<P> | null>(null);
-  let started = false;
-  return (props: P) => {
-    if (!started) {
-      started = true;
-      void load().then((c) => (loaded.value = c));
-    }
-    const Screen = loaded.value;
-    return Screen === null ? <main class="narrow"><p>Loading…</p></main> : <Screen {...props} />;
-  };
-}
 
 const SignIn = lazyScreen(() => import("./screens/SignIn.js").then((m) => m.SignIn));
 const SignUp = lazyScreen(() => import("./screens/SignUp.js").then((m) => m.SignUp));
 const ResetPassword = lazyScreen(() => import("./screens/ResetPassword.js").then((m) => m.ResetPassword));
 const OrgStep = lazyScreen(() => import("./screens/OrgStep.js").then((m) => m.OrgStep));
 const TenancyStep = lazyScreen(() => import("./screens/TenancyStep.js").then((m) => m.TenancyStep));
+const SignedIn = lazyScreen(() => import("./SignedIn.js").then((m) => m.SignedIn));
 
 /** What screens can do. Each resolves to a plain-English problem, or null on success. */
 export interface Actions {
@@ -42,6 +26,8 @@ export interface Actions {
   signOut: () => Promise<void>;
   createOrg: (input: OrgSetupInput) => Promise<string | null>;
   saveFirstTenancy: (first: FirstTenancy) => Promise<string | null>;
+  /** Firestore for the setup screens, loaded after sign-in. */
+  setupStore: (orgId: string) => Promise<SetupStore>;
 }
 
 export function App(props: { session: ReadonlySignal<Session>; actions: Actions; today: () => string }) {
@@ -75,12 +61,6 @@ export function App(props: { session: ReadonlySignal<Session>; actions: Actions;
   }
   if (screen === "onboarding" && session.status === "signedIn") return <OrgStep defaultEmail={session.email} onSubmit={createOrg} />;
   if (addingTenant.value) return <TenancyStep today={props.today() as CalendarDate} onSubmit={saveFirstTenancy} />;
-  return (
-    <main class="narrow">
-      <h1>You're set up</h1>
-      <p>Each month Sasimem drafts your invoices and emails you one link to approve them. Nothing goes to a tenant until you approve.</p>
-      <button type="button" onClick={() => (addingTenant.value = true)}>Add a tenant</button>
-      <button type="button" class="quiet" onClick={() => void actions.signOut()}>Sign out</button>
-    </main>
-  );
+  if (session.status !== "signedIn" || session.orgId === null) return null;
+  return <SignedIn orgId={session.orgId} actions={actions} today={props.today() as CalendarDate} />;
 }

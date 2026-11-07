@@ -1,30 +1,16 @@
 import { useSignal } from "@preact/signals";
 import {
   type CalendarDate, type PropertyInput, type TenancyInput, type TenantInput, type Toea, type UseType,
-  amountProblem, parseKina, propertyProblems, tenancyProblems, tenantProblems,
+  propertyProblems, tenancyProblems, tenantProblems,
 } from "@sasimem/core";
 import { Field, value } from "./Field.js";
+import { prefix, readKina, whole } from "./read.js";
 
 export interface FirstTenancy {
   readonly property: PropertyInput;
   readonly tenant: TenantInput;
   readonly terms: TenancyInput;
 }
-
-const RENT_PROBLEM = "Enter an amount like K1,200.00.";
-
-/** Read the rent as typed; a problem in plain words, or the amount. */
-function readRent(text: string): { rentToea: Toea } | { problem: string } {
-  try {
-    const rentToea = parseKina(text);
-    const problem = amountProblem(rentToea);
-    return problem === null ? { rentToea } : { problem };
-  } catch {
-    return { problem: RENT_PROBLEM };
-  }
-}
-
-const whole = (s: string): number => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : Number.NaN);
 
 /** Onboarding, part 2: the first property, tenant and tenancy (plan §7, screen 2). */
 export function TenancyStep(props: { today: CalendarDate; onSubmit: (first: FirstTenancy) => Promise<string | null> }) {
@@ -47,9 +33,9 @@ export function TenancyStep(props: { today: CalendarDate; onSubmit: (first: Firs
     e.preventDefault();
     const property: PropertyInput = { address: address.value.trim(), useType: useType.value, units: [{ id: "u1", label: unitLabel.value.trim() }] };
     const tenant: TenantInput = { name: tenantName.value.trim(), email: tenantEmail.value.trim(), phone: tenantPhone.value.trim() };
-    const rentRead = readRent(rent.value);
+    const rentRead = readKina(rent.value);
     const terms: TenancyInput = {
-      rentToea: "rentToea" in rentRead ? rentRead.rentToea : (0 as Toea),
+      rentToea: "toea" in rentRead ? rentRead.toea : (0 as Toea),
       startDate: startDate.value.trim(), endDate: null,
       billingDay: whole(billingDay.value), dueDays: whole(dueDays.value), referenceCode: reference.value.trim(),
     };
@@ -115,8 +101,4 @@ export function TenancyStep(props: { today: CalendarDate; onSubmit: (first: Firs
       </form>
     </main>
   );
-}
-
-function prefix(pre: string, problems: Record<string, string | undefined>): Record<string, string | undefined> {
-  return Object.fromEntries(Object.entries(problems).map(([k, v]) => [pre + k, v]));
 }

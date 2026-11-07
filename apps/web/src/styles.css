@@ -22,3 +22,21 @@ button { min-height: var(--tap); padding: 0 20px; font: inherit; font-weight: 60
 button.quiet { background: transparent; color: var(--accent); margin-top: 8px; }
 button:disabled { opacity: 0.6; }
 a { color: var(--accent); }
+/* Step 3: setup screens. */
+select { min-height: var(--tap); padding: 8px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius); width: 100%; background: #fff; color: var(--ink); }
+a.button { display: flex; align-items: center; justify-content: center; min-height: var(--tap); padding: 0 20px; font-weight: 600; border-radius: var(--radius); background: var(--accent); color: #fff; text-decoration: none; margin: var(--gap) 0; }
+a.back { display: inline-flex; align-items: center; min-height: var(--tap); text-decoration: none; }
+ul.links, ul.units { list-style: none; padding: 0; margin: 0; }
+ul.links li { display: grid; min-height: var(--tap); align-content: center; border-bottom: 1px solid var(--line); padding: 8px 0; }
+ul.links a { font-weight: 600; }
+ul.units li { padding: 6px 0; overflow-wrap: anywhere; }
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px var(--gap); margin: 0 0 var(--gap); display: grid; gap: 12px; }
+.card h2 { margin: 0; }
+.card legend { font-weight: 600; padding: 0 4px; }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.state { color: var(--muted); font-size: 0.9rem; }
+.state.current { color: var(--accent); }
+button.danger { background: transparent; color: var(--problem); border: 1px solid var(--problem); }
+button.small { width: auto; margin: 0; }
+img.logo { max-width: 160px; max-height: 80px; display: block; margin-bottom: 8px; }
+[role="status"] { color: var(--accent); }

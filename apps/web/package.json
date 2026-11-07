@@ -16,7 +16,8 @@
       "path": [
         "dist/assets/index-*.js",
         "dist/assets/SignIn-*.js",
-        "dist/assets/Field-*.js"
+        "dist/assets/Field-*.js",
+        "dist/assets/jsxRuntime-*.js"
       ],
       "limit": "70 KB",
       "gzip": true
