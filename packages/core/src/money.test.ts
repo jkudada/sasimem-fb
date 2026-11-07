@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { toea } from "./money.js";
+import { parseKina, toea } from "./money.js";
 
 describe("toea", () => {
   test("accepts an integer number of toea", () => {
@@ -15,4 +15,8 @@ test("toea throws outside ±MAX_SAFE_INTEGER, where integers stop being exact", 
   expect(() => toea(Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError);
   expect(() => toea(-Number.MAX_SAFE_INTEGER - 1)).toThrow(RangeError);
   expect(toea(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
+});
+
+test("parseKina reads a plain number of kina", () => {
+  expect(parseKina("1200")).toBe(120_000);
 });
