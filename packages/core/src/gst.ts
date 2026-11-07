@@ -42,5 +42,5 @@ export type DocumentTitle = "INVOICE" | "TAX INVOICE";
 
 /** The words printed at the top of the page. */
 export function documentTitle(q: { readonly orgGstRegistered: boolean; readonly hasTaxableLine: boolean }): DocumentTitle {
-  return q.hasTaxableLine ? "TAX INVOICE" : "INVOICE";
+  return q.orgGstRegistered && q.hasTaxableLine ? "TAX INVOICE" : "INVOICE";
 }

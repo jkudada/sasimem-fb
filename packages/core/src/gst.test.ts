@@ -50,3 +50,7 @@ test("the document is an INVOICE when no line is taxable", () => {
 test("the document is a TAX INVOICE when the landlord is registered and a line is taxable", () => {
   expect(gst.documentTitle({ orgGstRegistered: true, hasTaxableLine: true })).toBe("TAX INVOICE");
 });
+
+test("an unregistered landlord issues a plain INVOICE whatever the lines say", () => {
+  expect(gst.documentTitle({ orgGstRegistered: false, hasTaxableLine: true })).toBe("INVOICE");
+});
