@@ -7,12 +7,12 @@ describe("toea", () => {
   });
 
   test("throws on a non-integer, because a fraction of a toea is not money", () => {
-    expect(() => toea(1.5)).toThrow(RangeError);
+    expect(() => toea(1.5)).toThrow(new RangeError("not a whole, safe number of toea: 1.5"));
   });
 });
 
 test("toea throws outside ±MAX_SAFE_INTEGER, where integers stop being exact", () => {
-  expect(() => toea(Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError);
+  expect(() => toea(Number.MAX_SAFE_INTEGER + 1)).toThrow(new RangeError("not a whole, safe number of toea: 9007199254740992"));
   expect(() => toea(-Number.MAX_SAFE_INTEGER - 1)).toThrow(RangeError);
   expect(toea(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
 });
@@ -54,6 +54,7 @@ test("parseKina rejects anything that is not an amount", () => {
   for (const rubbish of ["abc", "1.2.3", "1-2", "-", ".", "1e3", "12x"]) {
     expect(() => parseKina(rubbish), rubbish).toThrow(SyntaxError);
   }
+  expect(() => parseKina("12x")).toThrow(new SyntaxError('not an amount: "12x"'));
 });
 
 test("formatKina renders an amount the way a PNG invoice reads", () => {
