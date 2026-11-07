@@ -24,3 +24,9 @@ test("an unpaid invoice earns its reminder on the due date plus the org's remind
   expect(billing.reminderDue({ invoice: sent, org: sameDay, now: new Date("2026-10-07T14:00:00Z") })).toBe(true);
   expect(billing.reminderDue({ invoice: sent, org: sameDay, now: new Date("2026-10-07T13:59:59Z") })).toBe(false);
 });
+
+test("the landlord's calendar day decides, not the server's", () => {
+  // 14:00Z on 14 October is already 15 October in Port Moresby, though not in UTC.
+  expect(billing.reminderDue({ invoice: sent, org, now: onTheDay })).toBe(true);
+  expect(billing.reminderDue({ invoice: sent, org: anOrg().remindAfter(7).inTimezone("UTC").build(), now: onTheDay })).toBe(false);
+});
