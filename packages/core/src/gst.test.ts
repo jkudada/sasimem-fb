@@ -54,3 +54,11 @@ test("the document is a TAX INVOICE when the landlord is registered and a line i
 test("an unregistered landlord issues a plain INVOICE whatever the lines say", () => {
   expect(gst.documentTitle({ orgGstRegistered: false, hasTaxableLine: true })).toBe("INVOICE");
 });
+
+test("a GST-registered landlord must record a GST number; blank or whitespace is missing", () => {
+  const message = "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.";
+  expect(gst.gstNumberProblem({ gstRegistered: true, gstNumber: "" })).toBe(message);
+  expect(gst.gstNumberProblem({ gstRegistered: true, gstNumber: "   " })).toBe(message);
+  expect(gst.gstNumberProblem({ gstRegistered: true, gstNumber: "500012345" })).toBeNull();
+  expect(gst.gstNumberProblem({ gstRegistered: false, gstNumber: "" })).toBeNull();
+});

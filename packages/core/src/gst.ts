@@ -44,3 +44,11 @@ export type DocumentTitle = "INVOICE" | "TAX INVOICE";
 export function documentTitle(q: { readonly orgGstRegistered: boolean; readonly hasTaxableLine: boolean }): DocumentTitle {
   return q.orgGstRegistered && q.hasTaxableLine ? "TAX INVOICE" : "INVOICE";
 }
+
+/** A validation message for the org's GST settings, or null. */
+export function gstNumberProblem(org: { readonly gstRegistered: boolean; readonly gstNumber: string }): string | null {
+  if (org.gstRegistered && org.gstNumber.trim() === "") {
+    return "A GST-registered landlord must enter their GST number: it is printed on every tax invoice.";
+  }
+  return null;
+}
