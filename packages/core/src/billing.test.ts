@@ -208,4 +208,10 @@ describe("which months the tick drafts", () => {
   test("next month's run does not make this month look like history", () => {
     expect(due("2026-09-27T23:00:00Z", ["2026-10"])).toEqual([]);
   });
+
+  test("this month and next are the landlord's months, not the server's", () => {
+    // 22:30Z on 30 September is 08:30 on 1 October in Port Moresby, so the
+    // candidates are October and November. With 31 lead days November is due.
+    expect(due("2026-09-30T22:30:00Z", [], tenancies, anOrg().sendingAt(8).leadDays(31).build())).toEqual(["2026-11"]);
+  });
 });
