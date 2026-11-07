@@ -5,7 +5,7 @@
 import { documentTitle, gstOn, isTaxable } from "./gst.js";
 import { type Toea, toea } from "./money.js";
 import { addDays, day, firstDay, lastDay, localDate, nextPeriod, type Period, periodLabel, periodOf, shortCode, zonedInstant } from "./period.js";
-import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, Tenancy, Totals } from "./types.js";
+import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, RunStatus, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
 export function isActiveIn(tenancy: Tenancy, period: Period): boolean {
@@ -130,3 +130,10 @@ export function periodsToDraft({ org, tenancies, runPeriods, now }: DraftingRequ
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------- the state machine (§3.5)
+
+const EDITABLE: ReadonlySet<RunStatus> = new Set(["draft", "awaitingApproval", "held"]);
+
+/** Invoices in an editable run may be excluded, re-included, re-priced or rebuilt. */
+export const isEditable = (status: RunStatus): boolean => EDITABLE.has(status);
