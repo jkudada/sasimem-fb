@@ -38,3 +38,7 @@ test("a one-month charge applies only in the month it names", () => {
   expect(billing.chargeApplies(repair, OCT)).toBe(true);
   expect(billing.chargeApplies(repair, parsePeriod("2026-11"))).toBe(false);
 });
+
+test("the payment reference is the tenancy's code, upper-cased, then the month: WARI-OCT26", () => {
+  expect(billing.paymentReference(aTenancy().reference("wari").build(), OCT)).toBe("WARI-OCT26");
+});
