@@ -71,4 +71,9 @@ describe("paid ticks", () => {
   test("a sent invoice marked paid records when", () => {
     expect(billing.markPaid({ status: "sent", paidAt: null }, monday)).toEqual({ status: "paid", paidAt: monday });
   });
+
+  test("marking an already-paid invoice paid again is a no-op that keeps the original date", () => {
+    const tuesday = new Date("2026-10-13T01:00:00Z");
+    expect(billing.markPaid({ status: "paid", paidAt: monday }, tuesday)).toEqual({ status: "paid", paidAt: monday });
+  });
 });

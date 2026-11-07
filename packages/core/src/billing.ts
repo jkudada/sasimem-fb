@@ -173,6 +173,7 @@ export interface PaymentState {
 }
 
 /** Tick an invoice paid. Emails nobody (§3.5). */
-export function markPaid(_invoice: PaymentState, now: Date): PaymentState {
+export function markPaid(invoice: PaymentState, now: Date): PaymentState {
+  if (invoice.status === "paid") return invoice;
   return { status: "paid", paidAt: now };
 }
