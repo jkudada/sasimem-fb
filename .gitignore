@@ -1,0 +1,18 @@
+node_modules/
+dist/
+lib/
+coverage/
+reports/
+.stryker-tmp/
+test-results/
+playwright-report/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.firebase/
+# The Django reference app: read-only, never committed here.
+reference/
+.attachments/
+.pnpm-store/

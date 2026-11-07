@@ -1,0 +1,49 @@
+{
+  "name": "sasimem-fb",
+  "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "type": "module",
+  "scripts": {
+    "prepare": "lefthook install",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --parallel typecheck && tsc -p tools",
+    "test": "pnpm test:unit && pnpm test:prop",
+    "test:unit": "vitest run --project core-unit --project web-unit --slowTestThreshold 50",
+    "test:prop": "vitest run --project core-property --slowTestThreshold 1000",
+    "test:watch": "vitest --project core-unit --project web-unit --slowTestThreshold 50",
+    "test:rules": "vitest run --project rules --slowTestThreshold 2000",
+    "test:int": "vitest run --project integration --slowTestThreshold 2000",
+    "emulators": "firebase emulators:start --project demo-sasimem --only auth,firestore,storage",
+    "ci:rules": "firebase emulators:exec --project demo-sasimem --only firestore \"pnpm test:rules\"",
+    "ci:int": "firebase emulators:exec --project demo-sasimem --only auth,firestore,storage \"pnpm test:int\"",
+    "mutation": "pnpm --filter @sasimem/core mutation",
+    "build:web": "pnpm --filter @sasimem/web build",
+    "size": "pnpm --filter @sasimem/web size",
+    "e2e": "pnpm --filter @sasimem/web e2e"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "5.1.0",
+    "@vitest/eslint-plugin": "^1.6.28",
+    "eslint": "^10.14.0",
+    "fast-check": "^4.10.2",
+    "firebase-tools": "15.25.1",
+    "lefthook": "^2.2.2",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "5.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "lefthook"
+    ],
+    "ignoredBuiltDependencies": [
+      "@firebase/util",
+      "protobufjs",
+      "re2"
+    ]
+  }
+}

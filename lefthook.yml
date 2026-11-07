@@ -1,0 +1,10 @@
+# Pre-push: fast checks only, never emulators (plan §9.4). Target < 30 s.
+pre-push:
+  parallel: true
+  commands:
+    typecheck:
+      run: pnpm typecheck
+    lint:
+      run: pnpm lint
+    unit:
+      run: pnpm test:unit
