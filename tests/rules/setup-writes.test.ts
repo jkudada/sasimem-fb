@@ -85,3 +85,14 @@ test("a tenancy with a malformed date, an end before its start, a bad reference 
   await assertFails(addDoc(tenancies, validTenancy(s, { totalOwedToea: 0 })));
   await assertSucceeds(addDoc(tenancies, validTenancy(s, { endDate: "2026-12-31" })));
 });
+
+test("a tenancy's copied tenant name, unit label, address and use type must match its tenant and property", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const tenancies = collection(owner, `orgs/${s.orgId}/tenancies`);
+  await assertFails(addDoc(tenancies, validTenancy(s, { tenantName: "Someone Else" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { unitLabel: "Flat 9" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { propertyAddress: "Elsewhere" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { useType: "commercial" })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { tenantId: "no-such-tenant" })));
+});
