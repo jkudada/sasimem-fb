@@ -12,8 +12,8 @@ import type { GstTreatment, UseType } from "./types.js";
  */
 export function gstOn(amount: Toea): Toea {
   const onMagnitude = Math.floor((Math.abs(amount) * 10 + 50) / 100);
-  // A credit mirrors the charge it reverses. "+ 0" turns -0 into 0.
-  return toea(amount < 0 ? -onMagnitude + 0 : onMagnitude);
+  // A credit mirrors the charge it reverses. "+ 0" turns a -0 (from a small credit) into 0.
+  return toea(Math.sign(amount) * onMagnitude + 0);
 }
 
 export interface TaxableQuestion {
