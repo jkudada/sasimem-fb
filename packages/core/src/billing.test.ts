@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { aTenancy } from "../testing/index.js";
+import { aCharge, aTenancy } from "../testing/index.js";
 import * as billing from "./billing.js";
 import { parsePeriod } from "./period.js";
 
@@ -20,5 +20,11 @@ describe("tenancies that end", () => {
   test("a tenancy ending mid-month, or on its first day, is still billed for that month", () => {
     expect(billing.isActiveIn(aTenancy().ending("2026-10-15").build(), OCT)).toBe(true);
     expect(billing.isActiveIn(aTenancy().ending("2026-10-01").build(), OCT)).toBe(true);
+  });
+});
+
+describe("which additional charges apply", () => {
+  test("a recurring charge applies every month", () => {
+    expect(billing.chargeApplies(aCharge().every().build(), OCT)).toBe(true);
   });
 });
