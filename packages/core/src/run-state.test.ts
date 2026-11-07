@@ -64,3 +64,11 @@ describe("taking a tenant out of the month's batch", () => {
     expect(billing.canInclude("draft", "draft")).toBe(false);
   });
 });
+
+describe("paid ticks", () => {
+  const monday = new Date("2026-10-12T01:00:00Z");
+
+  test("a sent invoice marked paid records when", () => {
+    expect(billing.markPaid({ status: "sent", paidAt: null }, monday)).toEqual({ status: "paid", paidAt: monday });
+  });
+});

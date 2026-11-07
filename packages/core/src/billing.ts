@@ -166,3 +166,13 @@ export function approvalOutcome(status: RunStatus): ApprovalOutcome {
 
 export const canExclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "draft";
 export const canInclude = (run: RunStatus, invoice: InvoiceStatus): boolean => isEditable(run) && invoice === "excluded";
+
+export interface PaymentState {
+  readonly status: InvoiceStatus;
+  readonly paidAt: Date | null;
+}
+
+/** Tick an invoice paid. Emails nobody (§3.5). */
+export function markPaid(_invoice: PaymentState, now: Date): PaymentState {
+  return { status: "paid", paidAt: now };
+}
