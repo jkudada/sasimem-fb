@@ -5,6 +5,7 @@
  */
 import { gstNumberProblem } from "./gst.js";
 import { amountProblem } from "./money.js";
+import { type CalendarDate, parseCalendarDate } from "./period.js";
 import type { OrgSetup, Problems, PropertyInput, TenancyInput, TenantInput } from "./types.js";
 
 export const MAX_NAME = 100;
@@ -27,6 +28,16 @@ export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
 }
 
 const EMAIL_PROBLEM = "Enter an email address like name@example.com.";
+
+const DATE_PROBLEM = "Enter a real date, such as 2026-10-01.";
+
+function realDate(text: string): CalendarDate | null {
+  try {
+    return parseCalendarDate(text);
+  } catch {
+    return null;
+  }
+}
 
 const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteger(n) && n >= min && n <= max;
 
@@ -61,5 +72,10 @@ export function tenancyProblems(tenancy: TenancyInput): Problems<keyof TenancyIn
   if (!wholeIn(tenancy.dueDays, 0, 90)) p.dueDays = "Choose from 0 to 90 days.";
   const rent = tenancy.rentToea < 0 ? "Rent cannot be negative. Add a credit as a separate charge." : amountProblem(tenancy.rentToea);
   if (rent !== null) p.rentToea = rent;
+  const start = realDate(tenancy.startDate);
+  const end = tenancy.endDate === null ? null : realDate(tenancy.endDate);
+  if (start === null) p.startDate = DATE_PROBLEM;
+  if (tenancy.endDate !== null && end === null) p.endDate = DATE_PROBLEM;
+  else if (start !== null && end !== null && end < start) p.endDate = "The end date is before the start date.";
   return p;
 }

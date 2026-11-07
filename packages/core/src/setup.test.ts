@@ -102,4 +102,11 @@ describe("tenancies", () => {
     expect(setup.tenancyProblems({ ...valid, rentToea: toea(1_000_000_001) }).rentToea).toBe("That is more than K10,000,000.00. Check the amount.");
     expect(setup.tenancyProblems({ ...valid, rentToea: toea(0) }).rentToea).toBeUndefined();
   });
+
+  test("dates are real dates, and a tenancy cannot end before it starts", () => {
+    expect(setup.tenancyProblems({ ...valid, startDate: "2026-02-30" }).startDate).toBe("Enter a real date, such as 2026-10-01.");
+    expect(setup.tenancyProblems({ ...valid, endDate: "someday" }).endDate).toBe("Enter a real date, such as 2026-10-01.");
+    expect(setup.tenancyProblems({ ...valid, endDate: "2025-12-31" }).endDate).toBe("The end date is before the start date.");
+    expect(setup.tenancyProblems({ ...valid, endDate: "2026-01-01" }).endDate).toBeUndefined();
+  });
 });
