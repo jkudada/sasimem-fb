@@ -61,3 +61,9 @@ test("today is the landlord's calendar day in their timezone, not the server's",
   expect(period.localDate(new Date("2026-09-30T13:59:59Z"), "Pacific/Port_Moresby")).toBe("2026-09-30");
   expect(period.localDate(now, "UTC")).toBe("2026-09-30");
 });
+
+test("08:00 on a landlord's date in Port Moresby is 22:00 UTC the day before", () => {
+  const sendAt = period.zonedInstant("2026-10-01" as period.CalendarDate, 8, "Pacific/Port_Moresby");
+  expect(sendAt.toISOString()).toBe("2026-09-30T22:00:00.000Z");
+  expect(period.zonedInstant("2026-10-01" as period.CalendarDate, 8, "UTC").toISOString()).toBe("2026-10-01T08:00:00.000Z");
+});
