@@ -161,5 +161,5 @@ export type ApprovalOutcome = "approve" | "alreadyApproved" | "refused";
 /** What an approval attempt should do, given the run's current status (§6.3 step 1). */
 export function approvalOutcome(status: RunStatus): ApprovalOutcome {
   if (status === "approved" || status === "sent") return "alreadyApproved";
-  return "approve";
+  return isEditable(status) ? "approve" : "refused";
 }

@@ -44,4 +44,11 @@ describe("approving a run", () => {
     expect(billing.approvalOutcome("approved")).toBe("alreadyApproved");
     expect(billing.approvalOutcome("sent")).toBe("alreadyApproved");
   });
+
+  test("a held run can still be approved late, like any editable run; a cancelled one cannot", () => {
+    expect(billing.approvalOutcome("held")).toBe("approve");
+    expect(billing.approvalOutcome("draft")).toBe("approve");
+    expect(billing.approvalOutcome("awaitingApproval")).toBe("approve");
+    expect(billing.approvalOutcome("cancelled")).toBe("refused");
+  });
 });
