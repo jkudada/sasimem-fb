@@ -37,3 +37,8 @@ test("a line that inherits is taxable on commercial space and exempt on resident
   expect(gst.isTaxable({ orgGstRegistered: true, useType: "commercial", treatment: "inherit" })).toBe(true);
   expect(gst.isTaxable({ orgGstRegistered: true, useType: "residential", treatment: "inherit" })).toBe(false);
 });
+
+test("an unknown treatment is an error, not a silent exemption", () => {
+  const maybe = "maybe" as gst.TaxableQuestion["treatment"];
+  expect(() => gst.isTaxable({ orgGstRegistered: true, useType: "commercial", treatment: maybe })).toThrow(TypeError);
+});

@@ -32,5 +32,8 @@ export function isTaxable(q: TaxableQuestion): boolean {
       return false;
     case "inherit":
       return q.useType === "commercial"; // residential rent is an exempt supply
+    default:
+      // Data from Firestore is not checked by the compiler. Refuse rather than exempt.
+      throw new TypeError(`unknown GST treatment: ${JSON.stringify(q.treatment satisfies never)}`);
   }
 }
