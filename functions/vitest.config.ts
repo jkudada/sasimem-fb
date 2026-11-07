@@ -6,9 +6,9 @@ import { defineProject } from "vitest/config";
 export default defineProject({
   test: {
     name: "integration",
-    include: ["functions/test/**/*.test.ts"],
+    include: ["test/**/*.test.ts"],
     environment: "node",
-    globalSetup: ["./tools/emulator-global-setup.ts"],
-    setupFiles: ["./functions/test/harness/worker-setup.ts"],
+    globalSetup: ["../tools/emulator-global-setup.ts"],
+    setupFiles: ["./test/harness/worker-setup.ts"],
   },
 });

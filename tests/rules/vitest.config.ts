@@ -5,8 +5,8 @@ import { defineProject } from "vitest/config";
 export default defineProject({
   test: {
     name: "rules",
-    include: ["tests/rules/**/*.test.ts"],
+    include: ["**/*.test.ts"],
     environment: "node",
-    globalSetup: ["./tools/emulator-global-setup.ts"],
+    globalSetup: ["../../tools/emulator-global-setup.ts"],
   },
 });
