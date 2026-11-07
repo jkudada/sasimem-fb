@@ -25,3 +25,17 @@ test("a signed-in stranger cannot create properties, tenants or tenancies in som
   await assertFails(addDoc(collection(stranger, `${org}/tenants`), { name: "X", email: "x@x.example", phone: "" }));
   await assertFails(addDoc(collection(stranger, `${org}/tenancies`), validTenancy(s)));
 });
+
+test("a property with an unknown use type, no units or extra fields is refused; so is a tenant without a valid email", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const properties = collection(owner, `orgs/${s.orgId}/properties`);
+  const ok = { address: "Lot 9, Gordons", useType: "commercial", units: [{ id: "u1", label: "Shop 1" }] };
+  await assertFails(addDoc(properties, { ...ok, useType: "industrial" }));
+  await assertFails(addDoc(properties, { ...ok, units: [] }));
+  await assertFails(addDoc(properties, { ...ok, address: "" }));
+  await assertFails(addDoc(properties, { ...ok, invoicedTotal: 5 }));
+  const tenants = collection(owner, `orgs/${s.orgId}/tenants`);
+  await assertFails(addDoc(tenants, { name: "Kila Trading", email: "kila", phone: "" }));
+  await assertFails(addDoc(tenants, { name: "", email: "a@b.example", phone: "" }));
+});

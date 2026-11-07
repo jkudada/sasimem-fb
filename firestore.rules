@@ -13,17 +13,34 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
     }
 
+    // Field validation mirrors core's setup.ts limits (docs/test-lists/step-2.md).
+    function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function wholeIn(v, min, max) { return v is int && v >= min && v <= max; }
+    function exactly(d, keys) { return d.keys().hasOnly(keys) && d.keys().hasAll(keys); }
+    function email(v) { return str(v, 3, 200) && v.matches('^[^\\s@]+@[^\\s@]+[.][^\\s@]+$'); }
+
+    function validProperty(d) {
+      return exactly(d, ['address', 'useType', 'units'])
+        && str(d.address, 1, 200)
+        && d.useType in ['residential', 'commercial']
+        && d.units is list && d.units.size() >= 1 && d.units.size() <= 50;
+    }
+
+    function validTenant(d) {
+      return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
+    }
+
     match /orgs/{orgId} {
       allow read: if isMember(orgId);
 
       match /properties/{propertyId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId);
+        allow create: if isOwner(orgId) && validProperty(request.resource.data);
       }
 
       match /tenants/{tenantId} {
         allow read: if isMember(orgId);
-        allow create: if isOwner(orgId);
+        allow create: if isOwner(orgId) && validTenant(request.resource.data);
       }
 
       match /tenancies/{tenancyId} {
