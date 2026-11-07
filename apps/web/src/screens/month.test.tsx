@@ -17,7 +17,8 @@ const month = (over: Partial<Month> = {}): Month => ({
   ...over,
 });
 const tz = "Pacific/Port_Moresby";
-const idle = () => vi.waitFor(() => expect(screen.getAllByRole("button").every((b) => !(b as HTMLButtonElement).disabled)).toBe(true));
+// Poll every 5 ms, not vi.waitFor's default 50: this is T1, held to 100 ms a test.
+const idle = () => vi.waitFor(() => expect(screen.getAllByRole("button").every((b) => !(b as HTMLButtonElement).disabled)).toBe(true), { interval: 5 });
 
 describe("home: this month's one action (plan §7, screen 3)", () => {
   test("before drafting, it offers to generate this month's invoices now", async () => {

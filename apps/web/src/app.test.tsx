@@ -114,7 +114,7 @@ describe("signed-in routes", () => {
     render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
     await screen.findByLabelText(/number for your next invoice/i);
     fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
-    await vi.waitFor(() => expect(store.load).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(store.load).toHaveBeenCalledTimes(2), { interval: 5 });
     expect((await screen.findByRole("status")).textContent).toMatch(/^Saved/);
   });
 

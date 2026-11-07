@@ -171,18 +171,24 @@ describe("tenancies", () => {
     ]);
   });
 
-  test("a charge can be paused or removed, and a bad one is a message, not a save", async () => {
+  const water = { id: "c1", description: "Water", amountToea: 5_000 as Toea, recurrence: "every" as const, period: null, active: true, gstTreatment: "inherit" as const };
+
+  test("a charge can be paused or removed", async () => {
     const onUpdate = vi.fn().mockResolvedValue(null);
-    const water = { id: "c1", description: "Water", amountToea: 5_000 as Toea, recurrence: "every" as const, period: null, active: true, gstTreatment: "inherit" as const };
     render(<TenancyForm id="k1" setup={setup({ tenancies: [tenancy({ extras: [water, { ...water, id: "c2", description: "Power" }] })] })} today={today} {...forms} onUpdate={onUpdate} />);
     fireEvent.click(screen.getByLabelText(/charge 1 paused/i));
     click("Remove charge 2");
+    click("Save");
+    expect(onUpdate).toHaveBeenCalledWith("k1", expect.objectContaining({ extras: [{ ...water, active: false }] }));
+  });
+
+  test("a charge with no description is a message, not a save", async () => {
+    const onUpdate = vi.fn().mockResolvedValue(null);
+    render(<TenancyForm id="k1" setup={setup()} today={today} {...forms} onUpdate={onUpdate} />);
     click("Add a charge");
     click("Save");
     expect(await screen.findByText("Say what the charge is for, such as Water.")).toBeTruthy();
-    click("Remove charge 2");
-    click("Save");
-    expect(onUpdate).toHaveBeenCalledWith("k1", expect.objectContaining({ extras: [{ ...water, active: false }] }));
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 
   test("GST on a charge reads 'same as the rent', and says which way that falls here", () => {

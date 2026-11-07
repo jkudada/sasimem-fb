@@ -1,4 +1,4 @@
-import { useSignal } from "@preact/signals";
+import { type Signal, signal, useSignal } from "@preact/signals";
 import {
   type CalendarDate, type Charge, type GstTreatment, type Period, type Recurrence, type TenancyInput, type Toea,
   chargeProblems, chargesProblem, formatKina, newTenancyDocument, sameAsRentLabel, tenancyProblems,
@@ -9,33 +9,43 @@ import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { prefix, readKina, whole } from "./read.js";
 
-/** A charge as its row holds it: the amount is still the text typed. */
+/**
+ * A charge as its row holds it, one signal per field: typing updates that input
+ * alone, rather than re-rendering the whole form on every keystroke (it matters on
+ * a mid-range phone). The amount is still the text typed.
+ */
 interface ChargeRow {
   readonly id: string;
-  readonly description: string;
-  readonly amount: string;
-  readonly recurrence: Recurrence;
-  readonly period: string;
-  readonly active: boolean;
-  readonly gstTreatment: GstTreatment;
+  readonly description: Signal<string>;
+  readonly amount: Signal<string>;
+  readonly recurrence: Signal<Recurrence>;
+  readonly period: Signal<string>;
+  readonly active: Signal<boolean>;
+  readonly gstTreatment: Signal<GstTreatment>;
 }
 
-const toRow = (c: Charge): ChargeRow => ({ ...c, amount: formatKina(c.amountToea), period: c.period ?? "" });
-const blankRow = (): ChargeRow => ({ id: newId(), description: "", amount: "", recurrence: "every", period: "", active: true, gstTreatment: "inherit" });
+const rowOf = (c: Omit<Charge, "amountToea" | "period"> & { amount: string; period: string }): ChargeRow => ({
+  id: c.id, description: signal(c.description), amount: signal(c.amount), recurrence: signal(c.recurrence),
+  period: signal(c.period), active: signal(c.active), gstTreatment: signal(c.gstTreatment),
+});
+const toRow = (c: Charge): ChargeRow => rowOf({ ...c, amount: formatKina(c.amountToea), period: c.period ?? "" });
+const blankRow = (): ChargeRow => rowOf({ id: newId(), description: "", amount: "", recurrence: "every", period: "", active: true, gstTreatment: "inherit" });
 
 type Problems = Record<string, string | undefined>;
 
 /** Read the charge rows; problems keyed "extras.{i}.{field}". */
 function readCharges(rows: readonly ChargeRow[]): { extras: Charge[]; problems: Problems } {
   const problems: Problems = {};
-  const extras = rows.map((row, i) => {
-    const amount = readKina(row.amount);
-    const period = row.recurrence === "one" ? row.period.trim() : null;
-    const input = { ...row, description: row.description.trim(), amountToea: "toea" in amount ? amount.toea : (0 as Toea), period };
+  const extras = rows.map((row, i): Charge => {
+    const amount = readKina(row.amount.value);
+    const period = row.recurrence.value === "one" ? row.period.value.trim() : null;
+    const input = {
+      description: row.description.value.trim(), amountToea: "toea" in amount ? amount.toea : (0 as Toea),
+      recurrence: row.recurrence.value, period, active: row.active.value, gstTreatment: row.gstTreatment.value,
+    };
     Object.assign(problems, prefix(`extras.${i}.`, chargeProblems(input)));
     if ("problem" in amount) problems[`extras.${i}.amountToea`] = amount.problem;
-    const { amount: _typed, ...charge } = input;
-    return { ...charge, period: period as Period | null };
+    return { id: row.id, ...input, period: period as Period | null };
   });
   const tooMany = chargesProblem(extras);
   if (tooMany !== null) problems["extras"] = tooMany;
@@ -80,7 +90,6 @@ export function TenancyForm(props: {
   }
 
   const useType = before?.useType ?? property?.useType ?? "residential";
-  const setCharge = (id: string, change: Partial<ChargeRow>) => (charges.value = charges.value.map((c) => (c.id === id ? { ...c, ...change } : c)));
 
   const run = async (act: () => Promise<string | null>) => {
     busy.value = true;
@@ -169,44 +178,11 @@ export function TenancyForm(props: {
 
         <h2>Additional charges</h2>
         <p class="note">Water, power, a levy, or a credit (use a minus sign). Sasimem works out GST for you, but it is a tool, not an accountant.</p>
-        {charges.value.map((c, i) => {
-          const n = i + 1;
-          const at = (f: string) => p[`extras.${i}.${f}`];
-          return (
-            <fieldset key={c.id} class="card">
-              <legend>Charge {n}</legend>
-              <Field label={`Charge ${n} description`} problem={at("description")}>
-                <input value={c.description} onInput={(e) => setCharge(c.id, { description: value(e) })} />
-              </Field>
-              <Field label={`Charge ${n} amount`} hint="In kina; -K20.00 for a credit." problem={at("amountToea")}>
-                <input inputMode="decimal" value={c.amount} onInput={(e) => setCharge(c.id, { amount: value(e) })} />
-              </Field>
-              <Field label={`Charge ${n} how often`}>
-                <select value={c.recurrence} onChange={(e) => setCharge(c.id, { recurrence: value(e) as Recurrence })}>
-                  <option value="every">Every month</option>
-                  <option value="one">One month only</option>
-                </select>
-              </Field>
-              {c.recurrence === "one" && (
-                <Field label={`Charge ${n} month`} problem={at("period")}>
-                  <input type="month" value={c.period} onInput={(e) => setCharge(c.id, { period: value(e) })} />
-                </Field>
-              )}
-              <Field label={`Charge ${n} GST`}>
-                <select value={c.gstTreatment} onChange={(e) => setCharge(c.id, { gstTreatment: value(e) as GstTreatment })}>
-                  <option value="inherit">{sameAsRentLabel({ orgGstRegistered: org.gstRegistered, useType })}</option>
-                  <option value="taxable">GST added</option>
-                  <option value="exempt">No GST</option>
-                </select>
-              </Field>
-              <label class="check">
-                <input type="checkbox" aria-label={`Charge ${n} paused`} checked={!c.active} onChange={(e) => setCharge(c.id, { active: !(e.currentTarget as HTMLInputElement).checked })} />
-                Paused (not charged until you untick this)
-              </label>
-              <button type="button" class="quiet small" aria-label={`Remove charge ${n}`} onClick={() => (charges.value = charges.value.filter((x) => x.id !== c.id))}>Remove</button>
-            </fieldset>
-          );
-        })}
+        {charges.value.map((c, i) => (
+          <ChargeFields key={c.id} row={c} n={i + 1} problems={p} index={i}
+            sameAsRent={sameAsRentLabel({ orgGstRegistered: org.gstRegistered, useType })}
+            onRemove={() => (charges.value = charges.value.filter((x) => x.id !== c.id))} />
+        ))}
         {p["extras"] !== undefined && <p class="field-problem">{p["extras"]}</p>}
         <button type="button" class="quiet" onClick={() => (charges.value = [...charges.value, blankRow()])}>Add a charge</button>
 
@@ -217,5 +193,45 @@ export function TenancyForm(props: {
           : <button type="button" class="danger" disabled={busy} onClick={() => void remove()}>Delete this tenancy</button>)}
       </form>
     </main>
+  );
+}
+
+/** One charge's fields. Only "how often" re-renders the row (it shows or hides the month). */
+function ChargeFields(props: { row: ChargeRow; n: number; index: number; problems: Problems; sameAsRent: string; onRemove: () => void }) {
+  const { row: c, n } = props;
+  const at = (f: string) => props.problems[`extras.${props.index}.${f}`];
+  return (
+    <fieldset class="card">
+      <legend>Charge {n}</legend>
+      <Field label={`Charge ${n} description`} problem={at("description")}>
+        <input value={c.description} onInput={(e) => (c.description.value = value(e))} />
+      </Field>
+      <Field label={`Charge ${n} amount`} hint="In kina; -K20.00 for a credit." problem={at("amountToea")}>
+        <input inputMode="decimal" value={c.amount} onInput={(e) => (c.amount.value = value(e))} />
+      </Field>
+      <Field label={`Charge ${n} how often`}>
+        <select value={c.recurrence} onChange={(e) => (c.recurrence.value = value(e) as Recurrence)}>
+          <option value="every">Every month</option>
+          <option value="one">One month only</option>
+        </select>
+      </Field>
+      {c.recurrence.value === "one" && (
+        <Field label={`Charge ${n} month`} problem={at("period")}>
+          <input type="month" value={c.period} onInput={(e) => (c.period.value = value(e))} />
+        </Field>
+      )}
+      <Field label={`Charge ${n} GST`}>
+        <select value={c.gstTreatment} onChange={(e) => (c.gstTreatment.value = value(e) as GstTreatment)}>
+          <option value="inherit">{props.sameAsRent}</option>
+          <option value="taxable">GST added</option>
+          <option value="exempt">No GST</option>
+        </select>
+      </Field>
+      <label class="check">
+        <input type="checkbox" aria-label={`Charge ${n} paused`} checked={!c.active.value} onChange={(e) => (c.active.value = !(e.currentTarget as HTMLInputElement).checked)} />
+        Paused (not charged until you untick this)
+      </label>
+      <button type="button" class="quiet small" aria-label={`Remove charge ${n}`} onClick={props.onRemove}>Remove</button>
+    </fieldset>
   );
 }

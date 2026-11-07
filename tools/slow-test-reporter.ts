@@ -3,6 +3,10 @@ import type { Reporter, TestCase } from "vitest/node";
 
 // Plan §9.3: list the ten slowest tests, and fail any T1 test over 100 ms -
 // it is secretly an integration test and belongs in another tier.
+// T1 runs on 2 workers (package.json test:unit): with 4 happy-dom files at once on a
+// 4-core machine, garbage-collection pauses pushed ordinary 30 ms tests past 100 ms
+// at random (measured 2026-11-07: slowest 128-209 ms on 4 workers, 59-90 ms on 2,
+// for ~6 s more wall time). A gate that fails at random would break plan §9.5.
 const T1_PROJECTS = new Set(["core-unit", "web-unit"]);
 const T1_HARD_LIMIT_MS = 100;
 
