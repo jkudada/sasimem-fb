@@ -46,3 +46,7 @@ test("an unknown treatment is an error, not a silent exemption", () => {
 test("the document is an INVOICE when no line is taxable", () => {
   expect(gst.documentTitle({ orgGstRegistered: true, hasTaxableLine: false })).toBe("INVOICE");
 });
+
+test("the document is a TAX INVOICE when the landlord is registered and a line is taxable", () => {
+  expect(gst.documentTitle({ orgGstRegistered: true, hasTaxableLine: true })).toBe("TAX INVOICE");
+});

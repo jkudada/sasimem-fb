@@ -41,6 +41,6 @@ export function isTaxable(q: TaxableQuestion): boolean {
 export type DocumentTitle = "INVOICE" | "TAX INVOICE";
 
 /** The words printed at the top of the page. */
-export function documentTitle(_: { readonly orgGstRegistered: boolean; readonly hasTaxableLine: boolean }): DocumentTitle {
-  return "INVOICE";
+export function documentTitle(q: { readonly orgGstRegistered: boolean; readonly hasTaxableLine: boolean }): DocumentTitle {
+  return q.hasTaxableLine ? "TAX INVOICE" : "INVOICE";
 }
