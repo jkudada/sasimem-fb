@@ -4,7 +4,7 @@
  */
 import { documentTitle, gstOn, isTaxable } from "./gst.js";
 import { type Toea, toea } from "./money.js";
-import { addDays, day, firstDay, lastDay, localDate, nextPeriod, type Period, periodLabel, periodOf, shortCode, zonedInstant } from "./period.js";
+import { addDays, type CalendarDate, day, firstDay, lastDay, localDate, nextPeriod, type Period, periodLabel, periodOf, shortCode, zonedInstant } from "./period.js";
 import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, InvoiceStatus, LineKind, RunStatus, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
@@ -220,3 +220,28 @@ export function allocateNumbers(req: { prefix: string; nextNumber: number; invoi
 }
 
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+// ---------------------------------------------------------------- reminders (§3.6)
+
+export interface ReminderCandidate {
+  readonly status: InvoiceStatus;
+  readonly dueDate: CalendarDate;
+  readonly sentAt: Date | null;
+  readonly paidAt: Date | null;
+  readonly remindedAt: Date | null;
+  readonly remindersPaused: boolean;
+}
+
+/**
+ * Whether an invoice has earned its single reminder at `now`. One reminder, ever:
+ * escalating chases are dunning, a different product. "Today" is the landlord's
+ * calendar day, not the server's.
+ */
+export function reminderDue(req: {
+  invoice: ReminderCandidate;
+  org: Pick<BillingOrg, "timezone" | "reminderMode" | "reminderAfterDays">;
+  now: Date;
+}): boolean {
+  const { invoice, org, now } = req;
+  return localDate(now, org.timezone) >= addDays(invoice.dueDate, org.reminderAfterDays);
+}

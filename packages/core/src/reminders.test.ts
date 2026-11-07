@@ -1,0 +1,26 @@
+import { expect, test } from "vitest";
+import { anOrg } from "../testing/index.js";
+import * as billing from "./billing.js";
+import type { CalendarDate } from "./period.js";
+
+// Due 8 October; with the default 7 days the reminder is earned on 15 October,
+// counted in Port Moresby (UTC+10), where 15 October starts at 2026-10-14T14:00Z.
+const org = anOrg().remindAfter(7).build();
+const sent: billing.ReminderCandidate = {
+  status: "sent",
+  dueDate: "2026-10-08" as CalendarDate,
+  sentAt: new Date("2026-09-30T22:00:00Z"),
+  paidAt: null,
+  remindedAt: null,
+  remindersPaused: false,
+};
+const onTheDay = new Date("2026-10-14T14:00:00Z");
+
+test("an unpaid invoice earns its reminder on the due date plus the org's reminder days, and not a day before", () => {
+  expect(billing.reminderDue({ invoice: sent, org, now: new Date("2026-10-14T13:59:59Z") })).toBe(false);
+  expect(billing.reminderDue({ invoice: sent, org, now: onTheDay })).toBe(true);
+  // Zero days means the due date itself (the reference app's rule: day >= due + 0).
+  const sameDay = anOrg().remindAfter(0).build();
+  expect(billing.reminderDue({ invoice: sent, org: sameDay, now: new Date("2026-10-07T14:00:00Z") })).toBe(true);
+  expect(billing.reminderDue({ invoice: sent, org: sameDay, now: new Date("2026-10-07T13:59:59Z") })).toBe(false);
+});
