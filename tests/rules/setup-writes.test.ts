@@ -47,3 +47,14 @@ test("a tenancy whose rent is not a whole number of toea is refused (I7)", async
   await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { rentToea: "1200" })));
   await assertFails(addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s, { rentToea: -1 })));
 });
+
+test("an additional charge must be whole toea too, and well formed (I7)", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const tenancies = collection(owner, `orgs/${s.orgId}/tenancies`);
+  const water = { id: "c1", description: "Water", amountToea: 5000, recurrence: "every", period: null, active: true, gstTreatment: "inherit" };
+  await assertSucceeds(addDoc(tenancies, validTenancy(s, { extras: [water, { ...water, id: "c2", amountToea: -2000 }] })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { extras: [water, { ...water, id: "c2", amountToea: 50.5 }] })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { extras: [{ ...water, gstTreatment: "maybe" }] })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { extras: Array.from({ length: 11 }, (_, i) => ({ ...water, id: `c${i}` })) })));
+});

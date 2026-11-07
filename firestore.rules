@@ -30,8 +30,26 @@ service cloud.firestore {
       return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
     }
 
+    function validExtra(e) {
+      return e is map
+        && exactly(e, ['id', 'description', 'amountToea', 'recurrence', 'period', 'active', 'gstTreatment'])
+        && str(e.id, 1, 64) && str(e.description, 1, 100)
+        && wholeIn(e.amountToea, -1000000000, 1000000000)
+        && e.recurrence in ['every', 'one']
+        && (e.period == null || (e.period is string && e.period.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')))
+        && e.active is bool
+        && e.gstTreatment in ['inherit', 'taxable', 'exempt'];
+    }
+    // Rules cannot loop, so the (at most 10) charges are checked by index.
+    function extraOk(xs, i) { return xs.size() <= i || validExtra(xs[i]); }
+    function validExtras(xs) {
+      return xs is list && xs.size() <= 10
+        && extraOk(xs, 0) && extraOk(xs, 1) && extraOk(xs, 2) && extraOk(xs, 3) && extraOk(xs, 4)
+        && extraOk(xs, 5) && extraOk(xs, 6) && extraOk(xs, 7) && extraOk(xs, 8) && extraOk(xs, 9);
+    }
+
     function validTenancy(d) {
-      return wholeIn(d.rentToea, 0, 1000000000);
+      return wholeIn(d.rentToea, 0, 1000000000) && validExtras(d.extras);
     }
 
     match /orgs/{orgId} {
