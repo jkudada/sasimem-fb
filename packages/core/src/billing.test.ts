@@ -11,3 +11,14 @@ describe("which tenancies are billed in a month", () => {
     expect(billing.isActiveIn(aTenancy().starting("2026-10-31").build(), OCT)).toBe(true);
   });
 });
+
+describe("tenancies that end", () => {
+  test("a tenancy that ended before the month is not billed", () => {
+    expect(billing.isActiveIn(aTenancy().ending("2026-09-30").build(), OCT)).toBe(false);
+  });
+
+  test("a tenancy ending mid-month, or on its first day, is still billed for that month", () => {
+    expect(billing.isActiveIn(aTenancy().ending("2026-10-15").build(), OCT)).toBe(true);
+    expect(billing.isActiveIn(aTenancy().ending("2026-10-01").build(), OCT)).toBe(true);
+  });
+});
