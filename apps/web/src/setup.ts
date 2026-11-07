@@ -4,7 +4,7 @@
  * save. Screens get plain data and functions that resolve to a plain-English
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
-import type { InvoiceStatus, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, CalendarDate, InvoiceStatus, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 
 export type WithId<T> = T & { readonly id: string };
 
@@ -50,6 +50,38 @@ export interface SetupStore {
   include(invoiceId: string): Promise<Outcome>;
   rebuildRun(period: Period): Promise<Outcome>;
   approveRun(period: Period): Promise<Outcome>;
+  /** Every month that has a run, newest first. A string is a problem. */
+  months(): Promise<readonly MonthSummary[] | string>;
+  /** Everything sent and unpaid, by tenant (core.arrears). A string is a problem. */
+  owed(): Promise<readonly Arrears<OwedInvoice>[] | string>;
+  markPaid(invoiceId: string, note: string): Promise<Outcome>;
+  markUnpaid(invoiceId: string): Promise<Outcome>;
+  pauseReminders(invoiceId: string, paused: boolean): Promise<Outcome>;
+  voidInvoice(invoiceId: string, reason: string): Promise<Outcome>;
+  resendInvoice(invoiceId: string): Promise<Outcome>;
+  /** Fetch the frozen PDF and open it; only a failure has a message. */
+  openPdf(invoiceId: string): Promise<Outcome>;
+  /** Fetch the CSV and hand it to the browser as a download. */
+  exportCsv(from: Period, to: Period): Promise<Outcome>;
+}
+
+export interface MonthSummary {
+  readonly period: Period;
+  readonly status: RunStatus;
+  readonly invoiceCount: number;
+  readonly totalToea: Toea;
+}
+
+export type OwedInvoice = IssuedInvoice;
+
+export interface EmailEntry {
+  readonly id: string;
+  readonly kind: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly status: "sent" | "failed";
+  readonly sentAt: Date;
+  readonly error: string | null;
 }
 
 /** What a run callable said, in plain words, and whether it worked. */
@@ -66,6 +98,10 @@ export interface MonthInvoice {
   readonly rentToea: Toea;
   readonly totalToea: Toea;
   readonly number: string | null;
+  /** Set once issued; absent on older test fixtures. */
+  readonly dueDate?: CalendarDate;
+  readonly paidNote?: string;
+  readonly remindersPaused?: boolean;
 }
 
 export interface Month {
@@ -75,6 +111,8 @@ export interface Month {
   readonly totalToea: Toea;
   readonly invoiceCount: number;
   readonly invoices: readonly MonthInvoice[];
+  /** The month's email log, newest first; empty before anything was sent. */
+  readonly emails?: readonly EmailEntry[];
 }
 
 /** A short random ID for a new unit or charge; unique within its list is enough. */

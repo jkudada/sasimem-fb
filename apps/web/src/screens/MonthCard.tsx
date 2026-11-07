@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import { type Period, formatKina, periodLabel } from "@sasimem/core";
+import { type Period, formatKina, paidSummary, periodLabel } from "@sasimem/core";
 import type { Month, Outcome } from "../setup.js";
 import { sendLabel } from "./when.js";
 
@@ -43,7 +43,13 @@ export function MonthCard(props: { period: Period; month: Month | null; timezone
   } else if (m.status === "approved") {
     body = <p class="ok">Approved - goes out at {sendLabel(m.sendAt, props.timezone)}.</p>;
   } else if (m.status === "sent") {
-    body = <p class="ok">Sent to your tenants.</p>;
+    const sum = paidSummary(m.invoices);
+    body = (
+      <>
+        <p class="ok">Sent to your tenants. {sum.paid === sum.issued ? "All paid." : `${sum.paid} of ${sum.issued} paid.`}</p>
+        <a class="button" href={review}>See who has paid</a>
+      </>
+    );
   } else {
     body = <p>{label}'s invoices were cancelled.</p>;
   }
