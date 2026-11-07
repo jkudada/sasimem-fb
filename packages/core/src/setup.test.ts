@@ -25,4 +25,11 @@ describe("organisation details", () => {
     expect(setup.orgProblems({ ...validOrg, name: "x".repeat(101) }).name).toBe("Keep the name to 100 characters or fewer.");
     expect(setup.orgProblems({ ...validOrg, name: "x".repeat(100) }).name).toBeUndefined();
   });
+
+  test("the organisation's email must look like an email: approval links go there", () => {
+    for (const bad of ["", "mary", "mary@", "@wari.example", "mary@wari", "mary @wari.example"]) {
+      expect(setup.orgProblems({ ...validOrg, email: bad }).email, bad).toBe("Enter an email address like name@example.com.");
+    }
+    expect(setup.orgProblems(validOrg).email).toBeUndefined();
+  });
 });
