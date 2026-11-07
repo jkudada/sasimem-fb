@@ -7,5 +7,6 @@ export default defineProject({
     name: "web-unit",
     include: ["src/**/*.test.tsx", "src/**/*.test.ts"],
     environment: "happy-dom",
+    setupFiles: ["./test-setup.tsx"],
   },
 });
