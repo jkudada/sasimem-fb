@@ -50,7 +50,12 @@ export function draftInvoice({ org, tenancy, period }: DraftRequest): DraftInvoi
     const gstApplicable = isTaxable({ orgGstRegistered: org.gstRegistered, useType: tenancy.useType, treatment });
     return { kind, description, detail, amountToea, gstApplicable, gstToea: gstApplicable ? gstOn(amountToea) : toea(0) };
   };
-  const lines: Line[] = [line("rent", `Rent - ${tenancy.unitLabel}`, rentDetail(period), tenancy.rentToea, "inherit")];
+  const lines: Line[] = [
+    line("rent", `Rent - ${tenancy.unitLabel}`, rentDetail(period), tenancy.rentToea, "inherit"),
+    ...tenancy.extras
+      .filter((charge) => chargeApplies(charge, period))
+      .map((charge) => line("extra", charge.description, periodLabel(period), charge.amountToea, charge.gstTreatment)),
+  ];
   return {
     tenancyId: tenancy.id,
     period,

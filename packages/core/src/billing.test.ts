@@ -75,3 +75,10 @@ test("commercial rent for a registered landlord carries GST and makes a TAX INVO
   expect(invoice.lines[0]).toMatchObject({ gstApplicable: true, gstToea: 24_000 });
   expect(invoice).toMatchObject({ subtotalToea: 240_000, gstToea: 24_000, totalToea: 264_000, documentTitle: "TAX INVOICE" });
 });
+
+test("a recurring charge follows the rent, with the month as its detail", () => {
+  const tenancy = aTenancy().withCharge(aCharge("Water").amount("K50").every().build()).build();
+  const invoice = billing.draftInvoice({ org: anOrg().build(), tenancy, period: OCT });
+  expect(invoice.lines[1]).toEqual({ kind: "extra", description: "Water", detail: "October 2026", amountToea: 5_000, gstApplicable: false, gstToea: 0 });
+  expect(invoice.totalToea).toBe(125_000);
+});
