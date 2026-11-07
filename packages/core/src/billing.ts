@@ -137,3 +137,13 @@ const EDITABLE: ReadonlySet<RunStatus> = new Set(["draft", "awaitingApproval", "
 
 /** Invoices in an editable run may be excluded, re-included, re-priced or rebuilt. */
 export const isEditable = (status: RunStatus): boolean => EDITABLE.has(status);
+
+export interface ScheduledRun {
+  readonly status: RunStatus;
+  readonly sendAt: Date;
+}
+
+/** Tick step 2: a draft run moves to awaitingApproval once its lead time begins. */
+export function approvalRequestDue(run: ScheduledRun, org: Pick<BillingOrg, "approvalLeadDays">, now: Date): boolean {
+  return run.status === "draft" && now.getTime() >= run.sendAt.getTime() - org.approvalLeadDays * DAY_MS;
+}
