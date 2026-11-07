@@ -22,7 +22,7 @@ const setup: Setup = {
   properties: [], tenants: [{ id: "t1", name: "Kila Trading", email: "a@kila.example", phone: "" }], tenancies: [],
 };
 const fakeStore = (): SetupStore => ({
-  load: vi.fn().mockResolvedValue(setup),
+  load: vi.fn(async () => ({ ...setup })), // a fresh object each time, as a real read gives
   saveProperty: vi.fn(), deleteProperty: vi.fn(), saveTenant: vi.fn(), deleteTenant: vi.fn(),
   createTenancy: vi.fn(), updateTenancy: vi.fn(), deleteTenancy: vi.fn(), saveProfile: vi.fn(),
   uploadLogo: vi.fn(), removeLogo: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
@@ -98,7 +98,33 @@ describe("signed-in routes", () => {
 
   test("settings loads where invoice numbering starts", async () => {
     at("/settings");
-    expect(await screen.findByLabelText(/number for your next invoice/i)).toBeTruthy();
+    expect(((await screen.findByLabelText(/number for your next invoice/i)) as HTMLInputElement).value).toBe("1");
+  });
+
+  test("a save that reloads the data keeps the screen, and its message, in place", async () => {
+    const actions = noActions();
+    const store = fakeStore();
+    store.saveProfile = vi.fn().mockResolvedValue(null);
+    actions.setupStore = vi.fn(async () => store);
+    history.replaceState(null, "", "/settings");
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    await screen.findByLabelText(/number for your next invoice/i);
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await vi.waitFor(() => expect(store.load).toHaveBeenCalledTimes(2));
+    expect((await screen.findByRole("status")).textContent).toMatch(/^Saved/);
+  });
+
+  test("a screen that saves in place shows the reloaded data: a new logo appears", async () => {
+    const actions = noActions();
+    const store = fakeStore();
+    store.load = vi.fn().mockResolvedValueOnce(setup).mockResolvedValue({ ...setup, org: { ...setup.org, logoPath: "logos/org1/1.png" } });
+    store.uploadLogo = vi.fn().mockResolvedValue(null);
+    store.logoUrl = vi.fn().mockResolvedValue("https://logo.example/1.png");
+    actions.setupStore = vi.fn(async () => store);
+    history.replaceState(null, "", "/settings");
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    fireEvent.change(await screen.findByLabelText(/logo/i), { target: { files: [new File(["x"], "logo.png", { type: "image/png" })] } });
+    expect((await screen.findByRole("img", { name: "Your logo" })).getAttribute("src")).toBe("https://logo.example/1.png");
   });
 
   test("an unknown address goes home", async () => {

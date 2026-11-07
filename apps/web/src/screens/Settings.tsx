@@ -36,8 +36,6 @@ export function Settings(props: {
   const problems = useSignal<Problems>({});
   const message = useSignal<string | null>(null);
   const logoMessage = useSignal<string | null>(null);
-  const next = useSignal(props.numbering === null ? "" : String(props.numbering.next));
-  const nextMessage = useSignal<string | null>(null);
   const busy = useSignal(false);
 
   const save = async (e: Event) => {
@@ -65,16 +63,6 @@ export function Settings(props: {
     if (logoMessage.value !== null) return;
     busy.value = true;
     logoMessage.value = (await props.onUploadLogo(file)) ?? "Logo saved.";
-    busy.value = false;
-  };
-
-  const saveNext = async (e: Event) => {
-    e.preventDefault();
-    const n = whole(next.value);
-    nextMessage.value = firstInvoiceNumberProblem(n);
-    if (nextMessage.value !== null) return;
-    busy.value = true;
-    nextMessage.value = (await props.onSetNext(n)) ?? `Saved. Your next invoice will be ${printed(invoicePrefix.value.trim(), n)}.`;
     busy.value = false;
   };
 
@@ -150,14 +138,37 @@ export function Settings(props: {
       {numbering?.started === true && (
         <p>Your next invoice will be {printed(o.invoicePrefix, numbering.next)}. Invoices have already been numbered, so this cannot change: numbers stay in one unbroken sequence.</p>
       )}
-      {numbering?.started === false && (
-        <form onSubmit={saveNext} noValidate>
-          <Field label="Number for your next invoice" hint="If you have already sent invoices by hand, enter the next number, such as 142. This can change only until your first approval." problem={nextMessage.value ?? undefined}>
-            <input inputMode="numeric" value={next} onInput={(e) => (next.value = value(e))} />
-          </Field>
-          <button type="submit" disabled={busy}>Save number</button>
-        </form>
-      )}
+      {numbering?.started === false && <NextNumber next={numbering.next} prefix={o.invoicePrefix} onSetNext={props.onSetNext} />}
     </main>
+  );
+}
+
+/** Where numbering starts. Mounted once the number has loaded, so the field starts with it. */
+function NextNumber(props: { next: number; prefix: string; onSetNext: (next: number) => Promise<string | null> }) {
+  const next = useSignal(String(props.next));
+  const problem = useSignal<string | null>(null);
+  const saved = useSignal<string | null>(null);
+  const busy = useSignal(false);
+
+  const save = async (e: Event) => {
+    e.preventDefault();
+    const n = whole(next.value);
+    saved.value = null;
+    problem.value = firstInvoiceNumberProblem(n);
+    if (problem.value !== null) return;
+    busy.value = true;
+    problem.value = await props.onSetNext(n);
+    if (problem.value === null) saved.value = `Saved. Your next invoice will be ${printed(props.prefix, n)}.`;
+    busy.value = false;
+  };
+
+  return (
+    <form onSubmit={save} noValidate>
+      <Field label="Number for your next invoice" hint="If you have already sent invoices by hand, enter the next number, such as 142. This can change only until your first approval." problem={problem.value ?? undefined}>
+        <input inputMode="numeric" value={next} onInput={(e) => (next.value = value(e))} />
+      </Field>
+      {saved.value !== null && <p role="status">{saved.value}</p>}
+      <button type="submit" disabled={busy}>Save number</button>
+    </form>
   );
 }
