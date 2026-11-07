@@ -35,3 +35,9 @@ test("a paid invoice is never chased, whether or not its status says so", () => 
   expect(billing.reminderDue({ invoice: { ...sent, status: "paid", paidAt: onTheDay }, org, now: onTheDay })).toBe(false);
   expect(billing.reminderDue({ invoice: { ...sent, paidAt: onTheDay }, org, now: onTheDay })).toBe(false);
 });
+
+test("only an invoice that reached the tenant can be chased", () => {
+  for (const status of ["draft", "excluded", "approved", "void"] as const) {
+    expect(billing.reminderDue({ invoice: { ...sent, status }, org, now: onTheDay }), status).toBe(false);
+  }
+});
