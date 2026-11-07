@@ -16,7 +16,7 @@
     "test:watch": "vitest --project core-unit --project web-unit --slowTestThreshold 50",
     "test:rules": "vitest run --project rules --slowTestThreshold 2000",
     "test:int": "vitest run --project integration --slowTestThreshold 2000",
-    "emulators": "pnpm --filter @sasimem/functions build && firebase emulators:start --project demo-sasimem --only auth,firestore,storage,functions",
+    "emulators": "pnpm --filter @sasimem/functions build && firebase emulators:start --project demo-sasimem --only auth,firestore,storage,functions,pubsub",
     "ci:rules": "firebase emulators:exec --project demo-sasimem --only firestore,storage \"pnpm test:rules\"",
     "ci:int": "firebase emulators:exec --project demo-sasimem --only auth,firestore,storage \"pnpm test:int\"",
     "mutation": "pnpm --filter @sasimem/core mutation",
@@ -24,7 +24,7 @@
     "size": "pnpm --filter @sasimem/web size",
     "e2e": "pnpm --filter @sasimem/web e2e",
     "build:e2e": "pnpm --filter @sasimem/functions build && pnpm --filter @sasimem/web exec vite build --mode emulator",
-    "ci:e2e": "firebase emulators:exec --project demo-sasimem --only auth,firestore,storage,functions,hosting \"pnpm e2e\""
+    "ci:e2e": "firebase emulators:exec --project demo-sasimem --only auth,firestore,storage,functions,hosting,pubsub \"pnpm e2e\""
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

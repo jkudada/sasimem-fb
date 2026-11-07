@@ -1,9 +1,9 @@
 /**
- * The T4 journeys (plan §9.2) that step 4 makes possible: 1, 2 and 4. Journey 3 (the
- * tick sends and is marked paid) arrives with the tick in step 5.
+ * The four T4 journeys (plan §9.2). Journey 3 fires the real scheduled tick through the
+ * Functions emulator (see runTheTick), after moving the month's send time into the past.
  */
 import { type Page, expect, test } from "@playwright/test";
-import { expire, linksMailedTo, pathOf } from "./emulator.js";
+import { expire, linksMailedTo, mailTo, pathOf, runTheTick, sendTimeHasPassed } from "./emulator.js";
 
 /** Sign up, give the org's details and a first tenant; lands on home. Returns the landlord's email. */
 async function onboard(page: Page): Promise<string> {
@@ -76,4 +76,29 @@ test.describe("with JavaScript disabled", () => {
     await expect(page.getByRole("button", { name: "Approve 1 invoice" })).toBeVisible();
     await app.close();
   });
+});
+
+test("journey 3: past the send time the tick emails the tenant their invoice and PDF, then it is marked paid", async ({ page }) => {
+  const start = new Date();
+  const email = await onboard(page);
+  await draftThisMonth(page);
+  await page.getByRole("link", { name: "Review 1 invoice" }).click();
+  await page.getByRole("button", { name: "Approve 1 invoice" }).click();
+  await expect(page.getByText(/^Approved - goes out at/)).toBeVisible();
+
+  await sendTimeHasPassed(email);
+  await runTheTick();
+  const invoice = await mailTo("peter@kila.example", start, /^Invoice INV-0001 from Wari Holdings - K1,200.00 due /);
+  expect(invoice.attachments).toEqual([{ filename: "INV-0001.pdf", bytes: expect.any(Number) }]);
+  expect(invoice.attachments[0]?.bytes).toBeGreaterThan(1000);
+  await mailTo(email, start, /^Sent - your .+ invoice is with your tenant$/);
+
+  await page.goto("/");
+  await expect(page.getByText("Sent to your tenants. 0 of 1 paid.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "K1,200.00 owed across all months" })).toBeVisible();
+  await page.getByRole("link", { name: "See who has paid" }).click();
+  await page.getByLabel("Note for INV-0001 (optional)").fill("Bank transfer");
+  await page.getByRole("button", { name: "Mark INV-0001 paid" }).click();
+  await expect(page.getByText("1 of 1 paid")).toBeVisible();
+  await expect(page.getByText("Paid", { exact: true })).toBeVisible();
 });
