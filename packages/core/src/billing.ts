@@ -147,3 +147,7 @@ export interface ScheduledRun {
 export function approvalRequestDue(run: ScheduledRun, org: Pick<BillingOrg, "approvalLeadDays">, now: Date): boolean {
   return run.status === "draft" && now.getTime() >= run.sendAt.getTime() - org.approvalLeadDays * DAY_MS;
 }
+
+/** Tick step 3: only an approved run is ever released to tenants, and only at its send time (I6). */
+export const releaseDue = (run: ScheduledRun, now: Date): boolean =>
+  run.status === "approved" && now.getTime() >= run.sendAt.getTime();
