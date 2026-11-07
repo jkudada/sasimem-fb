@@ -56,7 +56,7 @@ jobs:
         with:
           emulators: "true"
       - run: pnpm build:e2e
-      - run: echo "APPROVAL_SIGNING_KEY=$(openssl rand -hex 32)" > functions/.secret.local
+      - run: printf "APPROVAL_SIGNING_KEY=%s\nRESEND_API_KEY=unused-by-the-emulator\n" "$(openssl rand -hex 32)" > functions/.secret.local
       - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium webkit firefox
       - run: pnpm ci:e2e
         env:

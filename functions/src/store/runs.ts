@@ -5,7 +5,7 @@
  */
 import {
   type BillingOrg, type DraftInvoice, type InvoiceDocument, type InvoiceStatus, type OrgProfile, type Period, type Tenancy,
-  type TenancyDocument, isActiveIn, redraftPlan, sendAt,
+  type RunStatus, type TenancyDocument, isActiveIn, redraftPlan, sendAt,
 } from "@sasimem/core";
 import { type Firestore, Timestamp, type Transaction } from "firebase-admin/firestore";
 import { db } from "../admin.js";
@@ -83,5 +83,41 @@ export async function readBilling(tx: Transaction, r: ReturnType<typeof refs>): 
   const [orgSnap, tenancySnap] = await Promise.all([tx.get(r.org), tx.get(r.tenancies)]);
   const org = orgSnap.data() as OrgDoc & BillingOrg | undefined;
   if (org === undefined) throw new Error(`no organisation ${r.org.id}`);
+  return { org, tenancies: tenancySnap.docs.map((d) => asTenancy(d.id, d.data() as TenancyDocument)) };
+}
+
+/** Every org's ID, or just the given ones (tests run the tick over their own orgs, plan §9.3). */
+export async function orgIdsToTick(only?: readonly string[]): Promise<string[]> {
+  if (only !== undefined) return [...only];
+  return (await db().collection("orgs").select().get()).docs.map((d) => d.id);
+}
+
+/** The periods an org already has runs for. */
+export async function runPeriodsOf(orgId: string): Promise<Period[]> {
+  return (await refs(orgId).org.collection("runs").select().get()).docs.map((d) => d.id as Period);
+}
+
+export interface RunRef {
+  readonly orgId: string;
+  readonly period: Period;
+  readonly status: RunStatus;
+  readonly sendAt: Date;
+}
+
+/** Runs in one status, across orgs (the collection-group index on runs.status). */
+export async function runsIn(status: RunStatus, orgIds?: readonly string[]): Promise<RunRef[]> {
+  const snap = await db().collectionGroup("runs").where("status", "==", status).get();
+  const all = snap.docs.map((d) => ({
+    orgId: d.ref.parent.parent?.id ?? "", period: d.id as Period, status, sendAt: (d.get("sendAt") as Timestamp).toDate(),
+  }));
+  return orgIds === undefined ? all : all.filter((r) => orgIds.includes(r.orgId));
+}
+
+/** An org's billing settings and tenancies, outside a transaction. */
+export async function billingOf(orgId: string): Promise<{ org: OrgDoc & BillingOrg; tenancies: (Tenancy & TenancyDocument)[] }> {
+  const r = refs(orgId);
+  const [orgSnap, tenancySnap] = await Promise.all([r.org.get(), r.tenancies.get()]);
+  const org = orgSnap.data() as (OrgDoc & BillingOrg) | undefined;
+  if (org === undefined) throw new Error(`no organisation ${orgId}`);
   return { org, tenancies: tenancySnap.docs.map((d) => asTenancy(d.id, d.data() as TenancyDocument)) };
 }

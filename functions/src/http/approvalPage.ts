@@ -12,7 +12,8 @@ import {
   formatKina, isEditable, periodLabel, readApprovalForm,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
-import { type RunDeps, sendFreshLink } from "../callables/runs.js";
+import type { RunDeps } from "../callables/runs.js";
+import { sendFreshLink } from "../notify.js";
 import { checkNonce, makeNonce } from "../links.js";
 import { whenLabel } from "../mail/templates.js";
 import { approveRun } from "../store/approval.js";

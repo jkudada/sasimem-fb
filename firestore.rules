@@ -131,6 +131,10 @@ service cloud.firestore {
       match /invoices/{invoiceId} {
         allow read: if isMember(orgId);
       }
+      // The email log: members read it so a missing email shows up; it holds no bodies.
+      match /emails/{emailId} {
+        allow read: if isMember(orgId);
+      }
 
       match /tenancies/{tenancyId} {
         allow read: if isMember(orgId);

@@ -12,6 +12,9 @@ import { anOrgWith } from "../harness/seed.js";
 import { approveRun } from "../../src/store/approval.js";
 import { draftRun } from "../../src/store/runs.js";
 import { parsePeriod } from "@sasimem/core";
+import { renderMissingPdfs } from "../../src/store/pdfs.js";
+import { runTick } from "../../src/tick.js";
+import { FakeMailer, tokens } from "../harness/mailer.js";
 
 describe("I7: no float reaches a document", () => {
   test("in anything createOrg writes", async () => {
@@ -30,6 +33,20 @@ describe("I7: no float reaches a document", () => {
     const now = new Date("2026-09-28T00:00:00Z");
     await draftRun(orgId, OCT, now);
     await approveRun(orgId, OCT, { actor: "approval-link", now, edits: { rents: { "k1_2026-10": 111_115, "k2_2026-10": 99_999 } as never, included: ["k1_2026-10", "k2_2026-10"] } });
+    expect(await floatsUnder(adminDb(), `orgs/${orgId}`)).toEqual([]);
+  });
+
+  test("in anything the tick writes: runs, tokens, sends, holds, reminders and the email log", async () => {
+    const { orgId } = await anOrgWith({ org: { gstRegistered: true, gstNumber: "500012345" }, tenancies: [{ id: "k1", useType: "commercial", rent: 123_457 }, { id: "k2", rent: 99_999 }] });
+    const t = tokens();
+    let now = new Date("2026-09-27T22:00:00Z");
+    const tick = (at: string) => { now = new Date(at); return runTick({ now: () => now, mailer: new FakeMailer(), newToken: t.next, appUrl: () => "https://x.example" }, { orgIds: [orgId] }); };
+    await tick("2026-09-27T22:00:00Z"); // drafted, asked
+    await tick("2026-09-30T22:00:00Z"); // held
+    await approveRun(orgId, parsePeriod("2026-10"), { actor: "approval-link", now });
+    await renderMissingPdfs(orgId, parsePeriod("2026-10"));
+    await tick("2026-09-30T23:00:00Z"); // sent
+    await tick("2026-10-14T14:00:00Z"); // reminded
     expect(await floatsUnder(adminDb(), `orgs/${orgId}`)).toEqual([]);
   });
 });

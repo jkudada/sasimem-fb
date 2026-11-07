@@ -49,4 +49,12 @@ describe("approving a run (plan §6.3)", () => {
     expect((await adminDb().doc(`orgs/${orgId}/invoices/k2_2026-10`).get()).get("status")).toBe("excluded");
     expect((await adminDb().doc(`orgs/${orgId}/runs/2026-10`).get()).data()).toMatchObject({ totalToea: 100_000, invoiceCount: 1 });
   });
+
+  test("approving marks each numbered invoice's tenancy invoiced, so it can no longer be deleted; a tenancy left out stays deletable", async () => {
+    const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }, { id: "k2" }] });
+    await draftRun(orgId, OCT, now);
+    await approveRun(orgId, OCT, { actor: "uid-1", now, edits: { rents: {}, included: ["k1_2026-10"] } });
+    expect((await adminDb().doc(`orgs/${orgId}/tenancies/k1`).get()).get("invoiced")).toBe(true);
+    expect((await adminDb().doc(`orgs/${orgId}/tenancies/k2`).get()).get("invoiced")).toBe(false);
+  });
 });
