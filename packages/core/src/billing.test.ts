@@ -28,3 +28,7 @@ describe("which additional charges apply", () => {
     expect(billing.chargeApplies(aCharge().every().build(), OCT)).toBe(true);
   });
 });
+
+test("a charge the landlord switched off never applies", () => {
+  expect(billing.chargeApplies(aCharge().every().inactive().build(), OCT)).toBe(false);
+});

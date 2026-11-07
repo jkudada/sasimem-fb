@@ -12,6 +12,6 @@ export function isActiveIn(tenancy: Tenancy, period: Period): boolean {
 }
 
 /** Whether an additional charge is billed in this period. */
-export function chargeApplies(_charge: Charge, _period: Period): boolean {
-  return true;
+export function chargeApplies(charge: Charge, _period: Period): boolean {
+  return charge.active;
 }
