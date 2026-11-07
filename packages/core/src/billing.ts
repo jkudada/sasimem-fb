@@ -96,5 +96,6 @@ export interface ScheduleRequest {
 /** When a period's approved batch goes out: the earliest active billing day at the send hour, landlord time. */
 export function sendAt({ org, tenancies, period }: ScheduleRequest): Date {
   const days = tenancies.filter((t) => isActiveIn(t, period)).map((t) => t.billingDay);
-  return zonedInstant(day(period, Math.min(...days)), org.sendHour, org.timezone);
+  const earliest = days.length > 0 ? Math.min(...days) : 1;
+  return zonedInstant(day(period, earliest), org.sendHour, org.timezone);
 }

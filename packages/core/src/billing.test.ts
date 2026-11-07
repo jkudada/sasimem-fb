@@ -165,3 +165,8 @@ describe("when a month's batch is sent and drafted", () => {
     expect(billing.sendAt({ org, tenancies, period: OCT }).toISOString()).toBe("2026-10-02T22:00:00.000Z");
   });
 });
+
+test("with no active tenancy the send day is the 1st, as in the reference app", () => {
+  const org = anOrg().sendingAt(8).build();
+  expect(billing.sendAt({ org, tenancies: [], period: OCT }).toISOString()).toBe("2026-09-30T22:00:00.000Z");
+});
