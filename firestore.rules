@@ -89,6 +89,7 @@ service cloud.firestore {
         allow create: if isOwner(orgId) && validTenancy(request.resource.data)
           && request.resource.data.invoiced == false
           && copiesMatch(orgId, request.resource.data);
+        allow update: if isOwner(orgId) && validTenancy(request.resource.data);
       }
     }
   }

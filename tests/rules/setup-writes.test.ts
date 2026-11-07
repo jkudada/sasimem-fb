@@ -1,5 +1,5 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, test } from "vitest";
 import { seedOrg, validTenancy } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
@@ -95,4 +95,11 @@ test("a tenancy's copied tenant name, unit label, address and use type must matc
   await assertFails(addDoc(tenancies, validTenancy(s, { propertyAddress: "Elsewhere" })));
   await assertFails(addDoc(tenancies, validTenancy(s, { useType: "commercial" })));
   await assertFails(addDoc(tenancies, validTenancy(s, { tenantId: "no-such-tenant" })));
+});
+
+test("an owner can change a tenancy's rent and terms", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const ref = await addDoc(collection(owner, `orgs/${s.orgId}/tenancies`), validTenancy(s));
+  await assertSucceeds(updateDoc(ref, { rentToea: 130_000, billingDay: 5, endDate: "2026-12-31" }));
 });
