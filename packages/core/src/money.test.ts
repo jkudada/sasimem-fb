@@ -10,3 +10,9 @@ describe("toea", () => {
     expect(() => toea(1.5)).toThrow(RangeError);
   });
 });
+
+test("toea throws outside ±MAX_SAFE_INTEGER, where integers stop being exact", () => {
+  expect(() => toea(Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError);
+  expect(() => toea(-Number.MAX_SAFE_INTEGER - 1)).toThrow(RangeError);
+  expect(toea(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
+});
