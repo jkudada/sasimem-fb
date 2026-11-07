@@ -53,9 +53,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm build:web
+        with:
+          emulators: "true"
+      - run: pnpm build:e2e
+      - run: echo "APPROVAL_SIGNING_KEY=$(openssl rand -hex 32)" > functions/.secret.local
       - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium webkit firefox
-      - run: pnpm e2e --pass-with-no-tests
+      - run: pnpm ci:e2e
         env:
           E2E_ALL_BROWSERS: "1"
 

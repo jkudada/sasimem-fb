@@ -22,3 +22,18 @@ export class ConsoleMailer implements Mailer {
     return { id: `console-${++this.n}` };
   }
 }
+
+/**
+ * Emulator only: each message also lands in the _outbox collection, so a developer or
+ * a T4 journey can follow an approval link. Never used when deployed - links are
+ * credentials, and the step-5 emails log keeps no bodies.
+ */
+export class OutboxMailer implements Mailer {
+  private readonly console = new ConsoleMailer();
+  constructor(private readonly outbox: () => import("firebase-admin/firestore").CollectionReference) {}
+  async send(mail: Mail): Promise<{ id: string }> {
+    await this.console.send(mail);
+    const ref = await this.outbox().add({ ...mail, at: new Date() });
+    return { id: ref.id };
+  }
+}

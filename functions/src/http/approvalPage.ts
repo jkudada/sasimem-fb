@@ -164,8 +164,8 @@ function row(inv: InvoiceDocument & { id: string }, again?: { typed: PageRequest
   const problem = again?.problems[inv.id];
   // data-g: rent attracts GST; data-o: other charges with their GST. Only the optional script reads them.
   return `<div class="r"><p><b>${esc(inv.tenantName)}</b> · ${esc(inv.unitLabel)} · <span class="m">${esc(inv.paymentReference)}</span></p>
-<label>Rent <input name="rent.${esc(inv.id)}" value="${esc(typed ?? k(rent?.amountToea ?? 0))}" inputmode="decimal" data-g="${rent?.gstApplicable === true ? 1 : 0}" data-o="${other}"></label>${problem === undefined ? "" : `<span class="p">${esc(problem)}</span>`}
-<label class="c"><input type="checkbox" name="include.${esc(inv.id)}"${ticked ? " checked" : ""}> Invoice this month</label>${extras.length > 0 ? `<p class="m">Plus ${k(other)} in other charges${inv.gstToea > 0 ? ", GST included" : ""}.</p>` : ""}</div>`;
+<label>Rent<span class="sr"> for ${esc(inv.tenantName)}</span> <input name="rent.${esc(inv.id)}" value="${esc(typed ?? k(rent?.amountToea ?? 0))}" inputmode="decimal" data-g="${rent?.gstApplicable === true ? 1 : 0}" data-o="${other}"></label>${problem === undefined ? "" : `<span class="p">${esc(problem)}</span>`}
+<label class="c"><input type="checkbox" name="include.${esc(inv.id)}"${ticked ? " checked" : ""}> Invoice<span class="sr"> ${esc(inv.tenantName)}</span> this month</label>${extras.length > 0 ? `<p class="m">Plus ${k(other)} in other charges${inv.gstToea > 0 ? ", GST included" : ""}.</p>` : ""}</div>`;
 }
 
 function numberedList(v: View): string {
@@ -178,7 +178,7 @@ const STYLE = `body{font:16px/1.45 system-ui,sans-serif;color:#1c2321;background
 h1{font-size:1.4rem;margin:.5rem 0}.m{color:#5b6662;font-size:.9rem}.r{border-bottom:1px solid #c9d1ce;padding:12px 0}.r p{margin:0 0 8px}
 label{display:block;margin:6px 0}input[inputmode]{display:block;width:100%;min-height:44px;padding:8px 12px;font:inherit;border:1px solid #c9d1ce;border-radius:8px;box-sizing:border-box}
 .c{display:flex;gap:12px;align-items:center;min-height:44px}.c input{width:22px;height:22px}.p,.w{color:#a3261b}.ok{color:#0d6b4f;font-weight:600}
-.tot{font-size:1.2rem;text-align:right}button{width:100%;min-height:48px;font:inherit;font-weight:600;border:0;border-radius:8px;background:#0d6b4f;color:#fff}`;
+.tot{font-size:1.2rem;text-align:right}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}button{width:100%;min-height:48px;font:inherit;font-weight:600;border:0;border-radius:8px;background:#0d6b4f;color:#fff}`;
 const SCRIPT = `(function(){var f=document.forms[0];if(!f)return;function t(s){s=s.replace(/[K,\\s]/g,"");return /^\\d*\\.?\\d*$/.test(s)&&s!==""?Math.round(parseFloat(s)*100):NaN}
 function u(){var n=0,ok=true;f.querySelectorAll("[data-g]").forEach(function(i){var c=i.closest(".r").querySelector("[type=checkbox]");if(!c.checked)return;var r=t(i.value);if(isNaN(r)){ok=false;return}
 n+=r+(i.dataset.g==="1"?Math.floor((r*10+50)/100):0)+Number(i.dataset.o)});var e=document.getElementById("tot");e.textContent=ok?"K"+(n/100).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g,","):"-"}

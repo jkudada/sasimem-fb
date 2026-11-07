@@ -1,5 +1,9 @@
 # Step 4 test list: drafting, approval, PDF, the approval page, draftNow
 
+All items done. The T4 journeys run the real app and Functions on the full emulator
+suite (Hosting included); under the emulator, mail also lands in `_outbox` so a journey
+can follow the emailed link. CI's e2e job now builds its own emulator-mode app.
+
 Written before the code (plan §9.1). Ticked as each goes red → green.
 
 Where step 4 ends (plan §11 leaves the edges open; chosen here):
@@ -86,9 +90,10 @@ Choices the plan leaves open (say if any is wrong):
 - [x] the callables' plain messages are shown; offline says a connection is needed
 
 ## T4 journeys (Playwright, emulators)
-- [ ] journey 1: onboarding to first draft
-- [ ] journey 2: approve from the emailed link with JavaScript disabled
-- [ ] journey 4: an expired link leads to a fresh-link request
+- [x] journey 1: onboarding to first draft
+- [x] journey 2: approve from the emailed link with JavaScript disabled
+- [x] journey 4: an expired link leads to a fresh-link request
 
 ## Budgets
-- [ ] approval page ≤ 30 KB and needs 0 KB of JavaScript; PDF ≤ 150 KB; sign-in ≤ 70 KB; shell ≤ 160 KB
+- [x] approval page ≤ 30 KB (8.8 KB with 20 tenants) and needs 0 KB of JavaScript (journey 2 runs with it off);
+      PDF ≤ 150 KB (2.5 KB without a logo); sign-in 50.4 of 70 KB; shell 115.1 of 160 KB

@@ -94,17 +94,11 @@ jobs:
       - name: Size budgets (plan §7)
         run: pnpm size
         timeout-minutes: 2
-      - uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: apps/web/dist
-          retention-days: 1
 
   e2e:
     name: T4 e2e (shard ${{ matrix.shard }}/2)
-    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -112,17 +106,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - uses: actions/download-artifact@v4
         with:
-          name: web-dist
-          path: apps/web/dist
+          emulators: "true"
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium
-      # The four journeys arrive with the features they cover (steps 2-6); until then
-      # the job proves the pipeline. --pass-with-no-tests never hides a written test.
-      - name: T4 Chromium at 360 x 740
-        run: pnpm e2e --shard=${{ matrix.shard }}/2 --pass-with-no-tests
-        timeout-minutes: 6
+      # The journeys run the real app and Functions on the full emulator suite, so this
+      # job builds its own copies (the emulator-mode app; the bundled Functions).
+      - name: Build the app and Functions for the emulators
+        run: pnpm build:e2e
+      - name: A throwaway signing key for the approval page
+        run: echo "APPROVAL_SIGNING_KEY=$(openssl rand -hex 32)" > functions/.secret.local
+      - name: T4 Chromium at 360 x 740, on the emulators
+        run: >-
+          pnpm exec firebase emulators:exec --project demo-sasimem --only auth,firestore,storage,functions,hosting
+          "pnpm e2e --shard=${{ matrix.shard }}/2"
+        timeout-minutes: 7

@@ -38,6 +38,7 @@ describe("the approval page (plan §6.1)", () => {
     for (const text of ["Peter Kila", "Flat k1", "K1-OCT26", "Mary Wari", "K2,100.00"]) expect(res.body).toContain(text);
     expect(res.body).toContain('name="rent.k1_2026-10" value="K1,200.00"');
     expect(res.body).toMatch(/<input type="checkbox" name="include\.k2_2026-10" checked/);
+    expect(res.body).toContain(`Rent<span class="sr"> for Mary Wari</span>`); // each field names its tenant for screen readers
     expect(res.body.match(/<button/g)).toHaveLength(1);
     expect(res.body).toContain("Approve 2 invoices");
     expect(res.body).not.toMatch(/<script[^>]*src=/); // nothing loaded; the small inline script is optional

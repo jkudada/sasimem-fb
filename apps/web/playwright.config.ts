@@ -8,8 +8,9 @@ export default defineConfig({
   testDir: "e2e",
   retries: 1, // the one tier allowed a retry; a pass-on-retry is reported as flaky
   reporter: process.env["CI"] ? [["github"], ["list"]] : "list",
-  use: { baseURL: "http://127.0.0.1:4173", ...phone },
-  webServer: { command: "pnpm exec vite preview --port 4173 --strictPort", port: 4173, reuseExistingServer: !process.env["CI"] },
+  // The Hosting emulator: the app built with --mode emulator, and /a/** rewritten to the
+  // approval page. Started around the run by `pnpm ci:e2e` (emulators:exec).
+  use: { baseURL: "http://127.0.0.1:5000", ...phone },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], ...phone } },
     ...(process.env["E2E_ALL_BROWSERS"]
