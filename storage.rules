@@ -1,7 +1,26 @@
 rules_version = '2';
-// Step 1: closed. Logos open to members in step 3 (plan §5); PDFs never readable by clients.
+// Plan §5. Logos: members read, owners write, images only, at most 200 KB.
+// Everything else, invoice PDFs included, is server only: the SPA gets a PDF
+// through a short-lived signed URL from a callable.
 service firebase.storage {
   match /b/{bucket}/o {
+    function member(orgId) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+    function owner(orgId) {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
+    }
+
+    match /logos/{orgId}/{file} {
+      allow read: if member(orgId);
+      allow create, update: if owner(orgId)
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 200 * 1024;
+      allow delete: if owner(orgId);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

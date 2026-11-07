@@ -13,6 +13,10 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
   core and enforced in the UI. The trigger never breaks a tenancy if one slips through:
   drafting reads the tenancy's own copies.
 - Settings does not offer the timezone: v1 is PNG only.
+- A property has at most 20 units (step 2 allowed 50), so the rules can check each
+  unit by index, as they do charges.
+- The Storage emulator answers `firestore.get()` from the project it was started
+  with, so Storage rules tests run in `demo-sasimem`, kept apart by random org IDs.
 
 ## core (T1)
 - [x] chargeProblems: a description is required, ≤ 100 chars
@@ -28,14 +32,14 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
 - [x] sameAsRentLabel: "same as the rent" says which way it falls for this property (taxable or not)
 
 ## Security rules (T2)
-- [ ] an owner can edit a property and a tenant; a stranger cannot
-- [ ] an edited property or tenant is still validated (use type, units, email)
-- [ ] an owner can delete a property and a tenant; a stranger cannot
-- [ ] a tenancy can be ended (endDate) and its charges edited; not with a float charge
-- [ ] the org profile accepts a logoPath under its own logos/ folder, and nothing else
-- [ ] storage: an owner can upload a logo image ≤ 200 KB to logos/{orgId}/; a member can read it
-- [ ] storage: a stranger can neither read nor write it; a non-image or a file over 200 KB is refused
-- [ ] storage: nothing else in the bucket is readable or writable (PDFs are server only)
+- [x] an owner can edit a property and a tenant; a stranger cannot
+- [x] an edited property or tenant is still validated (use type, units, email)
+- [x] an owner can delete a property and a tenant; a stranger cannot
+- [x] a tenancy can be ended (endDate) and its charges edited; not with a float charge
+- [x] the org profile accepts a logoPath under its own logos/ folder, and nothing else
+- [x] storage: an owner can upload a logo image ≤ 200 KB to logos/{orgId}/; a member can read it
+- [x] storage: a stranger can neither read nor write it; a non-image or a file over 200 KB is refused
+- [x] storage: nothing else in the bucket is readable or writable (PDFs are server only)
 
 ## Functions (T3, real emulators)
 - [ ] syncTenancyCopies: renaming a tenant updates every tenancy that names them, in this org only
