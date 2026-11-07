@@ -31,3 +31,10 @@ test("parseKina reads toea after the decimal point, with one or two places", () 
   expect(parseKina("237.5")).toBe(23_750);
   expect(parseKina(".75")).toBe(75);
 });
+
+test("parseKina rounds half a toea up, not to even, and never drifts like float arithmetic", () => {
+  expect(parseKina("0.005")).toBe(1);
+  expect(parseKina("0.015")).toBe(2);
+  expect(parseKina("0.0049")).toBe(0);
+  expect(parseKina("1.005")).toBe(101); // 1.005 * 100 === 100.49999999999999 in floats
+});

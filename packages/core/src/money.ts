@@ -19,6 +19,8 @@ export function parseKina(text: string): Toea {
   const match = /^(\d*)(?:\.(\d*))?$/.exec(cleaned);
   if (match === null) return toea(0);
   const whole = Number(match[1] || "0");
-  const fraction = Number(((match[2] ?? "") + "00").slice(0, 2));
-  return toea(whole * TOEA_PER_KINA + fraction);
+  const digits = match[2] ?? "";
+  const fraction = Number((digits + "00").slice(0, 2));
+  const roundUp = (digits[2] ?? "0") >= "5" ? 1 : 0;
+  return toea(whole * TOEA_PER_KINA + fraction + roundUp);
 }
