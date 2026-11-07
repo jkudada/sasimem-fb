@@ -78,6 +78,11 @@ describe("paid ticks", () => {
     }
   });
 
+  test("a paid tick is reversible; unmarking anything else changes nothing", () => {
+    expect(billing.markUnpaid({ status: "paid", paidAt: monday })).toEqual({ status: "sent", paidAt: null });
+    expect(billing.markUnpaid({ status: "sent", paidAt: null })).toEqual({ status: "sent", paidAt: null });
+  });
+
   test("marking an already-paid invoice paid again is a no-op that keeps the original date", () => {
     const tuesday = new Date("2026-10-13T01:00:00Z");
     expect(billing.markPaid({ status: "paid", paidAt: monday }, tuesday)).toEqual({ status: "paid", paidAt: monday });

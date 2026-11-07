@@ -183,3 +183,8 @@ export function markPaid(invoice: PaymentState, now: Date): PaymentState {
   if (invoice.status !== "sent") throw new NotAllowed(`an invoice that is ${invoice.status} cannot be marked paid`);
   return { status: "paid", paidAt: now };
 }
+
+/** Reverse a paid tick. Emails nobody, and leaves remindedAt alone (§3.5). */
+export function markUnpaid(invoice: PaymentState): PaymentState {
+  return invoice.status === "paid" ? { status: "sent", paidAt: null } : invoice;
+}
