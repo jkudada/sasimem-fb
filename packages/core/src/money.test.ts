@@ -59,3 +59,9 @@ test("parseKina rejects anything that is not an amount", () => {
 test("formatKina renders an amount the way a PNG invoice reads", () => {
   expect(formatKina(toea(120_050))).toBe("K1,200.50");
 });
+
+test("formatKina shows zero and small amounts with a leading zero", () => {
+  expect(formatKina(toea(0))).toBe("K0.00");
+  expect(formatKina(toea(5))).toBe("K0.05");
+  expect(formatKina(toea(100))).toBe("K1.00");
+});
