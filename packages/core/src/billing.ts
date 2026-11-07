@@ -4,7 +4,7 @@
  */
 import { documentTitle, gstOn, isTaxable } from "./gst.js";
 import { type Toea, toea } from "./money.js";
-import { addDays, day, firstDay, lastDay, type Period, periodLabel, shortCode, zonedInstant } from "./period.js";
+import { addDays, day, firstDay, lastDay, localDate, nextPeriod, type Period, periodLabel, periodOf, shortCode, zonedInstant } from "./period.js";
 import type { BillingOrg, Charge, DraftInvoice, GstTreatment, Line, LineKind, Tenancy, Totals } from "./types.js";
 
 /** A tenancy is billed in a period if it overlaps that month at all. */
@@ -109,6 +109,13 @@ export interface DraftingRequest {
 }
 
 /** The periods the tick should draft now (plan §3.4). */
-export function periodsToDraft(_request: DraftingRequest): Period[] {
-  return [];
+export function periodsToDraft({ org, tenancies, now }: DraftingRequest): Period[] {
+  const thisMonth = periodOf(localDate(now, org.timezone)); // the landlord's month, not the server's
+  const leadMs = org.approvalLeadDays * DAY_MS;
+  return [thisMonth, nextPeriod(thisMonth)].filter((period) => {
+    const send = sendAt({ org, tenancies, period });
+    return now.getTime() >= send.getTime() - leadMs && now.getTime() <= send.getTime();
+  });
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;

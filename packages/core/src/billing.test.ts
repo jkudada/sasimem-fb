@@ -183,4 +183,9 @@ describe("which months the tick drafts", () => {
     // 1 September, 07:00 local. (September itself is an hour from its send time, so it may be.)
     expect(due("2026-08-31T21:00:00Z")).not.toContain("2026-10");
   });
+
+  test("a month is drafted once its lead time has begun, counted in 24-hour days before the send time", () => {
+    expect(due("2026-09-27T21:59:59Z")).toEqual([]);
+    expect(due("2026-09-27T22:00:00Z")).toEqual(["2026-10"]);
+  });
 });
