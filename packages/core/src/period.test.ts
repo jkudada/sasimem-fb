@@ -11,3 +11,9 @@ test("anything that is not a real YYYY-MM month is rejected", () => {
     expect(() => period.parsePeriod(bad), bad).toThrow(SyntaxError);
   }
 });
+
+test("the next and previous months roll over the year", () => {
+  expect(period.nextPeriod(period.parsePeriod("2026-12"))).toBe("2027-01");
+  expect(period.previousPeriod(period.parsePeriod("2026-01"))).toBe("2025-12");
+  expect(period.nextPeriod(period.parsePeriod("2026-09"))).toBe("2026-10");
+});

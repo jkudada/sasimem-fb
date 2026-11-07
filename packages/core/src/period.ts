@@ -19,3 +19,21 @@ export function parsePeriod(text: string): Period {
   }
   return trimmed as Period;
 }
+
+function parts(p: Period): { year: number; month: number } {
+  return { year: Number(p.slice(0, 4)), month: Number(p.slice(5, 7)) };
+}
+
+function pad(n: number, width: number): string {
+  return String(n).padStart(width, "0");
+}
+
+/** The period `months` away from `p` (negative goes back). */
+export function shiftPeriod(p: Period, months: number): Period {
+  const { year, month } = parts(p);
+  const index = year * 12 + (month - 1) + months;
+  return `${pad(Math.floor(index / 12), 4)}-${pad((index % 12) + 1, 2)}` as Period;
+}
+
+export const nextPeriod = (p: Period): Period => shiftPeriod(p, 1);
+export const previousPeriod = (p: Period): Period => shiftPeriod(p, -1);
