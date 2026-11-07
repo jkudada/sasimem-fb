@@ -20,3 +20,8 @@ test("toea throws outside ±MAX_SAFE_INTEGER, where integers stop being exact", 
 test("parseKina reads a plain number of kina", () => {
   expect(parseKina("1200")).toBe(120_000);
 });
+
+test("parseKina strips the K, thousands commas and whitespace a landlord types", () => {
+  expect(parseKina("K1,200")).toBe(120_000);
+  expect(parseKina(" 1 200 ")).toBe(120_000);
+});
