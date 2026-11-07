@@ -70,6 +70,18 @@ describe("draftNow: generate this month's invoices now (plan §6.2)", () => {
   });
 });
 
+test("the digest and a fresh link are both in the org's email log", async () => {
+  const { draftNow, reissue } = setup();
+  const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+  await draftNow.run(request(uid, { orgId, period: "2026-10" }));
+  await reissue.run(request(uid, { orgId, period: "2026-10" }));
+  const log = (await adminDb().collection(`orgs/${orgId}/emails`).orderBy("kind").get()).docs.map((d) => d.data());
+  expect(log).toMatchObject([
+    { kind: "approvalDigest", to: "mary@wari.example", runPeriod: "2026-10", status: "sent" },
+    { kind: "freshLink", to: "mary@wari.example", runPeriod: "2026-10", status: "sent" },
+  ]);
+});
+
 describe("reissueApproval: a fresh link (plan §6.2)", () => {
   test("replaces the token, so the old link stops working, and emails the org's own address", async () => {
     const { mailer, tok, draftNow, reissue } = setup();

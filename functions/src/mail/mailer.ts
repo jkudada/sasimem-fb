@@ -1,13 +1,23 @@
 /**
- * Email (plan §6.6). Step 4 has the interface, the console mailer the emulator
- * uses, and the fake tests use; the Resend adapter and the emails log are step 5.
- * Every message has a plain-text body.
+ * Email (plan §6.6). The Mailer interface, the console mailer the emulator uses, and
+ * the outbox the T4 journeys read; resend.ts is the real one and log.ts records every
+ * send. Every message has a plain-text body.
  */
+export interface Attachment {
+  readonly filename: string;
+  readonly content: Buffer;
+}
+
 export interface Mail {
   readonly to: string;
+  /** The landlord's name, shown as the sender's display name. */
+  readonly fromName?: string;
   readonly replyTo?: string;
   readonly subject: string;
   readonly text: string;
+  readonly attachments?: readonly Attachment[];
+  /** The provider drops a repeat of the same key (Resend keeps them 24 hours). */
+  readonly idempotencyKey?: string;
 }
 
 export interface Mailer {
@@ -18,7 +28,8 @@ export interface Mailer {
 export class ConsoleMailer implements Mailer {
   private n = 0;
   async send(mail: Mail): Promise<{ id: string }> {
-    console.log(`[mail] to ${mail.to}: ${mail.subject}\n${mail.text}`);
+    const files = (mail.attachments ?? []).map((a) => ` [${a.filename}, ${a.content.length} bytes]`).join("");
+    console.log(`[mail] to ${mail.to}: ${mail.subject}${files}\n${mail.text}`);
     return { id: `console-${++this.n}` };
   }
 }
@@ -33,7 +44,10 @@ export class OutboxMailer implements Mailer {
   constructor(private readonly outbox: () => import("firebase-admin/firestore").CollectionReference) {}
   async send(mail: Mail): Promise<{ id: string }> {
     await this.console.send(mail);
-    const ref = await this.outbox().add({ ...mail, at: new Date() });
+    const { attachments, ...rest } = mail;
+    // A journey checks that the PDF went, not its bytes.
+    const files = (attachments ?? []).map((a) => ({ filename: a.filename, bytes: a.content.length }));
+    const ref = await this.outbox().add({ ...rest, attachments: files, at: new Date() });
     return { id: ref.id };
   }
 }

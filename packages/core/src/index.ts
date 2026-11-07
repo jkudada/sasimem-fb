@@ -6,4 +6,5 @@ export * from "./billing.js";
 export * from "./setup.js";
 export * from "./tenancies.js";
 export * from "./approval.js";
+export * from "./messages.js";
 export type * from "./types.js";

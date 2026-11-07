@@ -4,6 +4,7 @@
  */
 import { type Period, type RunStatus, type Toea, localDate, nextPeriod, parsePeriod, periodLabel, periodOf } from "@sasimem/core";
 import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
+import { sendLogged } from "../mail/log.js";
 import type { Mailer } from "../mail/mailer.js";
 import { approvalDigest, freshLink } from "../mail/templates.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
@@ -43,7 +44,7 @@ async function orgAndPeriod(request: CallableRequest<unknown>, now: Date): Promi
 /** Email the digest for a run that has just been asked for approval. */
 async function sendDigest(deps: RunDeps, orgId: string, org: OrgDoc, period: Period, token: string): Promise<void> {
   const run = (await refs(orgId).run(period).get()).data() ?? {};
-  await deps.mailer.send(approvalDigest({
+  await sendLogged({ mailer: deps.mailer, now: deps.now() }, { orgId, kind: "approvalDigest", runPeriod: period }, approvalDigest({
     to: org.email, orgName: org.name, period,
     count: run["invoiceCount"] as number, totalToea: run["totalToea"] as Toea,
     link: linkFor(deps, token), sendAt: (run["sendAt"] as { toDate(): Date }).toDate(), timezone: org.timezone,
@@ -85,12 +86,13 @@ export function makeReissueApproval(deps: RunDeps) {
     if (!(await replaceToken(orgId, period, now, token))) {
       throw new HttpsError("failed-precondition", `${periodLabel(period)} is not waiting for approval, so there is no link to replace.`);
     }
-    await sendFreshLink(deps, org, period, token);
+    await sendFreshLink(deps, orgId, org, period, token);
     return { status: "awaitingApproval", message: `Sent a new approval link to ${org.email}.` };
   });
 }
 
 /** Always to the org's address on file (plan §6.1), never one a visitor supplies. */
-export async function sendFreshLink(deps: RunDeps, org: OrgDoc, period: Period, token: string): Promise<void> {
-  await deps.mailer.send(freshLink({ to: org.email, orgName: org.name, period, link: linkFor(deps, token) }));
+export async function sendFreshLink(deps: RunDeps, orgId: string, org: OrgDoc, period: Period, token: string): Promise<void> {
+  await sendLogged({ mailer: deps.mailer, now: deps.now() }, { orgId, kind: "freshLink", runPeriod: period },
+    freshLink({ to: org.email, orgName: org.name, period, link: linkFor(deps, token) }));
 }

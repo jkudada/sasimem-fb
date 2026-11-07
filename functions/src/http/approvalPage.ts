@@ -111,7 +111,7 @@ async function freshLinkRequested(orgId: string, period: Period, now: Date, deps
   });
   if (claimed) {
     const token = deps.newToken();
-    if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, org, period, token);
+    if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, orgId, org, period, token);
     else return page(200, "Nothing to approve", `<h1>Nothing to approve</h1><p>${esc(periodLabel(period))} is no longer waiting for approval.</p>`);
   }
   return page(200, "A new link is on its way", `<h1>Check your email</h1><p>A new link is on its way to ${esc(mask(org.email))}. It replaces every earlier link.</p>`);
