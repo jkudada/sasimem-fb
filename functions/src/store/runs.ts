@@ -4,7 +4,7 @@
  * doubled call can never make a second run or invoice (I1, I2).
  */
 import {
-  type BillingOrg, type DraftInvoice, type InvoiceStatus, type OrgProfile, type Period, type Tenancy,
+  type BillingOrg, type DraftInvoice, type InvoiceDocument, type InvoiceStatus, type OrgProfile, type Period, type Tenancy,
   type TenancyDocument, isActiveIn, redraftPlan, sendAt,
 } from "@sasimem/core";
 import { type Firestore, Timestamp, type Transaction } from "firebase-admin/firestore";
@@ -28,6 +28,11 @@ export function refs(orgId: string, firestore: Firestore = db()) {
     events: org.collection("events"),
   };
 }
+
+const DRAFT_FIELDS = ["tenancyId", "period", "issueDate", "dueDate", "paymentReference", "lines", "subtotalToea", "gstToea", "totalToea", "documentTitle"] as const;
+
+/** The draft part of a stored invoice, as core's billing rules see it. */
+export const asDraft = (inv: InvoiceDocument): DraftInvoice => Object.fromEntries(DRAFT_FIELDS.map((k) => [k, inv[k]])) as unknown as DraftInvoice;
 
 /** A tenancy document as core's billing rules see it. */
 export const asTenancy = (id: string, d: TenancyDocument): Tenancy & TenancyDocument => ({ ...d, id }) as Tenancy & TenancyDocument;

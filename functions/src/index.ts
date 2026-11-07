@@ -9,6 +9,7 @@ import { APP_URL, APPROVAL_SIGNING_KEY } from "./params.js";
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
 export { getNumbering, setNextInvoiceNumber } from "./callables/numbering.js";
+export { approveRunCallable as approveRun, exclude, include, rebuildRun, setRent } from "./callables/edits.js";
 
 // Step 4 mails through the console everywhere; the Resend adapter replaces it in step 5.
 const deps = { now: () => new Date(), mailer: new ConsoleMailer(), newToken, appUrl: () => APP_URL.value() };

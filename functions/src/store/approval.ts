@@ -4,12 +4,12 @@
  * once, so everything it does is reads and buffered writes. PDFs follow the commit.
  */
 import {
-  type ApprovalEdits, type DraftInvoice, type InvoiceDocument, type Period, type RunStatus, type TenancyDocument,
+  type ApprovalEdits, type InvoiceDocument, type Period, type RunStatus, type TenancyDocument,
   allocateNumbers, applyApprovalEdits, approvalOutcome, formatKina, invoiceSnapshot, toea,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
-import { type OrgDoc, refs } from "./runs.js";
+import { asDraft, type OrgDoc, refs } from "./runs.js";
 
 export type ApproveOutcome = "approved" | "alreadyApproved" | "refused" | "noRun";
 
@@ -20,9 +20,6 @@ export interface ApproveRequest {
   /** The approval page's rent edits and ticks, applied in the same transaction. */
   readonly edits?: ApprovalEdits;
 }
-
-const DRAFT_FIELDS = ["tenancyId", "period", "issueDate", "dueDate", "paymentReference", "lines", "subtotalToea", "gstToea", "totalToea", "documentTitle"] as const;
-const asDraft = (inv: InvoiceDocument): DraftInvoice => Object.fromEntries(DRAFT_FIELDS.map((k) => [k, inv[k]])) as unknown as DraftInvoice;
 
 export async function approveRun(orgId: string, period: Period, req: ApproveRequest): Promise<ApproveOutcome> {
   const r = refs(orgId);
