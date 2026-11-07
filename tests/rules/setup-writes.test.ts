@@ -58,3 +58,13 @@ test("an additional charge must be whole toea too, and well formed (I7)", async 
   await assertFails(addDoc(tenancies, validTenancy(s, { extras: [{ ...water, gstTreatment: "maybe" }] })));
   await assertFails(addDoc(tenancies, validTenancy(s, { extras: Array.from({ length: 11 }, (_, i) => ({ ...water, id: `c${i}` })) })));
 });
+
+test("a tenancy billed on day 0 or day 32 is refused", async () => {
+  const s = await seedOrg(env);
+  const owner = env.authenticatedContext(s.ownerUid).firestore();
+  const tenancies = collection(owner, `orgs/${s.orgId}/tenancies`);
+  await assertFails(addDoc(tenancies, validTenancy(s, { billingDay: 0 })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { billingDay: 32 })));
+  await assertFails(addDoc(tenancies, validTenancy(s, { dueDays: 91 })));
+  await assertSucceeds(addDoc(tenancies, validTenancy(s, { billingDay: 31, dueDays: 0 })));
+});

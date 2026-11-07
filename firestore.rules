@@ -49,7 +49,8 @@ service cloud.firestore {
     }
 
     function validTenancy(d) {
-      return wholeIn(d.rentToea, 0, 1000000000) && validExtras(d.extras);
+      return wholeIn(d.rentToea, 0, 1000000000) && validExtras(d.extras)
+        && wholeIn(d.billingDay, 1, 31) && wholeIn(d.dueDays, 0, 90);
     }
 
     match /orgs/{orgId} {
