@@ -1,5 +1,9 @@
 # Step 3 test list: setup screens (properties, tenants, tenancies, charges, settings)
 
+All items done. Also checked by hand in Chromium at 360 and 320 px against the full
+emulator suite: sign up, onboarding, edit a property (the trigger renamed the
+tenancy's unit), a charge and an end date, settings, logo upload, next number 142.
+
 Written before the code (plan §9.1). Ticked as each goes red → green.
 
 Decisions this list assumes (the user chose the defaults on 2026-11-07):
@@ -66,6 +70,9 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
 - [x] settings: next invoice number shows a plain message once numbering has started
 - [x] routing: signed-in routes for each screen; an unknown path goes home
 - [x] after onboarding's first tenant, the landlord lands on home (replaces step 2's "You're set up" page)
+- [x] a screen that saves in place shows the reloaded data: a new logo appears (bug found in a
+      browser run against the emulators: routes were closures over stale data)
+- [x] Settings' next-number field starts with the stored number
 
 ## Size budgets
 - [x] sign-in route still ≤ 70 KB gzip (50.3 KB, now counting the shared JSX chunk Vite split out); signed-in shell ≤ 160 KB (110.3 KB)
