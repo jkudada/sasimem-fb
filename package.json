@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r --parallel typecheck && tsc -p tools",
     "test": "pnpm test:unit && pnpm test:prop",
-    "test:unit": "vitest run --project core-unit --project web-unit --project ops-unit --maxWorkers=2 --slowTestThreshold 50",
+    "test:unit": "node tools/test-unit.ts",
     "test:prop": "vitest run --project core-property --slowTestThreshold 1000",
     "test:watch": "vitest --project core-unit --project web-unit --project ops-unit --slowTestThreshold 50",
     "test:rules": "vitest run --project rules --slowTestThreshold 2000",
