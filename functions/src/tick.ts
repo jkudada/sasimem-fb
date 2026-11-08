@@ -16,7 +16,7 @@ import { renderMissingPdfs } from "./store/pdfs.js";
 import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
 import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } from "./store/runs.js";
-import { mailSecret } from "./params.js";
+import { MAIL_SECRETS } from "./params.js";
 import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
 
 export type TickDeps = NotifyDeps;
@@ -151,7 +151,7 @@ export async function tickAndLog(deps: TickDeps, opts: TickOptions = {}, log: Lo
 }
 
 export function makeTick(deps: TickDeps) {
-  return onSchedule({ schedule: "every 60 minutes", retryCount: 3, timeoutSeconds: 540, secrets: [mailSecret()] }, async () => {
+  return onSchedule({ schedule: "every 60 minutes", retryCount: 3, timeoutSeconds: 540, secrets: MAIL_SECRETS }, async () => {
     await tickAndLog(deps);
   });
 }

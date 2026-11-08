@@ -5,10 +5,11 @@
  * GMAIL_APP_PASSWORD sends mail: Secret Manager secrets, never in git; the emulator
  * reads functions/.secret.local (gitignored) and never sends real mail.
  *
- * MAIL_PROVIDER picks the sender: "gmail" while testing (MAIL_FROM is then the Gmail
- * address), anything else Resend. It is read from process.env rather than as a param
- * because it decides which secrets each function declares, and that happens when the
- * deploy loads this code, from the same functions/.env.<project> file.
+ * MAIL_PROVIDER picks the sender at run time: "gmail" while testing (MAIL_FROM is then
+ * the Gmail address), anything else Resend. Each function that sends mail declares both
+ * secrets, so both must exist in every project (a placeholder value is fine for the one
+ * not used): the deploy reads the declared secrets while loading the code, without
+ * functions/.env.<project>, so it cannot choose between them by MAIL_PROVIDER.
  */
 import { defineSecret, defineString } from "firebase-functions/params";
 
@@ -18,6 +19,7 @@ export const APPROVAL_SIGNING_KEY = defineSecret("APPROVAL_SIGNING_KEY");
 export const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 export const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 
+/** Read at run time, from functions/.env.<project>. */
 export const usesGmail = (): boolean => process.env["MAIL_PROVIDER"] === "gmail";
-/** The secret every function that sends mail declares: only the chosen provider's. */
-export const mailSecret = () => (usesGmail() ? GMAIL_APP_PASSWORD : RESEND_API_KEY);
+/** The secrets every function that sends mail declares: both senders', see above. */
+export const MAIL_SECRETS = [GMAIL_APP_PASSWORD, RESEND_API_KEY];

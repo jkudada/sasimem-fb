@@ -11,19 +11,22 @@ test("the tick runs every hour, and a failed run is retried (plan §6.4)", () =>
   expect(endpoint("tick").scheduleTrigger).toMatchObject({ schedule: "every 60 minutes", retryConfig: { retryCount: 3 } });
 });
 
-test("every function that sends email can read the Resend key; the approval page also signs its forms", () => {
-  for (const name of ["tick", "draftNow", "reissueApproval", "resendInvoice"] as const) expect(secrets(name), name).toEqual(["RESEND_API_KEY"]);
-  expect(secrets("approvalPage")).toEqual(["APPROVAL_SIGNING_KEY", "RESEND_API_KEY"]);
+const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice"] as const;
+
+test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
+  for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
+  expect(secrets("approvalPage")).toEqual(["APPROVAL_SIGNING_KEY", "GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
 });
 
-test("with MAIL_PROVIDER=gmail, those functions read the Gmail app password instead, and need no Resend key", async () => {
+// The deploy reads the secrets while loading the code, without functions/.env.<project>,
+// so MAIL_PROVIDER is not set then. Choosing the secrets by it deployed the wrong one.
+test("the secrets declared do not depend on MAIL_PROVIDER, which the deploy does not see", async () => {
   vi.resetModules();
   vi.stubEnv("MAIL_PROVIDER", "gmail");
   try {
     const gmail = await import("../src/index.js");
     const keys = (f: unknown) => ((f as { __endpoint: Endpoint }).__endpoint.secretEnvironmentVariables ?? []).map((s) => s.key).sort();
-    for (const f of [gmail.tick, gmail.draftNow, gmail.reissueApproval, gmail.resendInvoice]) expect(keys(f)).toEqual(["GMAIL_APP_PASSWORD"]);
-    expect(keys(gmail.approvalPage)).toEqual(["APPROVAL_SIGNING_KEY", "GMAIL_APP_PASSWORD"]);
+    for (const name of [...MAILERS, "approvalPage"] as const) expect(keys(gmail[name]), name).toEqual(secrets(name));
   } finally {
     vi.unstubAllEnvs();
   }

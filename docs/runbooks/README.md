@@ -23,5 +23,7 @@ a key file. Run them from the repository root with Node 22 (`node ops/<script>.t
 3. `node ops/alerts.ts --project sasimem-prod --i-am-the-owner --email <your address>`.
 4. `node ops/budget.ts --project sasimem-prod --i-am-the-owner --billing-account <id>`, then run the command it prints.
 5. Set up the sending domain ([sending-domain.md](sending-domain.md)) until `node ops/mail-dns.ts --domain <domain>` passes;
-   set `MAIL_FROM` in `functions/.env.sasimem-prod` and the `RESEND_API_KEY` secret.
+   set `MAIL_FROM` in `functions/.env.sasimem-prod` and the `RESEND_API_KEY` secret. Also create a
+   `GMAIL_APP_PASSWORD` secret with any placeholder value (e.g. `unused`): every mail function declares
+   it, for dev's Gmail testing, and a deploy fails if a declared secret is missing.
 6. `node ops/restore-drill.ts --project sasimem-prod --i-am-the-owner` once a backup exists, and record the result in [restore.md](restore.md).
