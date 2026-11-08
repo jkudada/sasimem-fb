@@ -6,12 +6,14 @@
 import { draftInvoice, isActiveIn, withRent } from "./billing.js";
 import { amountProblem, formatKina, parseKina, type Toea } from "./money.js";
 import { type Period, periodLabel } from "./period.js";
+import { type InvoiceTemplate, templateOf } from "./templates.js";
 import type { BillingOrg, DraftInvoice, InvoiceSnapshot, InvoiceStatus, OrgProfile, Tenancy, TenancyDocument } from "./types.js";
 
 export function invoiceSnapshot(
   org: OrgProfile & { readonly logoPath?: string | undefined },
   tenancy: Pick<TenancyDocument, "tenantName" | "unitLabel" | "propertyAddress">,
   tenantEmail: string,
+  template: InvoiceTemplate,
 ): InvoiceSnapshot {
   return {
     org: {
@@ -22,6 +24,7 @@ export function invoiceSnapshot(
     tenantEmail,
     unitLabel: tenancy.unitLabel,
     propertyAddress: tenancy.propertyAddress,
+    template: templateOf(template),
   };
 }
 

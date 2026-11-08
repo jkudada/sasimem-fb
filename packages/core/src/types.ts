@@ -1,6 +1,7 @@
 /** Domain types shared by web and functions. Pure data - no Firebase, no DOM. */
 import type { Toea } from "./money.js";
 import type { CalendarDate, Period } from "./period.js";
+import type { InvoiceTemplate } from "./templates.js";
 
 export type UseType = "residential" | "commercial";
 
@@ -168,6 +169,8 @@ export interface InvoiceSnapshot {
   readonly tenantEmail: string;
   readonly unitLabel: string;
   readonly propertyAddress: string;
+  /** How it prints, resolved at approval. Absent on invoices approved before templates: they print as CLASSIC. */
+  readonly template?: InvoiceTemplate;
 }
 
 /** An invoice as stored at orgs/{orgId}/invoices/{tenancyId}_{period} (plan §4). Server-written only. */
