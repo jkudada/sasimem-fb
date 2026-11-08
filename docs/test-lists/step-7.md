@@ -1,6 +1,6 @@
 # Step 7 test list: hardening
 
-Written before the code (plan §9.1). Ticked as each goes red → green.
+All items done except where marked. Written before the code (plan §9.1). Ticked as each goes red → green.
 
 Where step 7 ends (plan §11 leaves the edges open; chosen here):
 - **In:** App Check, enforced on every callable and sent by the app; the ops scripts that
@@ -32,29 +32,29 @@ Choices the plan leaves open (say if any is wrong):
   them; one policy fires on any tick error, one on no success in 3 hours.
 
 ## Functions (T3)
-- [ ] every callable enforces App Check; the approval page and the tick do not need it
-- [ ] the tick logs one "tick done" line with its tally when it succeeds, none when it throws
+- [x] every callable enforces App Check (a bare HTTP call is refused before its code runs); the approval page and the tick are not callables
+- [x] the tick logs one "tick done" line with its tally when it succeeds, none when it throws
 
 ## Web (T1)
-- [ ] App Check starts before the data layer's first Firestore or Functions use
-- [ ] with the emulators, the app's App Check token is a placeholder that names the app; real builds use reCAPTCHA Enterprise with the site key from the build
-- [ ] a missing site key in a real build is an error at start, not a silent unprotected app
+- [x] App Check starts before the data layer's first Firestore or Functions use
+- [x] with the emulators, the app's App Check token is a placeholder that names the app; real builds use reCAPTCHA Enterprise with the site key from the build
+- [x] a missing site key in a real build is an error at start, not a silent unprotected app
 
 ## Ops (T1)
-- [ ] app-check: the requests that create a reCAPTCHA Enterprise key for the app's domains, register it, and enforce Firestore, Storage and callables
-- [ ] alerts: the log-based metric for a successful tick, the failure policy and the 3-hour absence policy, each named for the project
-- [ ] budget: the gcloud command for a $10 budget alert at 50/90/100%, printed for the user
-- [ ] restore drill: two document sets match when every path and field is equal; a missing, extra or changed document is named
-- [ ] restore drill: the scratch database is named for the date and never `(default)`; it is deleted even when the comparison fails
-- [ ] mail DNS: SPF, DKIM and DMARC are judged from TXT/MX answers - present, missing, or wrong (e.g. two SPF records, DMARC without a policy)
-- [ ] every ops script refuses a project that is not named on its command line, and refuses `sasimem-prod` unless run with `--i-am-the-owner`
+- [x] app-check: the requests that create a reCAPTCHA Enterprise key for the app's domains, register it, and enforce Firestore, Storage and callables
+- [x] alerts: the log-based metric for a successful tick, the failure policy and the 3-hour absence policy, each named for the project
+- [x] budget: the gcloud command for a $10 budget alert at 50/90/100%, printed for the user
+- [x] restore drill: two document sets match when every path and field is equal; a missing, extra or changed document is named
+- [x] restore drill: the scratch database is named for the date and never `(default)`; it is deleted even when the comparison fails
+- [x] mail DNS: SPF, DKIM and DMARC are judged from TXT/MX answers - present, missing, or wrong (e.g. two SPF records, DMARC without a policy)
+- [x] every ops script refuses a project that is not named on its command line, and refuses `sasimem-prod` unless run with `--i-am-the-owner`
 
 ## T4 (Playwright, emulators)
-- [ ] a callable called without an App Check token is refused
-- [ ] throttled phone (nightly): the sign-in form is usable within 4 s on Slow 4G with a 4× slower CPU, and the route transfers ≤ 100 KB
-- [ ] throttled phone (nightly): the four journeys pass
+- [x] a callable called without an App Check token is refused
+- [x] throttled phone (nightly): the sign-in form is usable within 4 s on Slow 4G with a 4× slower CPU, and the route transfers ≤ 100 KB
+- [x] throttled phone (nightly): the four journeys pass
 
 ## Run on sasimem-dev (recorded in docs/runbooks)
 - [ ] the restore drill: newest backup restored, compared and deleted, with timings
-- [ ] App Check: the reCAPTCHA Enterprise key made and registered
-- [ ] alerts: the metric and both policies created
+- [x] App Check: a web app, the reCAPTCHA Enterprise key made and registered, Firestore and Storage enforced; a rerun reuses the key
+- [x] alerts: the metric and both policies created (no email), and updated in place on a rerun

@@ -47,7 +47,7 @@ jobs:
           FC_SEED: ${{ github.run_id }}
 
   e2e-matrix:
-    name: E2E matrix (Chromium, WebKit, Firefox at 360 px)
+    name: E2E matrix (Chromium, WebKit, Firefox at 360 px; a throttled phone)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -61,6 +61,7 @@ jobs:
       - run: pnpm ci:e2e
         env:
           E2E_ALL_BROWSERS: "1"
+          E2E_THROTTLED: "1" # Slow 4G, 4x CPU: the journeys and the sign-in budget
 
   flake-detector:
     name: Flake detector (T3 5x, shuffled)
