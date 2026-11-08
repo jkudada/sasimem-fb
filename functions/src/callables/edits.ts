@@ -9,7 +9,7 @@ import { type OrgDoc, refs } from "../store/runs.js";
 import { ownerOrg, uidOf } from "./auth.js";
 
 /** Turn a store refusal into the plain message the console shows. */
-async function plainly<T>(act: () => Promise<T>): Promise<T> {
+export async function plainly<T>(act: () => Promise<T>): Promise<T> {
   try {
     return await act();
   } catch (e) {
@@ -18,7 +18,7 @@ async function plainly<T>(act: () => Promise<T>): Promise<T> {
   }
 }
 
-const invoiceIdOf = (request: CallableRequest<unknown>): string => {
+export const invoiceIdOf = (request: CallableRequest<unknown>): string => {
   const id = (request.data as { invoiceId?: unknown }).invoiceId;
   if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,140}$/.test(id)) throw new HttpsError("invalid-argument", "That does not look like an invoice.");
   return id;

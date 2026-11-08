@@ -16,8 +16,8 @@ import { renderMissingPdfs } from "./store/pdfs.js";
 import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
 import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } from "./store/runs.js";
-import { RESEND_API_KEY } from "./params.js";
-import { holdRun, requestApproval } from "./store/tokens.js";
+import { MAIL_SECRETS } from "./params.js";
+import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
 
 export type TickDeps = NotifyDeps;
 
@@ -85,10 +85,11 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
       return;
     }
     tally.sent++;
+    if (outcome.invoices.length === 0) return; // everyone left out: nothing to send, nothing to track
     const failures = await sendToTenants(deps, run.orgId, outcome.invoices);
-    if (outcome.invoices.length > 0) {
-      await sendDispatch(deps, run.orgId, await orgOf(run.orgId), run.period, dispatchLines(outcome.invoices, failures));
-    }
+    const tracking = deps.newToken();
+    await mintTrackingToken(run.orgId, run.period, now, tracking);
+    await sendDispatch(deps, run.orgId, await orgOf(run.orgId), run.period, dispatchLines(outcome.invoices, failures), tracking);
     if (failures.size > 0) throw [...failures.values()][0];
   });
 
@@ -136,8 +137,21 @@ function dispatchLines(invoices: readonly Sent[], failures: ReadonlyMap<string, 
 }
 
 /** The scheduled function: hourly, retried on failure (every step is safe to rerun). */
+type Log = (message: string, data: object) => void;
+
+/**
+ * Run the tick, then log one structured "tick done" line. A log-based metric counts these
+ * lines, and an alert fires when none arrives for 3 hours (plan §12; ops/alerts.ts). A tick
+ * that throws logs nothing here: its error is the other alert.
+ */
+export async function tickAndLog(deps: TickDeps, opts: TickOptions = {}, log: Log = (m, d) => logger.info(m, d)): Promise<Tally> {
+  const tally = await runTick(deps, opts);
+  log("tick done", { event: "tick_done", ...tally });
+  return tally;
+}
+
 export function makeTick(deps: TickDeps) {
-  return onSchedule({ schedule: "every 60 minutes", retryCount: 3, timeoutSeconds: 540, secrets: [RESEND_API_KEY] }, async () => {
-    await runTick(deps);
+  return onSchedule({ schedule: "every 60 minutes", retryCount: 3, timeoutSeconds: 540, secrets: MAIL_SECRETS }, async () => {
+    await tickAndLog(deps);
   });
 }

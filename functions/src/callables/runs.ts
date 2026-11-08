@@ -3,11 +3,12 @@
  * calls the same store code the tick and the approval page use.
  */
 import { type Period, type RunStatus, localDate, nextPeriod, parsePeriod, periodLabel, periodOf } from "@sasimem/core";
+import { logger } from "firebase-functions";
 import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
-import { type NotifyDeps, sendDigest, sendFreshLink } from "../notify.js";
+import { type NotifyDeps, orRefused, sendDigest, sendFreshLink } from "../notify.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
 import { replaceToken, requestApproval } from "../store/tokens.js";
-import { RESEND_API_KEY } from "../params.js";
+import { MAIL_SECRETS } from "../params.js";
 import { ownerOrg } from "./auth.js";
 
 export type RunDeps = NotifyDeps;
@@ -41,7 +42,7 @@ const WAITING: Partial<Record<RunStatus, (p: string) => string>> = {
 };
 
 export function makeDraftNow(deps: RunDeps) {
-  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [RESEND_API_KEY] }, async (request) => {
+  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: MAIL_SECRETS }, async (request) => {
     const now = deps.now();
     const { orgId, org, period } = await orgAndPeriod(request, now);
     const label = periodLabel(period);
@@ -54,20 +55,27 @@ export function makeDraftNow(deps: RunDeps) {
       const status = outcome.status ?? "draft";
       return { status, message: WAITING[status]?.(label) ?? `${label} is drafted.` };
     }
-    await sendDigest(deps, orgId, org, period, token, outcome.target === "held");
+    try {
+      await sendDigest(deps, orgId, org, period, token, outcome.target === "held");
+    } catch (e) {
+      // The month is drafted and waiting either way, and the email log has the failure.
+      // The landlord is in the app, so they can approve there; a 500 would hide that.
+      logger.error("draftNow: the approval digest did not go", { orgId, period, error: e instanceof Error ? e.message : String(e) });
+      return { status: "awaitingApproval", message: `${label} is drafted, but the email with your approval link did not go. Review and approve the invoices here.` };
+    }
     return { status: "awaitingApproval", message: `Sent you the approval link for ${label}.` };
   });
 }
 
 export function makeReissueApproval(deps: RunDeps) {
-  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [RESEND_API_KEY] }, async (request) => {
+  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: MAIL_SECRETS }, async (request) => {
     const now = deps.now();
     const { orgId, org, period } = await orgAndPeriod(request, now);
     const token = deps.newToken();
     if (!(await replaceToken(orgId, period, now, token))) {
       throw new HttpsError("failed-precondition", `${periodLabel(period)} is not waiting for approval, so there is no link to replace.`);
     }
-    await sendFreshLink(deps, orgId, org, period, token);
+    await orRefused(sendFreshLink(deps, orgId, org, period, token));
     return { status: "awaitingApproval", message: `Sent a new approval link to ${org.email}.` };
   });
 }

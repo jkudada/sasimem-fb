@@ -9,7 +9,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
 import type { Mail, Mailer } from "./mailer.js";
 
-export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "tenantInvoice" | "reminder";
+export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "tenantInvoice" | "tenantInvoiceAgain" | "reminder";
 
 export interface MailContext {
   readonly orgId: string;
@@ -18,8 +18,8 @@ export interface MailContext {
   readonly invoiceId?: string;
 }
 
-/** A landlord may ask for fresh links again and again; every other kind goes once per run or invoice. */
-const sentOnce = (kind: EmailKind) => kind !== "freshLink";
+/** A landlord may ask for fresh links, or an invoice emailed again, more than once; every other kind goes once per run or invoice. */
+const sentOnce = (kind: EmailKind) => kind !== "freshLink" && kind !== "tenantInvoiceAgain";
 
 export async function sendLogged(deps: { readonly mailer: Mailer; readonly now: Date }, ctx: MailContext, mail: Mail): Promise<string> {
   const key = sentOnce(ctx.kind) ? `${ctx.orgId}/${ctx.kind}/${ctx.invoiceId ?? ctx.runPeriod ?? ""}` : undefined;

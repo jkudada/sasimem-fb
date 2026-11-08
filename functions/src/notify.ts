@@ -5,10 +5,12 @@
  */
 import type { InvoiceDocument, Period, Toea } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
+import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, heldNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, freshTrackingLink, heldNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { type OrgDoc, refs } from "./store/runs.js";
 
 export interface NotifyDeps {
@@ -17,6 +19,20 @@ export interface NotifyDeps {
   readonly newToken: () => string;
   /** The Hosting origin approval links point at. */
   readonly appUrl: () => string;
+}
+
+/**
+ * For a callable whose whole job is one email: the provider refusing it becomes a clear
+ * error instead of INTERNAL. The email log already holds the refusal; the error log line
+ * fires the alert. "aborted", not "unavailable": the app reads "unavailable" as offline.
+ */
+export async function orRefused<T>(send: Promise<T>): Promise<T> {
+  try {
+    return await send;
+  } catch (e) {
+    logger.error("email refused", { error: e instanceof Error ? e.message : String(e) });
+    throw new HttpsError("aborted", "The email could not be sent. Try again in a few minutes.");
+  }
 }
 
 const linkFor = (deps: NotifyDeps, token: string) => `${deps.appUrl()}/a/${token}`;
@@ -47,8 +63,13 @@ export async function sendHeld(deps: NotifyDeps, orgId: string, org: OrgDoc, per
   }));
 }
 
-export async function sendDispatch(deps: NotifyDeps, orgId: string, org: OrgDoc, period: Period, lines: readonly DispatchLine[]): Promise<void> {
-  await sendLogged(logged(deps), { orgId, kind: "dispatch", runPeriod: period }, dispatchNotice({ to: org.email, orgName: org.name, period, lines }));
+export async function sendDispatch(deps: NotifyDeps, orgId: string, org: OrgDoc, period: Period, lines: readonly DispatchLine[], trackingToken: string): Promise<void> {
+  await sendLogged(logged(deps), { orgId, kind: "dispatch", runPeriod: period }, dispatchNotice({ to: org.email, orgName: org.name, period, lines, trackLink: linkFor(deps, trackingToken) }));
+}
+
+/** A sent month's fresh link: the tracking page, not approval. Always to the org's address on file. */
+export async function sendFreshTrackingLink(deps: NotifyDeps, orgId: string, org: OrgDoc, period: Period, token: string): Promise<void> {
+  await sendLogged(logged(deps), { orgId, kind: "freshLink", runPeriod: period }, freshTrackingLink({ to: org.email, orgName: org.name, period, link: linkFor(deps, token) }));
 }
 
 /** An issued invoice's email, from its frozen snapshot and its stored PDF only. */
@@ -63,6 +84,11 @@ async function invoiceMail(invoice: InvoiceDocument, make: typeof tenantInvoice)
 
 export async function sendTenantInvoice(deps: NotifyDeps, orgId: string, invoiceId: string, invoice: InvoiceDocument): Promise<void> {
   await sendLogged(logged(deps), { orgId, kind: "tenantInvoice", runPeriod: invoice.period, invoiceId }, await invoiceMail(invoice, tenantInvoice));
+}
+
+/** The landlord asked for it: e.g. after correcting an address the provider refused. */
+export async function sendInvoiceAgain(deps: NotifyDeps, orgId: string, invoiceId: string, invoice: InvoiceDocument): Promise<void> {
+  await sendLogged(logged(deps), { orgId, kind: "tenantInvoiceAgain", runPeriod: invoice.period, invoiceId }, await invoiceMail(invoice, tenantInvoice));
 }
 
 export async function sendReminder(deps: NotifyDeps, orgId: string, invoiceId: string, invoice: InvoiceDocument): Promise<void> {

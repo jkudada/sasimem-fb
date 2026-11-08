@@ -12,6 +12,7 @@ import { tokenId } from "../links.js";
 import { refs } from "./runs.js";
 
 const TOKEN_LIFE_MS = 7 * 86_400_000;
+const TRACKING_LIFE_MS = 60 * 86_400_000;
 const tokenDoc = (id: string) => db().doc(`approvalTokens/${id}`);
 
 const liveIds = (run: DocumentSnapshot): string[] => {
@@ -84,6 +85,18 @@ export async function replaceToken(orgId: string, period: Period, now: Date, tok
     tx.update(run, addToken(tx, orgId, period, now, token, []));
     return true;
   });
+}
+
+/**
+ * A link to a sent month's tracking page (and the owed page), for the dispatch notice
+ * or a fresh-link request. It lives 60 days: long enough to tick a month's payments.
+ */
+export async function mintTrackingToken(orgId: string, period: Period, now: Date, token: string): Promise<void> {
+  const id = tokenId(token);
+  await db().batch()
+    .create(tokenDoc(id), { orgId, period, expiresAt: Timestamp.fromMillis(now.getTime() + TRACKING_LIFE_MS), replacedAt: null })
+    .update(refs(orgId).run(period), { trackingTokenId: id })
+    .commit();
 }
 
 export type TokenLookup =

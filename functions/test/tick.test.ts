@@ -11,7 +11,7 @@ import { approveRun } from "../src/store/approval.js";
 import { renderMissingPdfs } from "../src/store/pdfs.js";
 import { draftRun } from "../src/store/runs.js";
 import { lookupToken } from "../src/store/tokens.js";
-import { runTick, type TickDeps } from "../src/tick.js";
+import { runTick, tickAndLog, type TickDeps } from "../src/tick.js";
 import { request } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer, tokens } from "./harness/mailer.js";
@@ -284,5 +284,18 @@ describe("the tick as a whole", () => {
     await w.tick(SEND);
     expect((await w.invoice("k1_2026-10"))["pdfPath"]).toBe(`invoices/${w.orgId}/k1_2026-10.pdf`);
     expect(w.mailer.to("k1@tenant.example")[0]?.attachments).toHaveLength(1);
+  });
+
+  test("a successful tick logs one \"tick done\" line with its tally, for the 3-hour alert; a failed one logs none", async () => {
+    const lines: [string, object][] = [];
+    const log = (msg: string, data: object) => void lines.push([msg, data]);
+    const ok = await world([{ id: "k1" }]);
+    await tickAndLog(ok.deps, { orgIds: [ok.orgId] }, log);
+    expect(lines).toEqual([["tick done", { event: "tick_done", drafted: 1, requested: 1, sent: 0, held: 0, reminded: 0 }]]);
+
+    lines.length = 0;
+    const bad = await world([{ id: "k1" }], { refuse: LANDLORD }); // the digest is refused at LEAD
+    await expect(tickAndLog(bad.deps, { orgIds: [bad.orgId] }, log)).rejects.toThrow();
+    expect(lines).toEqual([]);
   });
 });
