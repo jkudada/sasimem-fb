@@ -88,7 +88,7 @@ describe("a template's editor", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  test("the sketch follows the layout, colour, font and letterhead as they change", () => {
+  test("the sketch follows the layout, colour and font as they change", () => {
     render(<TemplateForm id={null} setup={setup()} {...forms} />);
     expect(sketch().dataset).toMatchObject({ layout: "classic", accent: CLASSIC.accent, font: "helvetica" });
     fireEvent.click(screen.getByLabelText(/^Compact/));
@@ -96,6 +96,10 @@ describe("a template's editor", () => {
     fireEvent.click(screen.getByLabelText(/Traditional/));
     expect(sketch().dataset).toMatchObject({ layout: "compact", accent: "#a3312a", font: "times" });
     expect(sketch().querySelector("[data-mark=monogram]")).not.toBeNull(); // no logo uploaded: the initials
+  });
+
+  test("the sketch drops the letterhead mark for nothing, and shows the note when there is one", () => {
+    render(<TemplateForm id={null} setup={setup()} {...forms} />);
     fireEvent.click(screen.getByLabelText(/Nothing, just your name/));
     expect(sketch().querySelector("[data-mark]")).toBeNull();
     fireEvent.input(screen.getByLabelText(/Note on every invoice/), { target: { value: "Hi" } });
