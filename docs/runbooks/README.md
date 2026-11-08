@@ -21,6 +21,10 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
 
 1. **In the Firebase console:** turn on Authentication with the Email/Password provider, and
    turn on Storage (location `australia-southeast1`). Neither can be done by `firebase deploy`.
+   Sasimem is invite-only for now: real builds hide sign-up (`VITE_SIGN_UP=closed` in
+   `apps/web/.env.production`), so also untick **Enable create (sign-up)** under Authentication →
+   Settings → User actions. Otherwise anyone can still create an account straight through the
+   Auth API. Add each landlord yourself under Authentication → Users → **Add user**.
 2. **Create both secrets before deploying any function:**
    ```sh
    openssl rand -base64 32 | firebase functions:secrets:set APPROVAL_SIGNING_KEY --project sasimem-prod --data-file -
@@ -47,7 +51,9 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
    creates it, and a callable cannot declare it. Delete the callables (`firebase functions:delete
    <names> --project sasimem-prod --region australia-southeast1`), then deploy again.
    `approvalPage` declares itself public, so a redeploy fixes it.
-7. **Smoke test** on the live URL: sign up, add a tenancy, "Generate now", approve, open the PDF.
+7. **Smoke test** on the live URL: add a user in the console, sign in as them, create the
+   organisation, add a tenancy, "Generate now", approve, open the PDF. Check that `/sign-up` says
+   accounts are closed.
 
 ## Before production takes real mail (the owner, on `sasimem-prod`)
 
