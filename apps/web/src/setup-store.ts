@@ -95,7 +95,8 @@ export function setupStore(orgId: string): SetupStore {
     saveTenant: (id, tenant) => attempt(() => (id === null ? addDoc(collection(db, `${org}/tenants`), tenant) : setDoc(ref(`tenants/${id}`), tenant))),
     deleteTenant: (id) => attempt(() => deleteDoc(ref(`tenants/${id}`))),
     createTenancy: (tenancy) => attempt(() => addDoc(collection(db, `${org}/tenancies`), tenancy)),
-    updateTenancy: (id, edit: TenancyEdit) => attempt(() => updateDoc(ref(`tenancies/${id}`), { ...edit })),
+    updateTenancy: (id, { templateId, ...edit }: TenancyEdit) =>
+      attempt(() => updateDoc(ref(`tenancies/${id}`), { ...edit, templateId: templateId ?? deleteField() })),
     deleteTenancy: (id) => attempt(() => deleteDoc(ref(`tenancies/${id}`))),
     saveProfile: (profile: OrgProfile) => attempt(() => updateDoc(doc(db, org), { ...profile })),
 
@@ -166,7 +167,7 @@ export function setupStore(orgId: string): SetupStore {
               const i = d.data() as InvoiceDocument;
               const rent = i.lines.find((l) => l.kind === "rent");
               return {
-                id: d.id, tenantName: i.tenantName, unitLabel: i.unitLabel, status: i.status, rentToea: (rent?.amountToea ?? 0) as Toea, totalToea: i.totalToea, number: i.number,
+                id: d.id, tenancyId: i.tenancyId, ...(i.snapshot?.template === undefined ? {} : { templateName: i.snapshot.template.name }), tenantName: i.tenantName, unitLabel: i.unitLabel, status: i.status, rentToea: (rent?.amountToea ?? 0) as Toea, totalToea: i.totalToea, number: i.number,
                 dueDate: i.dueDate, paidNote: i.paidNote, remindersPaused: i.remindersPaused,
               };
             })

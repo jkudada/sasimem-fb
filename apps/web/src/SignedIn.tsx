@@ -11,6 +11,7 @@ import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
 import type { Month, Numbering, Outcome, Setup, SetupStore } from "./setup.js";
+import { invoiceTemplateName } from "./template-choice.js";
 
 const Home = lazyScreen(() => import("./screens/Home.js").then((m) => m.Home));
 const Properties = lazyScreen(() => import("./screens/Properties.js").then((m) => m.Properties));
@@ -153,7 +154,7 @@ function ReviewRoute(props: { params: Record<string, string> }) {
     );
   }
   return (
-    <Review month={m} timezone={c.setup.value.org.timezone}
+    <Review month={m} timezone={c.setup.value.org.timezone} templateName={(inv) => invoiceTemplateName(c.setup.value, inv)}
       onSetRent={thenReload(c.store.setRent)} onExclude={thenReload(c.store.exclude)} onInclude={thenReload(c.store.include)}
       onRebuild={thenReload(c.store.rebuildRun)} onApprove={thenReload(c.store.approveRun)} />
   );

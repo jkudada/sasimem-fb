@@ -53,6 +53,22 @@ describe("the approval page (plan §6.1)", () => {
     }
   });
 
+  test("shows each invoice's template, escaped, as approval would resolve it; nothing when the org has no templates (P2)", async () => {
+    const page = await waiting();
+    expect((await page.get()).body).not.toContain("Template:");
+    const db = adminDb();
+    await db.doc(`orgs/${page.orgId}/templates/t1`).set({ name: "Shops & <b>\"Co\"</b>", layout: "band", accent: "#1f4e8c", font: "times", mark: "monogram", footer: "" });
+    await db.doc(`orgs/${page.orgId}/properties/prop-k2`).update({ templateId: "t1" });
+    const body = (await page.get()).body;
+    expect(body).toContain("Template: Shops &#38; &#60;b&#62;&#34;Co&#34;&#60;/b&#62;");
+    expect(body).not.toContain("<b>\"Co");
+    expect(body).toContain("Template: Classic");
+    // Rows are by name: Mary (k2, the property override) first, then Peter (k1, Classic).
+    expect(body.indexOf("Mary Wari")).toBeLessThan(body.indexOf("Template: Shops"));
+    expect(body.indexOf("Template: Shops")).toBeLessThan(body.indexOf("Peter Kila"));
+    expect(body.indexOf("Peter Kila")).toBeLessThan(body.indexOf("Template: Classic"));
+  });
+
   test("with 20 tenants the page stays within 30 KB", async () => {
     const page = await waiting(Array.from({ length: 20 }, (_, i) => ({ id: `k${i}`, tenantName: `Tenant number ${i} with a long name`, rent: 123_456 })));
     expect(Buffer.byteLength((await page.get()).body)).toBeLessThanOrEqual(30 * 1024); // 8.8 KB on 2026-11-07

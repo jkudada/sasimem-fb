@@ -23,6 +23,7 @@ export function refs(orgId: string, firestore: Firestore = db()) {
     invoicesOf: (period: Period) => org.collection("invoices").where("period", "==", period),
     tenancies: org.collection("tenancies"),
     tenant: (id: string) => org.collection("tenants").doc(id),
+    property: (id: string) => org.collection("properties").doc(id),
     counter: org.collection("private").doc("counter"),
     issued: (n: number) => org.collection("issuedNumbers").doc(String(n)),
     events: org.collection("events"),

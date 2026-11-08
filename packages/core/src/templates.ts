@@ -87,6 +87,40 @@ export function resolveTemplate(ids: readonly (string | null | undefined)[], tem
   return CLASSIC;
 }
 
+/** Where an invoice's template can be set, most specific first (docs/PLAN-TEMPLATES.md §3). */
+export interface TemplateLevels {
+  readonly tenancy?: { readonly templateId?: string | undefined } | undefined;
+  readonly property?: { readonly templateId?: string | undefined } | undefined;
+  readonly org?: { readonly defaultTemplateId?: string | undefined } | undefined;
+}
+
+/** The ids to resolve, in order: the tenancy's, the property's, then the org's default. */
+export const templateIds = (l: TemplateLevels): (string | undefined)[] =>
+  [l.tenancy?.templateId, l.property?.templateId, l.org?.defaultTemplateId];
+
+/** The template an invoice for this tenancy uses: tenancy → property → org default → Classic. */
+export const templateFor = (l: TemplateLevels, templates: Readonly<Record<string, InvoiceTemplate>>): InvoiceTemplate =>
+  resolveTemplate(templateIds(l), templates);
+
+const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Why a template cannot be deleted, or null. The UI keeps it (rules cannot query);
+ * if one goes anyway, invoices fall through to the next level at approval.
+ */
+export function templateDeleteProblem(id: string, use: {
+  readonly defaultTemplateId?: string | undefined;
+  readonly properties: readonly { readonly templateId?: string | undefined }[];
+  readonly tenancies: readonly { readonly templateId?: string | undefined }[];
+}): string | null {
+  if (use.defaultTemplateId === id) return "This is your default template, so it cannot be deleted. Make another template the default first.";
+  const p = use.properties.filter((x) => x.templateId === id).length;
+  const t = use.tenancies.filter((x) => x.templateId === id).length;
+  if (p === 0 && t === 0) return null;
+  const who = [p > 0 ? count(p, "property", "properties") : "", t > 0 ? count(t, "tenancy", "tenancies") : ""].filter((s) => s !== "").join(" and ");
+  return `${who} ${p + t === 1 ? "uses" : "use"} this template. Set ${p + t === 1 ? "it" : "them"} to another template first.`;
+}
+
 /** Up to two initials from a name, for the monogram; "S" when there are none. */
 export const initials = (name: string): string =>
   name.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "S";

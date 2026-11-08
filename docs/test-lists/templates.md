@@ -58,20 +58,37 @@ All items done. Choices made while building (say if any is wrong):
 
 ## P2: overrides
 
+All items done. Choices made while building (say if any is wrong):
+- **"Use default" names what it means**: "Use default (Shops)" on a property is the org's
+  default; on a tenancy it is the property's template, else the org's.
+- **The Template choice appears only once a template exists**; before that every invoice
+  is Classic, so there is nothing to choose.
+- **The review screen and approval page show "Template: …" only when the org has templates**,
+  for the same reason. Before approval it is what approval would pick now; after, the
+  frozen one.
+- **A template a property or tenancy uses cannot be deleted** (the editor says how many use
+  it), like the default. If one goes anyway, approval falls through to the next level.
+- **A form opened on a deleted template shows "Use default"**, and saving clears the stale id.
+
 ### core (T1)
-- [ ] tenancy override beats property, property beats org default; dangling ids fall through level by level
+- [x] tenancy override beats property, property beats org default; dangling ids fall through level by level
+- [x] a template the default, a property or a tenancy uses cannot be deleted; the message counts them
 
 ### Security rules (T2)
-- [ ] `templateId` is optional on properties and tenancies; any other new key is still refused
-- [ ] setting `templateId` on a tenancy does not trip the copies guard
+- [x] `templateId` is optional on properties and tenancies; any other new key is still refused
+- [x] setting `templateId` on a tenancy does not trip the copies guard
 
 ### Functions (T3)
-- [ ] one run with three tenancies (default, property override, tenancy override) freezes three templates
-- [ ] the approval page shows each invoice's template name (escaped)
+- [x] one run with three tenancies (default, property override, tenancy override) freezes three templates
+- [x] a deleted override falls through at approval
+- [x] the approval page shows each invoice's template name (escaped)
 
 ### Web (T1)
-- [ ] property and tenancy forms offer "Use default" first, then the templates
-- [ ] the review screen shows each invoice's template
+- [x] property and tenancy forms offer "Use default" first, then the templates
+- [x] the review screen shows each invoice's template
+
+### T4
+- [x] journey 6: a tenancy overrides the default; review shows it; approval freezes it
 
 ## P3: logo builder
 
@@ -117,5 +134,5 @@ All items done. Choices made while building (say if any is wrong):
 - [ ] `ops/invite.ts` refuses to run without `--project`, and adds an invite
 
 ## T4 journeys (Playwright, emulators, 360 × 740)
-- [ ] (P2-P3) build a logo → create a Band template → set it as default → override one tenancy with Compact → draft → approve → the two PDFs use their templates
+- [ ] (P3) build a logo → create a Band template → set it as default → override one tenancy with Compact → draft → approve → the two PDFs use their templates (the override part is journey 6)
 - [ ] an invited user signs up, verifies, creates an org, and reaches Home

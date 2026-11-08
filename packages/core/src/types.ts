@@ -116,6 +116,8 @@ export interface PropertyInput {
   readonly address: string;
   readonly useType: UseType;
   readonly units: readonly Unit[];
+  /** Overrides the org's default template for its tenancies (docs/PLAN-TEMPLATES.md §3). */
+  readonly templateId?: string;
 }
 
 export interface TenantInput {
@@ -151,6 +153,8 @@ export interface TenancyDocument {
   readonly referenceCode: string;
   readonly invoiced: boolean;
   readonly extras: readonly Charge[];
+  /** Overrides the property's template and the org's default. Not a copy: the sync trigger leaves it alone. */
+  readonly templateId?: string;
 }
 
 /** What an invoice prints, frozen at approval (plan §4). Later edits never reach it. */

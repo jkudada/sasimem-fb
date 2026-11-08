@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ACCENTS, CLASSIC, type InvoiceTemplate, initials, resolveTemplate, templateOf, templateProblems } from "./templates.js";
+import { ACCENTS, CLASSIC, type InvoiceTemplate, initials, resolveTemplate, templateDeleteProblem, templateFor, templateOf, templateProblems } from "./templates.js";
 
 const band: InvoiceTemplate = { name: "Shops", layout: "band", accent: "#1f4e8c", font: "times", mark: "monogram", footer: "Thank you." };
 
@@ -65,4 +65,37 @@ test("initials: up to two, from words that start with a letter, S when there are
   expect(initials("Wari Holdings Ltd")).toBe("WH");
   expect(initials("mary")).toBe("M");
   expect(initials("123 456")).toBe("S");
+});
+
+describe("templateFor: tenancy, then property, then the org's default (P2)", () => {
+  const compact: InvoiceTemplate = { ...band, name: "Plain", layout: "compact" };
+  const classicGreen: InvoiceTemplate = { ...band, name: "Office", layout: "classic" };
+  const all = { t1: band, t2: compact, t3: classicGreen };
+
+  test("a tenancy override beats the property's, which beats the org default", () => {
+    const org = { defaultTemplateId: "t1" };
+    expect(templateFor({ org }, all)).toEqual(band);
+    expect(templateFor({ org, property: { templateId: "t2" } }, all)).toEqual(compact);
+    expect(templateFor({ org, property: { templateId: "t2" }, tenancy: { templateId: "t3" } }, all)).toEqual(classicGreen);
+    expect(templateFor({ org, property: {}, tenancy: {} }, all)).toEqual(band);
+    expect(templateFor({}, all)).toEqual(CLASSIC);
+  });
+
+  test("a dangling id falls through level by level", () => {
+    const org = { defaultTemplateId: "t1" };
+    expect(templateFor({ org, property: { templateId: "t2" }, tenancy: { templateId: "gone" } }, all)).toEqual(compact);
+    expect(templateFor({ org, property: { templateId: "gone" }, tenancy: { templateId: "gone" } }, all)).toEqual(band);
+    expect(templateFor({ org: { defaultTemplateId: "gone" }, property: { templateId: "gone" } }, all)).toEqual(CLASSIC);
+  });
+});
+
+describe("templateDeleteProblem", () => {
+  test("the default, or a template a property or tenancy uses, is kept; others can go", () => {
+    const none = { properties: [], tenancies: [] };
+    expect(templateDeleteProblem("t1", { ...none, defaultTemplateId: "t1" })).toMatch(/default template/);
+    expect(templateDeleteProblem("t1", { properties: [{ templateId: "t1" }], tenancies: [] })).toBe("1 property uses this template. Set it to another template first.");
+    expect(templateDeleteProblem("t1", { properties: [{ templateId: "t1" }, { templateId: "t1" }], tenancies: [{ templateId: "t1" }, {}] }))
+      .toBe("2 properties and 1 tenancy use this template. Set them to another template first.");
+    expect(templateDeleteProblem("t1", { properties: [{}, { templateId: "t2" }], tenancies: [{ templateId: "t2" }], defaultTemplateId: "t2" })).toBeNull();
+  });
 });

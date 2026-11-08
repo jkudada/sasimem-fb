@@ -1,6 +1,6 @@
 /** One invoice template (docs/PLAN-TEMPLATES.md §4): layout, colour, font, letterhead and note, with a live sketch. */
 import { useSignal } from "@preact/signals";
-import { ACCENTS, CLASSIC, FONTS, type InvoiceTemplate, LAYOUTS, MARKS, MAX_FOOTER, templateProblems } from "@sasimem/core";
+import { ACCENTS, CLASSIC, FONTS, type InvoiceTemplate, LAYOUTS, MARKS, MAX_FOOTER, templateDeleteProblem, templateProblems } from "@sasimem/core";
 import type { Outcome, Setup } from "../setup.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
@@ -38,6 +38,9 @@ export function TemplateForm(props: {
   const existing = props.id === null ? undefined : props.setup.templates.find((t) => t.id === props.id);
   const start = existing ?? { ...CLASSIC, name: "" };
   const isDefault = props.id !== null && defaultTemplateOf(props.setup) === props.id;
+  // The default, or one a property or tenancy uses, is kept (rules cannot query; plan §3).
+  const kept = props.id === null ? null
+    : templateDeleteProblem(props.id, { defaultTemplateId: defaultTemplateOf(props.setup) ?? undefined, properties: props.setup.properties, tenancies: props.setup.tenancies });
   const name = useSignal(start.name);
   const layout = useSignal(start.layout);
   const accent = useSignal(start.accent);
@@ -125,8 +128,8 @@ export function TemplateForm(props: {
         <button type="button" class="quiet" disabled={busy} onClick={() => void preview()}>See a sample PDF</button>
       </form>
       <p class="note">The sample PDF is a made-up invoice with your details and these settings. It downloads to your phone.</p>
-      {existing !== undefined && (isDefault
-        ? <p class="note">This is your default template, so it cannot be deleted. Make another template the default first.</p>
+      {existing !== undefined && (kept !== null
+        ? <p class="note">{kept}</p>
         : <button type="button" class="danger" disabled={busy} onClick={() => void remove()}>Delete template</button>)}
     </main>
   );

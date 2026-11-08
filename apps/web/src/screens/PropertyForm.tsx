@@ -1,6 +1,8 @@
 import { useSignal } from "@preact/signals";
 import { type PropertyInput, type Unit, type UseType, deleteProblem, propertyProblems, unitRemovalProblem } from "@sasimem/core";
 import { newId, type Setup } from "../setup.js";
+import { propertyTemplate } from "../template-choice.js";
+import { TemplateChoice, knownTemplate } from "./TemplateChoice.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 
@@ -18,6 +20,7 @@ export function PropertyForm(props: {
   const address = useSignal(before?.address ?? "");
   const useType = useSignal<UseType>(before?.useType ?? "residential");
   const units = useSignal<readonly Unit[]>(before?.units ?? [{ id: newId(), label: "Whole property" }]);
+  const templateId = useSignal(knownTemplate(props.setup, before?.templateId));
   const problems = useSignal<Problems>({});
   const failure = useSignal<string | null>(null);
   const busy = useSignal(false);
@@ -26,7 +29,10 @@ export function PropertyForm(props: {
 
   const submit = async (e: Event) => {
     e.preventDefault();
-    const property: PropertyInput = { address: address.value.trim(), useType: useType.value, units: units.value.map((u) => ({ ...u, label: u.label.trim() })) };
+    const property: PropertyInput = {
+      address: address.value.trim(), useType: useType.value, units: units.value.map((u) => ({ ...u, label: u.label.trim() })),
+      ...(templateId.value === "" ? {} : { templateId: templateId.value }),
+    };
     const found: Problems = { ...propertyProblems(property) };
     const removal = before === undefined ? null : unitRemovalProblem(before.id, before, property, props.setup.tenancies);
     if (removal !== null) found.units = removal;
@@ -84,6 +90,8 @@ export function PropertyForm(props: {
           {p.units !== undefined && <span class="field-problem">{p.units}</span>}
           <button type="button" class="quiet" onClick={() => (units.value = [...units.value, { id: newId(), label: "" }])}>Add a unit</button>
         </fieldset>
+        <TemplateChoice setup={props.setup} value={templateId} fallsBackTo={propertyTemplate(props.setup, {}).name}
+          hint="How invoices for this property's tenants look. A tenancy can choose its own." />
         {failure.value !== null && <p role="alert">{failure.value}</p>}
         <button type="submit" disabled={busy}>Save</button>
         {before !== undefined && <button type="button" class="danger" disabled={busy} onClick={() => void remove()}>Delete this property</button>}

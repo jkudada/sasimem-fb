@@ -29,7 +29,10 @@ export interface Numbering {
 }
 
 /** The terms a tenancy keeps editable after it is created; its copies belong to the trigger. */
-export type TenancyEdit = Pick<TenancyDocument, "rentToea" | "startDate" | "endDate" | "billingDay" | "dueDays" | "referenceCode" | "extras">;
+export type TenancyEdit = Pick<TenancyDocument, "rentToea" | "startDate" | "endDate" | "billingDay" | "dueDays" | "referenceCode" | "extras"> & {
+  /** null: use the property's template, or the org's default (docs/PLAN-TEMPLATES.md §3). */
+  readonly templateId: string | null;
+};
 
 export interface SetupStore {
   load(): Promise<Setup>;
@@ -103,6 +106,10 @@ export interface Outcome {
 
 export interface MonthInvoice {
   readonly id: string;
+  /** Absent on older test fixtures. */
+  readonly tenancyId?: string;
+  /** The template frozen at approval; absent before approval and on invoices from before templates. */
+  readonly templateName?: string;
   readonly tenantName: string;
   readonly unitLabel: string;
   readonly status: InvoiceStatus;
