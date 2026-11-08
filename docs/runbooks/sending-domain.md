@@ -4,6 +4,14 @@ Mail goes through Resend from `MAIL_FROM` (plan §6.6), with the landlord's name
 name and Reply-To set to the landlord. Before the first real send, the sending domain needs
 SPF, DKIM and DMARC records, or invoices land in spam.
 
+**While testing, dev sends through Gmail instead.** `MAIL_PROVIDER=gmail` in
+`functions/.env.sasimem-dev` sends over Gmail's SMTP as the Gmail address in `MAIL_FROM`, with
+an app password in the `GMAIL_APP_PASSWORD` secret (`functions/src/mail/gmail.ts`). It needs no
+domain, but allows only about 500 messages a day, and a tenant's mail server may file it as
+spam. Production uses Resend and a verified domain, as below. Every project needs both secrets,
+`RESEND_API_KEY` and `GMAIL_APP_PASSWORD`, because the deploy cannot see `MAIL_PROVIDER`;
+the one not in use can hold a placeholder.
+
 **Use a subdomain** such as `mail.<your domain>`, so the app's mail reputation is separate from
 the domain's other mail. `MAIL_FROM` is then `invoices@mail.<your domain>`.
 

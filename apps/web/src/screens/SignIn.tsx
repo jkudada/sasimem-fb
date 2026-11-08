@@ -4,7 +4,8 @@ import { Field, value } from "./Field.js";
 /** Resolves with a plain-English problem, or null when signed in. */
 export type SignInAction = (email: string, password: string) => Promise<string | null>;
 
-export function SignIn({ onSignIn }: { onSignIn: SignInAction }) {
+/** signUpOpen: false hides the way to create an account, while sign-up is closed. */
+export function SignIn({ onSignIn, signUpOpen }: { onSignIn: SignInAction; signUpOpen: boolean }) {
   const email = useSignal("");
   const password = useSignal("");
   const problem = useSignal<string | null>(null);
@@ -30,7 +31,7 @@ export function SignIn({ onSignIn }: { onSignIn: SignInAction }) {
         {problem.value !== null && <p role="alert">{problem.value}</p>}
         <button type="submit" disabled={busy}>Sign in</button>
       </form>
-      <p><a href="/sign-up">Create an account</a> · <a href="/reset">Forgot your password?</a></p>
+      <p>{signUpOpen && <><a href="/sign-up">Create an account</a> · </>}<a href="/reset">Forgot your password?</a></p>
     </main>
   );
 }
