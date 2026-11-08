@@ -32,6 +32,10 @@ test("the secrets declared do not depend on MAIL_PROVIDER, which the deploy does
   }
 });
 
+test("the template preview is capped at 5 instances: it renders a PDF on every call", () => {
+  expect(endpoint("previewInvoicePdf")).toMatchObject({ maxInstances: 5 });
+});
+
 test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {
   expect(endpoint("approvalPage")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 5 });
 });

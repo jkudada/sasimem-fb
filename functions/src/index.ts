@@ -10,6 +10,7 @@ import { ResendMailer } from "./mail/resend.js";
 import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, usesGmail } from "./params.js";
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
+import { makeTemplateCallables } from "./callables/templates.js";
 
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
@@ -38,3 +39,4 @@ export const voidInvoice = payments.voidInvoice;
 export const invoicePdf = payments.invoicePdf;
 export const resendInvoice = payments.resendInvoice;
 export const exportCsv = payments.exportCsv;
+export const previewInvoicePdf = makeTemplateCallables(deps).previewInvoicePdf;

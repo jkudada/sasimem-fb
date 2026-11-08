@@ -39,13 +39,30 @@ service cloud.firestore {
 
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
-              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath'];
+              'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath',
+              'defaultTemplateId'];
     }
 
     // A logo lives in the org's own folder; storage.rules guards the file itself.
     function validLogo(orgId, d) {
       return !('logoPath' in d)
         || (d.logoPath is string && d.logoPath.matches('^logos/' + orgId + '/[A-Za-z0-9_-]{1,64}[.](png|jpg|jpeg|webp|gif)$'));
+    }
+
+    // The template new invoices use; a missing one falls back to Classic at approval.
+    function validDefaultTemplate(d) {
+      return !('defaultTemplateId' in d) || (d.defaultTemplateId is string && d.defaultTemplateId.matches('^[A-Za-z0-9_-]{1,64}$'));
+    }
+
+    // Mirrors core's templateProblems; ACCENTS in core/templates.ts is the same list.
+    function validTemplate(d) {
+      return exactly(d, ['name', 'layout', 'accent', 'font', 'mark', 'footer'])
+        && str(d.name, 1, 40) && d.name.trim().size() > 0
+        && d.layout in ['classic', 'band', 'compact']
+        && d.accent in ['#0d6b4f', '#00677a', '#1f4e8c', '#6b3fa0', '#8a3b5c', '#a3312a', '#8a5300', '#2f3a45']
+        && d.font in ['helvetica', 'times']
+        && d.mark in ['logo', 'monogram', 'none']
+        && str(d.footer, 0, 200);
     }
 
     function validProfile(d) {
@@ -108,7 +125,17 @@ service cloud.firestore {
       allow read: if isMember(orgId);
       allow update: if isOwner(orgId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
-        && validProfile(request.resource.data) && validLogo(orgId, request.resource.data);
+        && validProfile(request.resource.data) && validLogo(orgId, request.resource.data)
+        && validDefaultTemplate(request.resource.data);
+
+      // Invoice templates (docs/PLAN-TEMPLATES.md): setup data. At most 10 is kept by
+      // the UI, as rules cannot count; approval copies the settings, so deleting one
+      // never changes an issued invoice.
+      match /templates/{templateId} {
+        allow read: if isMember(orgId);
+        allow create, update: if isOwner(orgId) && validTemplate(request.resource.data);
+        allow delete: if isOwner(orgId);
+      }
 
       match /properties/{propertyId} {
         allow read: if isMember(orgId);
