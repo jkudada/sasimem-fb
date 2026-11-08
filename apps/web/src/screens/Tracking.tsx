@@ -1,5 +1,6 @@
 import { useSignal } from "@preact/signals";
 import { type CalendarDate, dateLabel, formatKina, invoiceChip, paidNoteProblem, paidSummary, periodLabel, type Toea, voidReasonProblem } from "@sasimem/core";
+import { emailProblem } from "../email-problem.js";
 import type { EmailEntry, Month, MonthInvoice, Outcome } from "../setup.js";
 import { Back } from "./Back.js";
 
@@ -117,8 +118,9 @@ function EmailLog(props: { emails: readonly EmailEntry[] }) {
       <ul class="links">
         {props.emails.map((e) => (
           <li key={e.id}>
-            <span>{KIND[e.kind] ?? e.kind}: {e.status === "sent" ? `Sent to ${e.to}` : `Not delivered to ${e.to}. Check the address, then use Email again.`}</span>
-            {e.status === "failed" && e.error !== null && <span class="field-problem">{e.error}</span>}
+            <span>{KIND[e.kind] ?? e.kind}: {e.status === "sent" ? `Sent to ${e.to}` : `Not sent to ${e.to}.`}</span>
+            {e.status === "failed" && <span class="field-problem">{emailProblem(e.error)}</span>}
+            {e.status === "failed" && e.error !== null && <details class="note"><summary>Details</summary>{e.error}</details>}
           </li>
         ))}
       </ul>

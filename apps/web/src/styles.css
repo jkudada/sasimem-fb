@@ -29,6 +29,7 @@ a.back { display: inline-flex; align-items: center; min-height: var(--tap); text
 ul.links, ul.units { list-style: none; padding: 0; margin: 0; }
 ul.links li { display: grid; min-height: var(--tap); align-content: center; border-bottom: 1px solid var(--line); padding: 8px 0; }
 ul.links a { font-weight: 600; }
+summary { min-height: var(--tap); line-height: var(--tap); cursor: pointer; } /* a 44 px target, like every other control */
 ul.units li { padding: 6px 0; overflow-wrap: anywhere; }
 .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px var(--gap); margin: 0 0 var(--gap); display: grid; gap: 12px; }
 .card h2 { margin: 0; }
