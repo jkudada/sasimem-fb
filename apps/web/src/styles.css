@@ -34,6 +34,9 @@ ul.units li { padding: 6px 0; overflow-wrap: anywhere; }
 .card h2 { margin: 0; }
 .card legend { font-weight: 600; padding: 0 4px; }
 .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+/* A line of separate actions under a card: each one as wide as its words, underlined like a link, wrapping on a narrow phone. */
+.actions { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.actions button { width: auto; margin: 0; padding: 0 2px; text-decoration: underline; text-underline-offset: 4px; }
 .state { color: var(--muted); font-size: 0.9rem; }
 .state.current { color: var(--accent); }
 button.danger { background: transparent; color: var(--problem); border: 1px solid var(--problem); }

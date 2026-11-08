@@ -77,7 +77,7 @@ function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
         </>
       )}
       {inv.status === "paid" && <button type="button" class="quiet" aria-label={`${n} not paid after all`} disabled={props.busy} onClick={() => void act(() => props.onMarkUnpaid(inv.id))}>Not paid after all</button>}
-      <div class="row">
+      <div class="actions">
         <button type="button" class="quiet small" aria-label={`PDF of ${n}`} disabled={props.busy} onClick={() => void act(() => props.onOpenPdf(inv.id))}>PDF</button>
         {live && <button type="button" class="quiet small" aria-label={`Email ${n} again`} disabled={props.busy} onClick={() => void act(() => props.onResend(inv.id))}>Email again</button>}
         {inv.status === "sent" && (
