@@ -109,6 +109,16 @@ describe("reissueApproval: a fresh link (plan §6.2)", () => {
     expect(mailer.sent[1]?.text).toContain(`${appUrl}/a/${tok(2)}`);
   });
 
+  test("the provider refusing the fresh link is a clear error, not INTERNAL", async () => {
+    const { mailer, draftNow, reissue } = setup();
+    const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+    await draftNow.run(request(uid, { orgId, period: "2026-10" }));
+    mailer.refusing = true;
+    await expect(reissue.run(request(uid, { orgId, period: "2026-10" }))).rejects.toMatchObject({
+      code: "aborted", message: "The email could not be sent. Try again in a few minutes.",
+    });
+  });
+
   test("is refused for a run that has not asked for approval, or is already approved", async () => {
     const { reissue } = setup();
     const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });

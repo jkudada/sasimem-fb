@@ -5,7 +5,7 @@
 import { type Period, type RunStatus, localDate, nextPeriod, parsePeriod, periodLabel, periodOf } from "@sasimem/core";
 import { logger } from "firebase-functions";
 import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
-import { type NotifyDeps, sendDigest, sendFreshLink } from "../notify.js";
+import { type NotifyDeps, orRefused, sendDigest, sendFreshLink } from "../notify.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
 import { replaceToken, requestApproval } from "../store/tokens.js";
 import { MAIL_SECRETS } from "../params.js";
@@ -75,7 +75,7 @@ export function makeReissueApproval(deps: RunDeps) {
     if (!(await replaceToken(orgId, period, now, token))) {
       throw new HttpsError("failed-precondition", `${periodLabel(period)} is not waiting for approval, so there is no link to replace.`);
     }
-    await sendFreshLink(deps, orgId, org, period, token);
+    await orRefused(sendFreshLink(deps, orgId, org, period, token));
     return { status: "awaitingApproval", message: `Sent a new approval link to ${org.email}.` };
   });
 }
