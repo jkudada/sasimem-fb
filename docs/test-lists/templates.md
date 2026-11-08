@@ -169,6 +169,10 @@ All items done. Choices made while building (say if any is wrong):
   email address." If sign-up is turned off in Firebase Auth instead, the sign-up screen
   says the same, not "Something went wrong".
 - **A landlord who already has an organisation is never stopped** by the confirm screen.
+- **With main's closed sign-up** (Auth sign-up off, landlords added in the console): a
+  console-added landlord also needs an invitation and confirms their email before
+  creating an organisation. P5 is the step to opening sign-up (the user chose this);
+  the runbook says so.
 - **Invitations are kept under the email in lower case**; `ops/invite.ts` never resets one
   (Firestore's 409 means already invited).
 - The sign-in route grew 0.37 KB (50.79 → 51.16 KB) for sending the confirmation link.
