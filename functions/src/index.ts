@@ -5,8 +5,9 @@ import { makeApprovalPage } from "./http/index.js";
 import { newToken } from "./links.js";
 import { db } from "./admin.js";
 import { OutboxMailer } from "./mail/mailer.js";
+import { GmailMailer } from "./mail/gmail.js";
 import { ResendMailer } from "./mail/resend.js";
-import { APP_URL, APPROVAL_SIGNING_KEY, MAIL_FROM, RESEND_API_KEY } from "./params.js";
+import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, usesGmail } from "./params.js";
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
 
@@ -15,11 +16,14 @@ export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies
 export { getNumbering, setNextInvoiceNumber } from "./callables/numbering.js";
 export { approveRunCallable as approveRun, exclude, include, rebuildRun, setRent } from "./callables/edits.js";
 
-// Deployed, mail goes through Resend. The emulator never sends real mail: it prints each
-// message and drops it in _outbox, so the T4 journeys can follow links.
+// Deployed, mail goes through Resend, or Gmail while testing (MAIL_PROVIDER, see params.ts).
+// The emulator never sends real mail: it prints each message and drops it in _outbox,
+// so the T4 journeys can follow links.
 const mailer = process.env["FUNCTIONS_EMULATOR"] === "true"
   ? new OutboxMailer(() => db().collection("_outbox"))
-  : new ResendMailer({ apiKey: () => RESEND_API_KEY.value(), from: () => MAIL_FROM.value() });
+  : usesGmail()
+    ? new GmailMailer({ user: () => MAIL_FROM.value(), appPassword: () => GMAIL_APP_PASSWORD.value() })
+    : new ResendMailer({ apiKey: () => RESEND_API_KEY.value(), from: () => MAIL_FROM.value() });
 const deps = { now: () => new Date(), mailer, newToken, appUrl: () => APP_URL.value() };
 export const draftNow = makeDraftNow(deps);
 export const reissueApproval = makeReissueApproval(deps);

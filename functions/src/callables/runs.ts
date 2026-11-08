@@ -8,7 +8,7 @@ import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/
 import { type NotifyDeps, sendDigest, sendFreshLink } from "../notify.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
 import { replaceToken, requestApproval } from "../store/tokens.js";
-import { RESEND_API_KEY } from "../params.js";
+import { mailSecret } from "../params.js";
 import { ownerOrg } from "./auth.js";
 
 export type RunDeps = NotifyDeps;
@@ -42,7 +42,7 @@ const WAITING: Partial<Record<RunStatus, (p: string) => string>> = {
 };
 
 export function makeDraftNow(deps: RunDeps) {
-  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [RESEND_API_KEY] }, async (request) => {
+  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [mailSecret()] }, async (request) => {
     const now = deps.now();
     const { orgId, org, period } = await orgAndPeriod(request, now);
     const label = periodLabel(period);
@@ -68,7 +68,7 @@ export function makeDraftNow(deps: RunDeps) {
 }
 
 export function makeReissueApproval(deps: RunDeps) {
-  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [RESEND_API_KEY] }, async (request) => {
+  return onCall<{ orgId: string; period: string }, Promise<RunReply>>({ secrets: [mailSecret()] }, async (request) => {
     const now = deps.now();
     const { orgId, org, period } = await orgAndPeriod(request, now);
     const token = deps.newToken();

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { AddressInfo } from "node:net";
 import express from "express";
 import * as functions from "../src/index.js";
@@ -14,6 +14,19 @@ test("the tick runs every hour, and a failed run is retried (plan §6.4)", () =>
 test("every function that sends email can read the Resend key; the approval page also signs its forms", () => {
   for (const name of ["tick", "draftNow", "reissueApproval", "resendInvoice"] as const) expect(secrets(name), name).toEqual(["RESEND_API_KEY"]);
   expect(secrets("approvalPage")).toEqual(["APPROVAL_SIGNING_KEY", "RESEND_API_KEY"]);
+});
+
+test("with MAIL_PROVIDER=gmail, those functions read the Gmail app password instead, and need no Resend key", async () => {
+  vi.resetModules();
+  vi.stubEnv("MAIL_PROVIDER", "gmail");
+  try {
+    const gmail = await import("../src/index.js");
+    const keys = (f: unknown) => ((f as { __endpoint: Endpoint }).__endpoint.secretEnvironmentVariables ?? []).map((s) => s.key).sort();
+    for (const f of [gmail.tick, gmail.draftNow, gmail.reissueApproval, gmail.resendInvoice]) expect(keys(f)).toEqual(["GMAIL_APP_PASSWORD"]);
+    expect(keys(gmail.approvalPage)).toEqual(["APPROVAL_SIGNING_KEY", "GMAIL_APP_PASSWORD"]);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 type Handler = ((req: express.Request, res: express.Response) => unknown) & { __endpoint: { callableTrigger?: object } };
