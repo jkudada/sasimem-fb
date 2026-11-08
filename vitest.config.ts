@@ -13,6 +13,7 @@ export default defineConfig({
       "apps/web/vitest.config.ts",
       "tests/rules/vitest.config.ts",
       "functions/vitest.config.ts",
+      "ops/vitest.config.ts",
     ],
     reporters: ["default", "./tools/slow-test-reporter.ts"],
     // No automatic retries in T1-T3 (plan §9.5). Listed explicitly so nobody adds one.

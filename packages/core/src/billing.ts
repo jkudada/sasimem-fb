@@ -148,6 +148,14 @@ export function approvalRequestDue(run: ScheduledRun, org: Pick<BillingOrg, "app
   return run.status === "draft" && now.getTime() >= run.sendAt.getTime() - org.approvalLeadDays * DAY_MS;
 }
 
+/**
+ * Where a draft run goes when approval is requested. Asked at or after its send time
+ * (a late draftNow, or a tick after an outage) it is already late: held at once, so the
+ * landlord gets one email, not a digest and a held notice in the same hour.
+ */
+export const approvalTarget = (run: Pick<ScheduledRun, "sendAt">, now: Date): "awaitingApproval" | "held" =>
+  now.getTime() >= run.sendAt.getTime() ? "held" : "awaitingApproval";
+
 /** Tick step 3: only an approved run is ever released to tenants, and only at its send time (I6). */
 export const releaseDue = (run: ScheduledRun, now: Date): boolean =>
   run.status === "approved" && now.getTime() >= run.sendAt.getTime();

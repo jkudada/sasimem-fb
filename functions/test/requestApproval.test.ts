@@ -19,6 +19,19 @@ function setup() {
 }
 
 describe("draftNow: generate this month's invoices now (plan §6.2)", () => {
+  test("when the digest cannot be sent, the month stays drafted and waiting, and the landlord is told to approve in the app", async () => {
+    const { mailer, draftNow } = setup();
+    mailer.refusing = true;
+    const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+    expect(await draftNow.run(request(uid, { orgId, period: "2026-10" }))).toEqual({
+      status: "awaitingApproval",
+      message: "October 2026 is drafted, but the email with your approval link did not go. Review and approve the invoices here.",
+    });
+    expect((await adminDb().doc(`orgs/${orgId}/runs/2026-10`).get()).get("status")).toBe("awaitingApproval");
+    const log = await adminDb().collection(`orgs/${orgId}/emails`).get();
+    expect(log.docs.map((d) => d.data())).toMatchObject([{ kind: "approvalDigest", status: "failed", error: "Resend refused the message (401): API key is invalid" }]);
+  });
+
   test("drafts the month, asks for approval, keeps only the token's hash, and emails the digest with the link to the org", async () => {
     const { mailer, tok, draftNow } = setup();
     const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1", rent: 120_000 }, { id: "k2", rent: 90_000 }] });
@@ -70,6 +83,18 @@ describe("draftNow: generate this month's invoices now (plan §6.2)", () => {
   });
 });
 
+test("the digest and a fresh link are both in the org's email log", async () => {
+  const { draftNow, reissue } = setup();
+  const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+  await draftNow.run(request(uid, { orgId, period: "2026-10" }));
+  await reissue.run(request(uid, { orgId, period: "2026-10" }));
+  const log = (await adminDb().collection(`orgs/${orgId}/emails`).orderBy("kind").get()).docs.map((d) => d.data());
+  expect(log).toMatchObject([
+    { kind: "approvalDigest", to: "mary@wari.example", runPeriod: "2026-10", status: "sent" },
+    { kind: "freshLink", to: "mary@wari.example", runPeriod: "2026-10", status: "sent" },
+  ]);
+});
+
 describe("reissueApproval: a fresh link (plan §6.2)", () => {
   test("replaces the token, so the old link stops working, and emails the org's own address", async () => {
     const { mailer, tok, draftNow, reissue } = setup();
@@ -82,6 +107,16 @@ describe("reissueApproval: a fresh link (plan §6.2)", () => {
     expect((await adminDb().doc(`orgs/${orgId}/runs/2026-10`).get()).get("approvalTokenId")).toBe(second);
     expect(mailer.sent.map((m) => m.to)).toEqual(["mary@wari.example", "mary@wari.example"]);
     expect(mailer.sent[1]?.text).toContain(`${appUrl}/a/${tok(2)}`);
+  });
+
+  test("the provider refusing the fresh link is a clear error, not INTERNAL", async () => {
+    const { mailer, draftNow, reissue } = setup();
+    const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+    await draftNow.run(request(uid, { orgId, period: "2026-10" }));
+    mailer.refusing = true;
+    await expect(reissue.run(request(uid, { orgId, period: "2026-10" }))).rejects.toMatchObject({
+      code: "aborted", message: "The email could not be sent. Try again in a few minutes.",
+    });
   });
 
   test("is refused for a run that has not asked for approval, or is already approved", async () => {

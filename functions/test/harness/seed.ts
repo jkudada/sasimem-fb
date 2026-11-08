@@ -50,3 +50,20 @@ export async function addTenancy(orgId: string, t: TenancySeed): Promise<void> {
     invoiced: false, extras: t.extras ?? [],
   });
 }
+
+/** An org whose October 2026 invoices were approved, rendered and released on 1 October. */
+export async function aSentMonth(opts: { tenancies?: TenancySeed[]; org?: Record<string, unknown> } = {}): Promise<SeededOrg> {
+  const { parsePeriod } = await import("@sasimem/core");
+  const { draftRun } = await import("../../src/store/runs.js");
+  const { approveRun } = await import("../../src/store/approval.js");
+  const { renderMissingPdfs } = await import("../../src/store/pdfs.js");
+  const { releaseRun } = await import("../../src/store/release.js");
+  const seeded = await anOrgWith({ tenancies: opts.tenancies ?? [{ id: "k1", tenantName: "Peter Kila" }], ...(opts.org === undefined ? {} : { org: opts.org }) });
+  const OCT = parsePeriod("2026-10");
+  await draftRun(seeded.orgId, OCT, new Date("2026-09-28T00:00:00Z"));
+  await approveRun(seeded.orgId, OCT, { actor: "uid", now: new Date("2026-09-28T00:00:00Z") });
+  await renderMissingPdfs(seeded.orgId, OCT);
+  const released = await releaseRun(seeded.orgId, OCT, new Date("2026-09-30T22:00:00Z"));
+  if (!released.released) throw new Error("the seeded month was not released");
+  return seeded;
+}

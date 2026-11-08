@@ -29,11 +29,15 @@ a.back { display: inline-flex; align-items: center; min-height: var(--tap); text
 ul.links, ul.units { list-style: none; padding: 0; margin: 0; }
 ul.links li { display: grid; min-height: var(--tap); align-content: center; border-bottom: 1px solid var(--line); padding: 8px 0; }
 ul.links a { font-weight: 600; }
+summary { min-height: var(--tap); line-height: var(--tap); cursor: pointer; } /* a 44 px target, like every other control */
 ul.units li { padding: 6px 0; overflow-wrap: anywhere; }
 .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px var(--gap); margin: 0 0 var(--gap); display: grid; gap: 12px; }
 .card h2 { margin: 0; }
 .card legend { font-weight: 600; padding: 0 4px; }
 .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+/* A line of separate actions under a card: each one as wide as its words, underlined like a link, wrapping on a narrow phone. */
+.actions { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.actions button { width: auto; margin: 0; padding: 0 2px; text-decoration: underline; text-underline-offset: 4px; }
 .state { color: var(--muted); font-size: 0.9rem; }
 .state.current { color: var(--accent); }
 button.danger { background: transparent; color: var(--problem); border: 1px solid var(--problem); }
@@ -41,3 +45,8 @@ button.small { width: auto; margin: 0; }
 img.logo { max-width: 160px; max-height: 80px; display: block; margin-bottom: 8px; }
 [role="status"] { color: var(--accent); }
 .card a, ul.units a { display: inline-flex; align-items: center; min-height: var(--tap); } /* inline links still get a 44 px target */
+
+/* Where an invoice stands (core.invoiceChip): words first, colour only as a hint. */
+.chip { font-weight: 600; }
+.chip-paid { color: var(--accent); }
+.chip-overdue { color: var(--problem); }

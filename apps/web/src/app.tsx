@@ -30,7 +30,9 @@ export interface Actions {
   setupStore: (orgId: string) => Promise<SetupStore>;
 }
 
-export function App(props: { session: ReadonlySignal<Session>; actions: Actions; today: () => string }) {
+/** signUpOpen: whether new accounts can be made from the app; true unless the build closes it (main.tsx). */
+export function App(props: { session: ReadonlySignal<Session>; actions: Actions; today: () => string; signUpOpen?: boolean }) {
+  const signUpOpen = props.signUpOpen ?? true;
   const { actions } = props;
   const addingTenant = useSignal(false);
   const session = props.session.value;
@@ -52,9 +54,9 @@ export function App(props: { session: ReadonlySignal<Session>; actions: Actions;
     return (
       <LocationProvider>
         <Router>
-          <Route path="/sign-up" component={() => <SignUp onSignUp={actions.signUp} />} />
+          <Route path="/sign-up" component={() => <SignUp onSignUp={actions.signUp} open={signUpOpen} />} />
           <Route path="/reset" component={() => <ResetPassword onReset={actions.reset} />} />
-          <Route default component={() => <SignIn onSignIn={actions.signIn} />} />
+          <Route default component={() => <SignIn onSignIn={actions.signIn} signUpOpen={signUpOpen} />} />
         </Router>
       </LocationProvider>
     );

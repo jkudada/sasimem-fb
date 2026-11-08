@@ -10,8 +10,12 @@
 import { type OrgSetupInput, newTenancyDocument } from "@sasimem/core";
 import { collection, connectFirestoreEmulator, doc, getFirestore, writeBatch } from "firebase/firestore/lite";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
+import { startAppCheck } from "./appcheck.js";
 import { app, usingEmulators } from "./firebase.js";
 import type { FirstTenancy } from "./screens/TenancyStep.js";
+
+// Before Firestore and Functions are first used, so their first request carries a token.
+startAppCheck(app, { usingEmulators, siteKey: import.meta.env["VITE_RECAPTCHA_SITE_KEY"] });
 
 export const db = getFirestore(app);
 export const functions = getFunctions(app, "australia-southeast1");

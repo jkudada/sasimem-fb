@@ -118,7 +118,7 @@ jobs:
       - name: Build the app and Functions for the emulators
         run: pnpm build:e2e
       - name: A throwaway signing key for the approval page
-        run: echo "APPROVAL_SIGNING_KEY=$(openssl rand -hex 32)" > functions/.secret.local
+        run: printf "APPROVAL_SIGNING_KEY=%s\nRESEND_API_KEY=unused-by-the-emulator\n" "$(openssl rand -hex 32)" > functions/.secret.local
       - name: T4 Chromium at 360 x 740, on the emulators
         run: >-
           pnpm exec firebase emulators:exec --project demo-sasimem --only auth,firestore,storage,functions,hosting

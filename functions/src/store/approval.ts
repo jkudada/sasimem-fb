@@ -73,6 +73,9 @@ export async function approveRun(orgId: string, period: Period, req: ApproveRequ
         snapshot: invoiceSnapshot(org, tenancyOf.get(doc.tenancyId) ?? { ...doc, propertyAddress: "" }, emailOf.get(doc.tenantId) ?? ""),
       });
     }
+    // A tenancy with an issued invoice is ended, never deleted (plan §4); the rules read this flag.
+    const billed = new Set(edited.filter((e) => numbered.has(e.id)).map((e) => e.draft.tenancyId));
+    for (const id of billed) if (tenancyOf.get(id)?.invoiced === false) tx.update(r.tenancies.doc(id), { invoiced: true });
     tx.update(r.counter, { nextInvoiceNumber: allocation.nextNumber });
     tx.update(r.run(period), { status: "approved", approvedAt: at, totalToea: total, invoiceCount: numbered.size });
     const count = numbered.size;
