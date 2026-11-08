@@ -1,5 +1,6 @@
 import { useSignal } from "@preact/signals";
 import { type CalendarDate, dateLabel, formatKina, invoiceChip, paidNoteProblem, paidSummary, periodLabel, type Toea, voidReasonProblem } from "@sasimem/core";
+import { emailProblem } from "../email-problem.js";
 import type { EmailEntry, Month, MonthInvoice, Outcome } from "../setup.js";
 import { Back } from "./Back.js";
 
@@ -77,7 +78,7 @@ function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
         </>
       )}
       {inv.status === "paid" && <button type="button" class="quiet" aria-label={`${n} not paid after all`} disabled={props.busy} onClick={() => void act(() => props.onMarkUnpaid(inv.id))}>Not paid after all</button>}
-      <div class="row">
+      <div class="actions">
         <button type="button" class="quiet small" aria-label={`PDF of ${n}`} disabled={props.busy} onClick={() => void act(() => props.onOpenPdf(inv.id))}>PDF</button>
         {live && <button type="button" class="quiet small" aria-label={`Email ${n} again`} disabled={props.busy} onClick={() => void act(() => props.onResend(inv.id))}>Email again</button>}
         {inv.status === "sent" && (
@@ -117,8 +118,9 @@ function EmailLog(props: { emails: readonly EmailEntry[] }) {
       <ul class="links">
         {props.emails.map((e) => (
           <li key={e.id}>
-            <span>{KIND[e.kind] ?? e.kind}: {e.status === "sent" ? `Sent to ${e.to}` : `Not delivered to ${e.to}. Check the address, then use Email again.`}</span>
-            {e.status === "failed" && e.error !== null && <span class="field-problem">{e.error}</span>}
+            <span>{KIND[e.kind] ?? e.kind}: {e.status === "sent" ? `Sent to ${e.to}` : `Not sent to ${e.to}.`}</span>
+            {e.status === "failed" && <span class="field-problem">{emailProblem(e.error)}</span>}
+            {e.status === "failed" && e.error !== null && <details class="note"><summary>Details</summary>{e.error}</details>}
           </li>
         ))}
       </ul>

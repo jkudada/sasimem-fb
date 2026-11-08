@@ -5,6 +5,8 @@
  */
 import type { InvoiceDocument, Period, Toea } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
+import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
@@ -17,6 +19,20 @@ export interface NotifyDeps {
   readonly newToken: () => string;
   /** The Hosting origin approval links point at. */
   readonly appUrl: () => string;
+}
+
+/**
+ * For a callable whose whole job is one email: the provider refusing it becomes a clear
+ * error instead of INTERNAL. The email log already holds the refusal; the error log line
+ * fires the alert. "aborted", not "unavailable": the app reads "unavailable" as offline.
+ */
+export async function orRefused<T>(send: Promise<T>): Promise<T> {
+  try {
+    return await send;
+  } catch (e) {
+    logger.error("email refused", { error: e instanceof Error ? e.message : String(e) });
+    throw new HttpsError("aborted", "The email could not be sent. Try again in a few minutes.");
+  }
 }
 
 const linkFor = (deps: NotifyDeps, token: string) => `${deps.appUrl()}/a/${token}`;

@@ -7,7 +7,7 @@ import type { Reporter, TestCase } from "vitest/node";
 // 4-core machine, garbage-collection pauses pushed ordinary 30 ms tests past 100 ms
 // at random (measured 2026-11-07: slowest 128-209 ms on 4 workers, 59-90 ms on 2,
 // for ~6 s more wall time). A gate that fails at random would break plan §9.5.
-const T1_PROJECTS = new Set(["core-unit", "web-unit"]);
+const T1_PROJECTS = new Set(["core-unit", "web-unit", "ops-unit"]);
 const T1_HARD_LIMIT_MS = 100;
 
 export default class SlowTestReporter implements Reporter {

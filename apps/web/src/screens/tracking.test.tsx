@@ -82,7 +82,9 @@ describe("a sent month (plan §7, screen 5)", () => {
       { id: "e1", kind: "tenantInvoice", to: "k1@tenant.example", subject: "Invoice INV-0001", status: "failed", sentAt: new Date("2026-09-30T22:00:00Z"), error: "Invalid `to` field." },
       { id: "e2", kind: "tenantInvoice", to: "k2@tenant.example", subject: "Invoice INV-0002", status: "sent", sentAt: new Date("2026-09-30T22:00:00Z"), error: null },
     ] })} today={today} {...actions()} />);
-    expect(screen.getByText(/Not delivered to k1@tenant.example/)).toBeTruthy();
+    expect(screen.getByText(/Not sent to k1@tenant.example\./)).toBeTruthy();
+    expect(screen.getByText("That email address was rejected. Check it in the tenant's details, then use Email again.")).toBeTruthy();
+    expect(screen.getByText("Invalid `to` field.").closest("details")).not.toBeNull(); // the provider's words, only on request
     expect(screen.getByText(/Sent to k2@tenant.example/)).toBeTruthy();
   });
 });

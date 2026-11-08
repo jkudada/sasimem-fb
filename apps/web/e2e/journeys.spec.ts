@@ -2,7 +2,8 @@
  * The four T4 journeys (plan §9.2). Journey 3 fires the real scheduled tick through the
  * Functions emulator (see runTheTick), after moving the month's send time into the past.
  */
-import { type Page, expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./phone.js";
 import { expire, linksMailedTo, mailTo, pathOf, runTheTick, sendTimeHasPassed } from "./emulator.js";
 
 /** Sign up, give the org's details and a first tenant; lands on home. Returns the landlord's email. */

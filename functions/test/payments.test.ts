@@ -156,6 +156,15 @@ describe("email again", () => {
     expect(log).toBe(2);
   });
 
+  test("the provider refusing it is a clear error, not INTERNAL", async () => {
+    const c = setup();
+    const { uid, orgId } = await aSentMonth();
+    c.mailer.refusing = true;
+    await expect(c.resendInvoice.run(request(uid, { orgId, invoiceId: "k1_2026-10" }))).rejects.toMatchObject({
+      code: "aborted", message: "The email could not be sent. Try again in a few minutes.",
+    });
+  });
+
   test("an invoice not yet sent, or void, cannot be emailed again", async () => {
     const c = setup();
     const { uid, orgId } = await aSentMonth();

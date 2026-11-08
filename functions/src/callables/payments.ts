@@ -10,8 +10,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { bucket } from "../admin.js";
 import { pdfFilename } from "../mail/templates.js";
-import { type NotifyDeps, sendInvoiceAgain } from "../notify.js";
-import { RESEND_API_KEY } from "../params.js";
+import { type NotifyDeps, orRefused, sendInvoiceAgain } from "../notify.js";
+import { MAIL_SECRETS } from "../params.js";
 import { setPaid, setRemindersPaused, setUnpaid, voidInvoice } from "../store/payments.js";
 import { type OrgDoc, refs } from "../store/runs.js";
 import { ownerOrg, uidOf } from "./auth.js";
@@ -92,9 +92,9 @@ export function makePaymentCallables(deps: NotifyDeps) {
     resendInvoice: paying(async (orgId, id) => {
       const invoice = await issuedInvoice(orgId, id);
       if (invoice.status !== "sent" && invoice.status !== "paid") throw new HttpsError("failed-precondition", "Only an invoice that has been sent can be emailed again.");
-      await sendInvoiceAgain(deps, orgId, id, invoice);
+      await orRefused(sendInvoiceAgain(deps, orgId, id, invoice));
       return { ok: true as const, message: `Emailed ${invoice.number ?? "the invoice"} to ${invoice.snapshot?.tenantEmail ?? "the tenant"} again.` };
-    }, { secrets: [RESEND_API_KEY] }),
+    }, { secrets: MAIL_SECRETS }),
 
     exportCsv: onCall<unknown, Promise<{ filename: string; csv: string }>>(async (request) => {
       const orgId = await ownerOrg(request);

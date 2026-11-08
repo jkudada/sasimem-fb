@@ -1,5 +1,11 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "types": ["node"] },
+  "compilerOptions": {
+    "types": ["node"],
+    // @sasimem/core is not a package dependency here: Cloud Build installs functions/
+    // with npm, which rejects pnpm's workspace: protocol. esbuild reads these paths
+    // and compiles core into lib/index.js; vitest.config.ts mirrors them.
+    "paths": { "@sasimem/core": ["../packages/core/src/index.ts"] }
+  },
   "include": ["src", "test", "vitest.config.ts"]
 }

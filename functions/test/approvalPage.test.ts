@@ -138,6 +138,21 @@ describe("I10: an expired or replaced link opens only a request for a new one", 
     expect(page.mailer.sent[1]?.text).toContain(`/a/${page.tok(2)}`);
   });
 
+  test("a refused email says so, never 'on its way', and asking again really sends", async () => {
+    const page = await waiting();
+    page.at(new Date(t0.getTime() + 8 * 86_400_000));
+    page.mailer.refusing = true;
+    const refused = await page.post({ nonce: page.nonce() }, `/a/${page.token}/fresh`);
+    expect(refused.status).toBe(503);
+    expect(refused.body).toContain("The email did not go");
+    expect(refused.body).toContain("sign in to Sasimem");
+    expect(refused.body).not.toContain("on its way");
+    page.mailer.refusing = false;
+    const again = await page.post({ nonce: page.nonce() }, `/a/${page.token}/fresh`);
+    expect(again.body).toContain("A new link is on its way");
+    expect(page.mailer.sent).toHaveLength(2); // the digest, then the fresh link that did go
+  });
+
   test("asking for new links again and again sends at most one each 10 minutes", async () => {
     const page = await waiting();
     page.at(new Date(t0.getTime() + 8 * 86_400_000));

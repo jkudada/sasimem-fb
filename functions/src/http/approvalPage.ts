@@ -14,6 +14,7 @@ import {
   arrears, dateLabel, formatKina, invoiceChip, isEditable, localDate, owedTotal, paidSummary, periodLabel, readApprovalForm,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
 import type { RunDeps } from "../callables/runs.js";
 import { sendFreshLink, sendFreshTrackingLink } from "../notify.js";
 import { Refused } from "../store/edits.js";
@@ -138,11 +139,19 @@ async function freshLinkRequested(orgId: string, period: Period, now: Date, deps
   if (claimed) {
     const token = deps.newToken();
     const status = (await r.run(period).get()).get("status") as RunStatus;
-    if (status === "sent") {
-      await mintTrackingToken(orgId, period, now, token);
-      await sendFreshTrackingLink(deps, orgId, org, period, token);
-    } else if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, orgId, org, period, token);
-    else return page(200, "Nothing to approve", `<h1>Nothing to approve</h1><p>${esc(periodLabel(period))} is no longer waiting for approval.</p>`);
+    try {
+      if (status === "sent") {
+        await mintTrackingToken(orgId, period, now, token);
+        await sendFreshTrackingLink(deps, orgId, org, period, token);
+      } else if (await replaceToken(orgId, period, now, token)) await sendFreshLink(deps, orgId, org, period, token);
+      else return page(200, "Nothing to approve", `<h1>Nothing to approve</h1><p>${esc(periodLabel(period))} is no longer waiting for approval.</p>`);
+    } catch (e) {
+      // The email log has the refusal; this line fires the alert. Free the 10-minute
+      // claim, so asking again really sends instead of claiming a link is on its way.
+      logger.error("approval page: the fresh link did not go", { orgId, period, error: e instanceof Error ? e.message : String(e) });
+      await r.run(period).update({ freshLinkSentAt: null });
+      return page(503, "The email did not go", `<h1>The email did not go</h1><p>The new link could not be emailed. Try again in a few minutes, or sign in to Sasimem to see and approve your invoices there.</p>`);
+    }
   }
   return page(200, "A new link is on its way", `<h1>Check your email</h1><p>A new link is on its way to ${esc(mask(org.email))}. It replaces every earlier link.</p>`);
 }

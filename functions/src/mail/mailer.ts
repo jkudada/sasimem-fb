@@ -1,6 +1,6 @@
 /**
  * Email (plan §6.6). The Mailer interface, the console mailer the emulator uses, and
- * the outbox the T4 journeys read; resend.ts is the real one and log.ts records every
+ * the outbox the T4 journeys read; resend.ts and gmail.ts send for real and log.ts records every
  * send. Every message has a plain-text body.
  */
 export interface Attachment {
@@ -16,7 +16,7 @@ export interface Mail {
   readonly subject: string;
   readonly text: string;
   readonly attachments?: readonly Attachment[];
-  /** The provider drops a repeat of the same key (Resend keeps them 24 hours). */
+  /** Resend drops a repeat of the same key (for 24 hours); Gmail has no such key. */
   readonly idempotencyKey?: string;
 }
 
