@@ -4,7 +4,8 @@ import type { SignInAction } from "./SignIn.js";
 
 const MIN_PASSWORD = 6; // Firebase Auth's own minimum
 
-export function SignUp({ onSignUp }: { onSignUp: SignInAction }) {
+/** open: false shows that sign-up is closed, with no form, for anyone who comes to /sign-up directly. */
+export function SignUp({ onSignUp, open }: { onSignUp: SignInAction; open: boolean }) {
   const email = useSignal("");
   const password = useSignal("");
   const problem = useSignal<string | null>(null);
@@ -20,6 +21,16 @@ export function SignUp({ onSignUp }: { onSignUp: SignInAction }) {
     problem.value = await onSignUp(email.value.trim(), password.value);
     busy.value = false;
   };
+
+  if (!open) {
+    return (
+      <main class="narrow">
+        <h1>New accounts are closed</h1>
+        <p>Sasimem is not taking new accounts yet.</p>
+        <p><a href="/">Sign in to your account</a></p>
+      </main>
+    );
+  }
 
   return (
     <main class="narrow">

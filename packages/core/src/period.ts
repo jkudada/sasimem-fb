@@ -98,3 +98,6 @@ export function parseCalendarDate(text: string): CalendarDate {
   }
   return trimmed as CalendarDate;
 }
+
+/** "1 October 2026": how dates print on invoices and pages. */
+export const dateLabel = (date: CalendarDate): string => `${Number(date.slice(8, 10))} ${periodLabel(periodOf(date))}`;

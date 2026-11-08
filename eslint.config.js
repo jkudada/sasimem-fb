@@ -11,7 +11,7 @@ const focusedOrSkipped = ["only", "skip"].flatMap((m) =>
 );
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/dist/**", "**/lib/**", "**/coverage/**", "**/reports/**", "**/.stryker-tmp/**", "reference/**", ".attachments/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "**/lib/**", "**/coverage/**", "**/reports/**", "**/.stryker-tmp/**", "reference/**", ".attachments/**", ".worktrees/**" /* other checkouts of this repo, linted from their own root */] },
   ...tseslint.configs.strict,
   {
     rules: {

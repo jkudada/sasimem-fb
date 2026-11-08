@@ -7,5 +7,6 @@ test("Firebase's sign-in error codes become plain sentences, never codes", () =>
   expect(authMessage("auth/weak-password")).toBe("Use a password of at least 6 characters.");
   expect(authMessage("auth/network-request-failed")).toBe("No connection. Check your signal and try again.");
   expect(authMessage("auth/too-many-requests")).toBe("Too many tries. Wait a few minutes and try again.");
+  expect(authMessage("auth/admin-restricted-operation")).toBe("Sasimem is not taking new accounts yet. If you already have one, sign in.");
   expect(authMessage("auth/something-new")).toBe("Something went wrong. Please try again.");
 });

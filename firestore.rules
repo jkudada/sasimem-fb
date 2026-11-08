@@ -124,6 +124,18 @@ service cloud.firestore {
         allow delete: if isOwner(orgId); // as for properties
       }
 
+      // Runs and invoices: members read them for the review screens; only Functions write (I9).
+      match /runs/{period} {
+        allow read: if isMember(orgId);
+      }
+      match /invoices/{invoiceId} {
+        allow read: if isMember(orgId);
+      }
+      // The email log: members read it so a missing email shows up; it holds no bodies.
+      match /emails/{emailId} {
+        allow read: if isMember(orgId);
+      }
+
       match /tenancies/{tenancyId} {
         allow read: if isMember(orgId);
         allow create: if isOwner(orgId) && validTenancy(request.resource.data)

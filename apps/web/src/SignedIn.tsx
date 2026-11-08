@@ -4,13 +4,13 @@
  * screen shows what was actually stored.
  */
 import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
-import type { CalendarDate } from "@sasimem/core";
+import { type CalendarDate, type Period, periodOf } from "@sasimem/core";
 import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
-import type { Numbering, Setup, SetupStore } from "./setup.js";
+import type { Month, Numbering, Outcome, Setup, SetupStore } from "./setup.js";
 
 const Home = lazyScreen(() => import("./screens/Home.js").then((m) => m.Home));
 const Properties = lazyScreen(() => import("./screens/Properties.js").then((m) => m.Properties));
@@ -19,6 +19,11 @@ const Tenants = lazyScreen(() => import("./screens/Tenants.js").then((m) => m.Te
 const TenantForm = lazyScreen(() => import("./screens/TenantForm.js").then((m) => m.TenantForm));
 const TenancyForm = lazyScreen(() => import("./screens/TenancyForm.js").then((m) => m.TenancyForm));
 const Settings = lazyScreen(() => import("./screens/Settings.js").then((m) => m.Settings));
+const MonthCard = lazyScreen(() => import("./screens/MonthCard.js").then((m) => m.MonthCard));
+const Review = lazyScreen(() => import("./screens/Review.js").then((m) => m.Review));
+const Tracking = lazyScreen(() => import("./screens/Tracking.js").then((m) => m.Tracking));
+const Invoices = lazyScreen(() => import("./screens/Invoices.js").then((m) => m.Invoices));
+const Owed = lazyScreen(() => import("./screens/Owed.js").then((m) => m.Owed));
 
 const OFFLINE = "Your details could not be loaded. Check your signal, then reload the page.";
 
@@ -76,6 +81,9 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/tenants/:id" component={TenantRoute} />
           <Route path="/tenancies/:id" component={TenancyRoute} />
           <Route path="/settings" component={SettingsRoute} />
+          <Route path="/month/:period" component={ReviewRoute} />
+          <Route path="/invoices" component={InvoicesRoute} />
+          <Route path="/owed" component={OwedRoute} />
           <Route default component={HomeRoute} />
         </Router>
       </LocationProvider>
@@ -93,9 +101,89 @@ function useDoneTo(path: string): () => void {
   return () => void reload().then(() => route(path));
 }
 
+/** A month's run, loaded when shown and again after each change. */
+function useMonth(period: Period) {
+  const { store } = useSignedIn();
+  const month = useSignal<Month | null | string | undefined>(undefined);
+  const reload = async () => {
+    month.value = await store.month(period);
+  };
+  useEffect(() => void reload(), [store, period]);
+  /** Run a callable, then reload the month so the screen shows what was stored. */
+  const thenReload = <A extends unknown[]>(act: (...a: A) => Promise<Outcome>) => async (...a: A) => {
+    const outcome = await act(...a);
+    await reload();
+    return outcome;
+  };
+  return { month, thenReload };
+}
+
 function HomeRoute() {
   const c = useSignedIn();
-  return <Home setup={c.setup.value} onSignOut={() => void c.signOut()} />;
+  const period = periodOf(c.today);
+  const { month, thenReload } = useMonth(period);
+  const owed = useOwedTotal();
+  const m = month.value;
+  return (
+    <Home setup={c.setup.value} {...(owed.value === null ? {} : { owedToea: owed.value })} onSignOut={() => void c.signOut()}>
+      {m === undefined ? <p class="note">Loading this month…</p>
+        : typeof m === "string" ? <p role="alert">{m}</p>
+        : <MonthCard period={period} month={m} timezone={c.setup.value.org.timezone} onDraftNow={thenReload(c.store.draftNow)} />}
+    </Home>
+  );
+}
+
+function ReviewRoute(props: { params: Record<string, string> }) {
+  const c = useSignedIn();
+  const period = props.params["period"] as Period;
+  const { month, thenReload } = useMonth(period);
+  const m = month.value;
+  if (m === undefined) return <main class="narrow"><p>Loading…</p></main>;
+  if (typeof m === "string") return <main class="narrow"><p role="alert">{m}</p></main>;
+  if (m === null) return <main class="narrow"><p>{period} has no invoices yet. <a href="/">Back home</a></p></main>;
+  if (m.status === "sent") {
+    return (
+      <Tracking month={m} today={c.today}
+        onMarkPaid={thenReload(c.store.markPaid)} onMarkUnpaid={thenReload(c.store.markUnpaid)} onPauseReminders={thenReload(c.store.pauseReminders)}
+        onVoid={thenReload(c.store.voidInvoice)} onResend={thenReload(c.store.resendInvoice)} onOpenPdf={c.store.openPdf} />
+    );
+  }
+  return (
+    <Review month={m} timezone={c.setup.value.org.timezone}
+      onSetRent={thenReload(c.store.setRent)} onExclude={thenReload(c.store.exclude)} onInclude={thenReload(c.store.include)}
+      onRebuild={thenReload(c.store.rebuildRun)} onApprove={thenReload(c.store.approveRun)} />
+  );
+}
+
+/** What is owed across all months, for home; null until loaded or if it could not be. */
+function useOwedTotal() {
+  const { store } = useSignedIn();
+  const total = useSignal<number | null>(null);
+  useEffect(() => {
+    void store.owed().then((g) => (total.value = typeof g === "string" ? null : g.reduce((t, x) => t + x.totalToea, 0)));
+  }, [store]);
+  return total;
+}
+
+function InvoicesRoute() {
+  const c = useSignedIn();
+  const months = useSignal<Awaited<ReturnType<SetupStore["months"]>> | null>(null);
+  useEffect(() => void c.store.months().then((m) => (months.value = m)), [c.store]);
+  const m = months.value;
+  if (m === null) return <main class="narrow"><p>Loading…</p></main>;
+  if (typeof m === "string") return <main class="narrow"><p role="alert">{m}</p></main>;
+  return <Invoices months={m} thisMonth={periodOf(c.today)} onExport={c.store.exportCsv} />;
+}
+
+function OwedRoute() {
+  const c = useSignedIn();
+  const groups = useSignal<Awaited<ReturnType<SetupStore["owed"]>> | null>(null);
+  const load = async () => void (groups.value = await c.store.owed());
+  useEffect(() => void load(), [c.store]);
+  const g = groups.value;
+  if (g === null) return <main class="narrow"><p>Loading…</p></main>;
+  if (typeof g === "string") return <main class="narrow"><p role="alert">{g}</p></main>;
+  return <Owed groups={g} today={c.today} onMarkPaid={async (id, note) => { const o = await c.store.markPaid(id, note); await load(); return o; }} />;
 }
 
 function PropertiesRoute() {

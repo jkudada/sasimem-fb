@@ -16,3 +16,6 @@ playwright-report/
 reference/
 .attachments/
 .pnpm-store/
+
+# Functions secrets for the emulator (APPROVAL_SIGNING_KEY, RESEND_API_KEY). Real ones live in Secret Manager.
+functions/.secret.local

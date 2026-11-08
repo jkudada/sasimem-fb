@@ -47,17 +47,21 @@ jobs:
           FC_SEED: ${{ github.run_id }}
 
   e2e-matrix:
-    name: E2E matrix (Chromium, WebKit, Firefox at 360 px)
+    name: E2E matrix (Chromium, WebKit, Firefox at 360 px; a throttled phone)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm build:web
+        with:
+          emulators: "true"
+      - run: pnpm build:e2e
+      - run: printf "APPROVAL_SIGNING_KEY=%s\nRESEND_API_KEY=unused-by-the-emulator\n" "$(openssl rand -hex 32)" > functions/.secret.local
       - run: pnpm --filter @sasimem/web exec playwright install --with-deps chromium webkit firefox
-      - run: pnpm e2e --pass-with-no-tests
+      - run: pnpm ci:e2e
         env:
           E2E_ALL_BROWSERS: "1"
+          E2E_THROTTLED: "1" # Slow 4G, 4x CPU: the journeys and the sign-in budget
 
   flake-detector:
     name: Flake detector (T3 5x, shuffled)

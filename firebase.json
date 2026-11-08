@@ -17,6 +17,13 @@
     ],
     "rewrites": [
       {
+        "source": "/a/**",
+        "function": {
+          "functionId": "approvalPage",
+          "region": "australia-southeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -71,6 +78,14 @@
     "functions": {
       "host": "127.0.0.1",
       "port": 5001
+    },
+    "pubsub": {
+      "host": "127.0.0.1",
+      "port": 8085
+    },
+    "hosting": {
+      "host": "127.0.0.1",
+      "port": 5000
     }
   },
   "functions": [
