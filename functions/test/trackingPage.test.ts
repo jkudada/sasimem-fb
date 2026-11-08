@@ -139,4 +139,16 @@ describe("the owed page", () => {
     expect(fresh?.subject).toBe("Your new link for October 2026");
     expect((await m.get(`/a/${m.tok(3)}`)).body).toContain("of 2 paid");
   });
+
+  test("a refused fresh tracking link says so, and asking again really sends", async () => {
+    const m = await sentMonth();
+    m.at(new Date(SEND.getTime() + 61 * DAY));
+    m.mailer.refusing = true;
+    const refused = await m.post(`/a/${m.tracking}/fresh`, { nonce: m.nonce() });
+    expect(refused.status).toBe(503);
+    expect(refused.body).toContain("The email did not go");
+    m.mailer.refusing = false;
+    await m.post(`/a/${m.tracking}/fresh`, { nonce: m.nonce() });
+    expect(m.mailer.sent.at(-1)?.subject).toBe("Your new link for October 2026");
+  });
 });

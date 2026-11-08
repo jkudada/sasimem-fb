@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import * as functions from "../src/index.js";
 
-type Endpoint = { scheduleTrigger?: { schedule?: string; retryConfig?: { retryCount?: number } }; secretEnvironmentVariables?: { key: string }[] };
+type Endpoint = { maxInstances?: number; httpsTrigger?: { invoker?: string[] }; scheduleTrigger?: { schedule?: string; retryConfig?: { retryCount?: number } }; secretEnvironmentVariables?: { key: string }[] };
 const endpoint = (name: keyof typeof functions) => (functions[name] as unknown as { __endpoint: Endpoint }).__endpoint;
 const secrets = (name: keyof typeof functions) => (endpoint(name).secretEnvironmentVariables ?? []).map((s) => s.key).sort();
 
@@ -30,6 +30,10 @@ test("the secrets declared do not depend on MAIL_PROVIDER, which the deploy does
   } finally {
     vi.unstubAllEnvs();
   }
+});
+
+test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {
+  expect(endpoint("approvalPage")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 5 });
 });
 
 type Handler = ((req: express.Request, res: express.Response) => unknown) & { __endpoint: { callableTrigger?: object } };
