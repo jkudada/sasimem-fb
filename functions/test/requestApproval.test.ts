@@ -19,6 +19,19 @@ function setup() {
 }
 
 describe("draftNow: generate this month's invoices now (plan §6.2)", () => {
+  test("when the digest cannot be sent, the month stays drafted and waiting, and the landlord is told to approve in the app", async () => {
+    const { mailer, draftNow } = setup();
+    mailer.refusing = true;
+    const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+    expect(await draftNow.run(request(uid, { orgId, period: "2026-10" }))).toEqual({
+      status: "awaitingApproval",
+      message: "October 2026 is drafted, but the email with your approval link did not go. Review and approve the invoices here.",
+    });
+    expect((await adminDb().doc(`orgs/${orgId}/runs/2026-10`).get()).get("status")).toBe("awaitingApproval");
+    const log = await adminDb().collection(`orgs/${orgId}/emails`).get();
+    expect(log.docs.map((d) => d.data())).toMatchObject([{ kind: "approvalDigest", status: "failed", error: "Resend refused the message (401): API key is invalid" }]);
+  });
+
   test("drafts the month, asks for approval, keeps only the token's hash, and emails the digest with the link to the org", async () => {
     const { mailer, tok, draftNow } = setup();
     const { uid, orgId } = await anOrgWith({ tenancies: [{ id: "k1", rent: 120_000 }, { id: "k2", rent: 90_000 }] });

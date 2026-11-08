@@ -3,6 +3,7 @@
  * calls the same store code the tick and the approval page use.
  */
 import { type Period, type RunStatus, localDate, nextPeriod, parsePeriod, periodLabel, periodOf } from "@sasimem/core";
+import { logger } from "firebase-functions";
 import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { type NotifyDeps, sendDigest, sendFreshLink } from "../notify.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
@@ -54,7 +55,14 @@ export function makeDraftNow(deps: RunDeps) {
       const status = outcome.status ?? "draft";
       return { status, message: WAITING[status]?.(label) ?? `${label} is drafted.` };
     }
-    await sendDigest(deps, orgId, org, period, token, outcome.target === "held");
+    try {
+      await sendDigest(deps, orgId, org, period, token, outcome.target === "held");
+    } catch (e) {
+      // The month is drafted and waiting either way, and the email log has the failure.
+      // The landlord is in the app, so they can approve there; a 500 would hide that.
+      logger.error("draftNow: the approval digest did not go", { orgId, period, error: e instanceof Error ? e.message : String(e) });
+      return { status: "awaitingApproval", message: `${label} is drafted, but the email with your approval link did not go. Review and approve the invoices here.` };
+    }
     return { status: "awaitingApproval", message: `Sent you the approval link for ${label}.` };
   });
 }
