@@ -130,15 +130,29 @@ All items done. Choices made while building (say if any is wrong):
 
 ## P4: HTML email
 
+All items done. Choices made while building (say if any is wrong):
+- **Resend's inline images are confirmed** (an attachment with `content_id`, shown as
+  `cid:` in the HTML), so the logo goes inline; no fallback was needed.
+- **Each email is written once** as a greeting and blocks (letter.ts) and rendered to both
+  parts, so the text and HTML cannot drift. The text bodies read as before.
+- **The template's note now ends the tenant's email too**, in both parts (it was on the
+  PDF only).
+- **Tenant emails:** the accent as a top rule, the org's name in it, the logo (fitted to
+  160 × 60, as on the PDF), or initials, or nothing, as the template says; the template's
+  font family. A lost logo gives initials and the email still goes.
+- **Landlord emails:** the house style, Sasimem green, no logo.
+- **The dispatch notice's tenant lines are a two-column table in HTML.**
+
 ### Functions (T3)
-- [ ] the tenant invoice email has a text and an HTML part saying the same facts
-- [ ] the HTML uses the invoice's frozen template (accent, logo inline by content id, footer)
-- [ ] a tenant or property name containing `<script>` / `&` / quotes is escaped in HTML
-- [ ] the HTML has no remote images and no tracking; ≤ 20 KB before the logo
-- [ ] reminders are branded the same way; landlord emails use the house style
-- [ ] the approval link appears as visible text in both parts
-- [ ] golden HTML per email kind
-- [ ] the Resend adapter sends `html` and inline attachments; the console mailer and outbox record them
+- [x] the tenant invoice email has a text and an HTML part saying the same facts
+- [x] the HTML uses the invoice's frozen template (accent, logo inline by content id, footer)
+- [x] a tenant or property name containing `<script>` / `&` / quotes is escaped in HTML
+- [x] the HTML has no remote images and no tracking; ≤ 20 KB before the logo
+- [x] reminders are branded the same way; landlord emails use the house style
+- [x] the approval link appears as visible text in both parts
+- [x] golden HTML per email kind
+- [x] the Resend adapter sends `html` and inline attachments; so does the Gmail adapter (nodemailer `cid`); the console mailer and outbox record them
+- [x] sending from a stored logo: inline when the template shows it; a lost logo gives initials
 
 ## P5: sign-up
 

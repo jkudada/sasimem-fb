@@ -39,6 +39,20 @@ describe("the Gmail adapter (testing phase)", () => {
     }]);
   });
 
+  test("sends the HTML part and the logo inline by its content ID (docs/PLAN-TEMPLATES.md §6)", async () => {
+    const t = fakeTransport(async () => ({ messageId: "<def@gmail.com>" }));
+    const logo = Buffer.from("\x89PNG tiny");
+    await new GmailMailer(config(t)).send({
+      ...mail, html: "<p>Hello Peter</p><img src=\"cid:logo\">",
+      attachments: [...mail.attachments, { filename: "logo.png", content: logo, contentId: "logo", contentType: "image/png" }],
+    });
+    expect(t.sent[0]).toMatchObject({ text: "Hello Peter", html: "<p>Hello Peter</p><img src=\"cid:logo\">" });
+    expect(t.sent[0]?.attachments).toEqual([
+      { filename: "INV-0001.pdf", content: Buffer.from("%PDF-1.3 tiny") },
+      { filename: "logo.png", content: logo, cid: "logo", contentType: "image/png" },
+    ]);
+  });
+
   test("a display name cannot break the From header, and no name sends as the bare account", async () => {
     const t = fakeTransport(async () => ({ messageId: "m" }));
     const gmail = new GmailMailer(config(t));
