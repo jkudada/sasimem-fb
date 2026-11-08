@@ -60,4 +60,46 @@ describe("createOrg", () => {
     const continuing = await createOrg.run(request(await newUser(), { ...typedOrg, firstInvoiceNumber: 142 }));
     expect((await adminDb().doc(`orgs/${continuing.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 142 });
   });
+
+  test("starts a sixty-day Standard trial with the next SUB- reference, in the same transaction (PLAN-SUBSCRIBERS S1)", async () => {
+    const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+    const sub = (await adminDb().doc(`subscriptions/${orgId}`).get()).data();
+    expect(sub).toMatchObject({
+      planId: "standard", status: "trial", interval: "annual", priceToea: 40_000, tenancyLimit: 10, limitOverride: null,
+      trialEndsOn: "2026-11-18", paidThrough: null, graceDays: 14, activeTenancyCount: 0,
+      createdAt: Timestamp.fromDate(now), updatedAt: Timestamp.fromDate(now),
+    });
+    expect(sub?.["paymentReference"]).toMatch(/^SUB-\d{4,}$/);
+  });
+
+  test("each new subscriber gets the next reference, never one already given", async () => {
+    const refs = [];
+    for (let i = 0; i < 3; i++) {
+      const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+      refs.push((await adminDb().doc(`subscriptions/${orgId}`).get()).get("paymentReference") as string);
+    }
+    const numbers = refs.map((r) => Number(r.slice(4)));
+    expect(numbers[1]).toBe((numbers[0] ?? 0) + 1);
+    expect(numbers[2]).toBe((numbers[0] ?? 0) + 2);
+  });
+
+  test("the plan's price and limit come from plans/standard when it exists: prices are data", async () => {
+    await adminDb().doc("plans/standard").set({ name: "Standard", tenancyLimit: 12, priceToeaMonthly: 4_500, priceToeaAnnual: 45_000, public: true, order: 1 });
+    try {
+      const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+      expect((await adminDb().doc(`subscriptions/${orgId}`).get()).data()).toMatchObject({ priceToea: 45_000, tenancyLimit: 12 });
+    } finally {
+      await adminDb().doc("plans/standard").delete();
+    }
+  });
+
+  test("a retried call does not start a second subscription or use a second reference", async () => {
+    const uid = await newUser();
+    const first = await createOrg.run(request(uid, typedOrg));
+    const ref = (await adminDb().doc(`subscriptions/${first.orgId}`).get()).get("paymentReference");
+    const counterBefore = (await adminDb().doc("private/subscriptionCounter").get()).get("nextReference");
+    await createOrg.run(request(uid, typedOrg));
+    expect((await adminDb().doc(`subscriptions/${first.orgId}`).get()).get("paymentReference")).toBe(ref);
+    expect((await adminDb().doc("private/subscriptionCounter").get()).get("nextReference")).toBe(counterBefore);
+  });
 });

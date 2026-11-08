@@ -1,47 +1,61 @@
 # Subscribers test list (docs/PLAN-SUBSCRIBERS.md)
 
-Nothing done yet.
+S1 done (2026-11-08); S2-S6 to come.
 
 Written before the code (plan §9.1 of PLAN-SASIMEM-FB). Ticked as each goes red → green.
 Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
 
 ## S1 - core (T1)
-- [ ] the three seeded plans have the §3 limits and prices, in integer toea; annual = 10 × monthly
-- [ ] a subscription's limit is its `limitOverride` when set, else its plan's
-- [ ] `canAddTenancy`: true below the limit, false at it and above it
-- [ ] `nextSubscriptionStatus`: a trial before `trialEndsAt` stays trial
-- [ ] … a trial at `trialEndsAt` with `paidThrough` in the future becomes active; with none, past_due
-- [ ] … active at `paidThrough` becomes past_due, and `pastDueAt` is that instant
-- [ ] … past_due before `pastDueAt + graceDays` stays past_due; at it, restricted
-- [ ] … past_due or restricted with `paidThrough` in the future becomes active
-- [ ] … free never changes on its own; cancelled becomes purged only at `purgeAfter`
-- [ ] … is idempotent: applying it twice gives the same status
-- [ ] dates are compared in Pacific/Port_Moresby: a trial ending "on the 10th" ends at 00:00 PNG time
-- [ ] `extendPaidThrough`: an annual payment adds 12 months from the later of today and the old `paidThrough`
-- [ ] … a payment while past due counts from the old `paidThrough`, not from today (no free days)
-- [ ] … a month-end `paidThrough` (31 Jan + 1 month) lands on the month's last day
-- [ ] a price change applies at renewal only: `priceAtRenewal` uses the plan's current price, a mid-term read keeps the locked one
-- [ ] payment references are `SUB-` + 4 digits, sequential, never reused
-- [ ] `canDraft(status)`: trial, free, active, past_due → yes; restricted, cancelled, purged → no
-- [ ] the banner text for each status names the amount, the reference and what changes (restricted: "invoices already approved are sent as normal")
+- [x] the three seeded plans have the §3 limits and prices, in integer toea; annual = 10 × monthly
+- [x] a subscription's limit is its `limitOverride` when set, else its plan's
+- [x] `canAddTenancy`: true below the limit, false at it and above it
+- [x] a tenancy counts toward the limit until its end date has passed
+- [x] `subscriptionStatus`: a trial stays a trial through `trialEndsOn`
+- [x] … the day after, active if `paidThrough` has not passed, else past_due
+- [x] … paying during a trial does not end it early
+- [x] … active through `paidThrough`, past_due the day after
+- [x] … past_due for `graceDays`, then restricted (grace 0: restricted at once)
+- [x] … past_due or restricted with `paidThrough` not passed becomes active
+- [x] … free never changes on its own; cancelled becomes purged only at `purgeAfter`; purged stays
+- [x] … is idempotent: applying it to its own answer gives the same answer
+- [x] dates are Port Moresby calendar dates, each the last day covered (changed from instants: the plan's "00:00 PNG time" falls out of it)
+- [x] `extendPaidThrough`: twelve months after the last day covered
+- [x] … paid during a trial, the year starts when the trial ends
+- [x] … paid while past due, it counts from the old `paidThrough` (no free days)
+- [x] … paid while restricted, it counts from today (the landlord was not being served)
+- [x] … a month-end `paidThrough` stays at month end; a missing day (30 Feb) clamps
+- [x] payment references are `SUB-` + 4 digits (more when needed), from a counter, never reused
+- [x] `canDraft(status)`: trial, free, active, past_due → yes; restricted, cancelled, purged → no
+- [x] a sign-up's subscription: Standard trial, 60 days, annual price locked; a pre-billing org's: free, limit ≥ its tenancies
+- [x] a plan document from Firestore is used as it is; missing → the default; malformed → refused
+- moved to S4: the banner text (it needs Sasimem's bank details, which arrive with the Plan & billing page)
 
 ## S1 - rules (T2)
-- [ ] an owner reads their own `subscriptions/{orgId}` and its payments; a stranger reads neither
-- [ ] an owner cannot write `subscriptions`, `payments`, `plans`, `operatorEvents` or `signupInvites`
-- [ ] an owner cannot read `subscriptions/{orgId}/notes`
-- [ ] creating a tenancy at the limit is refused; below it, allowed
-- [ ] creating a tenancy with no subscription document is refused (every org has one after the backfill)
-- [ ] updating or ending a tenancy at the limit is still allowed
-- [ ] an operator with a second factor reads any org, subscription and `operatorEvents`; not `private/*`
-- [ ] an `operator` claim without a second factor reads nothing beyond their own orgs
-- [ ] an operator writes nothing directly
+- [x] an owner reads their own `subscriptions/{orgId}` and its payments; a stranger reads neither
+- [x] an owner cannot write `subscriptions`, `payments`, `plans`, `operatorEvents` or `signupInvites` (I9 list)
+- [x] an owner cannot read `subscriptions/{orgId}/notes` or `operatorEvents`
+- [x] creating a tenancy at the limit is refused; below it, allowed
+- [x] creating a tenancy with no subscription document is refused
+- [x] updating, ending or deleting a tenancy at or over the limit is still allowed
+- [x] an operator with a second factor reads any org, its setup, runs, invoices, emails, subscription, notes, payments, and `operatorEvents`; not `private/*`
+- [x] an `operator` claim without a second factor reads nothing beyond their own orgs
+- [x] an operator writes nothing directly
+- [x] any signed-in user reads `plans`; nobody signed out
 
 ## S1 - functions (T3)
-- [ ] `createOrg` makes a trial subscription: Standard, 60 days, a fresh `SUB-` reference, `activeTenancyCount` 0
-- [ ] `createOrg` with the invite's plan `free` makes a free subscription with no trial
-- [ ] the count trigger: create +1, set `endDate` in the past −1, delete −1; never below 0
-- [ ] `ops/backfill-subscriptions.ts` gives every org without one a free subscription with `limitOverride` = its current count (at least 2), and is safe to run twice
-- [ ] `ops/grant-operator.ts` sets `operator: true` and keeps `orgIds`
+- [x] `createOrg` makes a trial subscription: Standard, 60 days, the next `SUB-` reference, `activeTenancyCount` 0, in the same transaction
+- [x] references are consecutive across sign-ups; a retried `createOrg` uses no second reference
+- [x] `createOrg` takes price and limit from `plans/standard` when it exists
+- [x] the count trigger **recounts** on every tenancy write (not +1/−1): ended tenancies drop out, drift is corrected both ways, other orgs untouched, no subscription → no write, unchanged → no write
+- moved to S3: `createOrg` with an invite's plan `free` (invites arrive with P5)
+
+## S1 - ops (T1, plus a dry run on sasimem-dev)
+- [x] the ops copies of the plans and of the free subscription equal core's (the scripts cannot import core)
+- [x] Firestore REST values: strings, whole numbers, booleans, null, instants; a fraction is refused (I7)
+- [x] `ops/plans.ts` creates only the missing plans, create-only
+- [x] `ops/backfill-subscriptions.ts` gives each org without one a free subscription counting its tenancies that have not ended, create-only (safe twice)
+- [x] `ops/grant-operator.ts` adds `operator: true` keeping `orgIds`; `--revoke` removes only it
+- [x] dry runs against sasimem-dev: 3 plans to create; 1 org to backfill (1 tenancy, limit 2)
 
 ## S2 - operator console (T1, T4)
 - [ ] sign-in without a second factor is sent to MFA enrolment, and sees no data
@@ -57,8 +71,10 @@ Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
 - [ ] `changePlan` downgrade below current use keeps every tenancy and blocks new ones
 - [ ] `extendTrial`, `setLimitOverride`, `restrict`, `unrestrict`, `cancelSubscription`, `reinstate`, `addNote` each change only what they name and are audited
 - [ ] invites carry a plan and trial length; `createOrg` uses them; a used or expired invite is refused
+- [ ] `createOrg` with an invite's plan `free` makes a free subscription with no trial and no reference (moved from S1)
 
 ## S4 - enforcement (T3, T4)
+- [ ] the banner text for each status names the amount, the reference and what changes (restricted: "invoices already approved are sent as normal") (moved from S1)
 - [ ] the hourly tick does not draft for a restricted org, and logs that it skipped it
 - [ ] the hourly tick still requests approval for, sends, and reminds on a restricted org's runs drafted before restriction
 - [ ] `draftNow` on a restricted org is refused with a plain message

@@ -9,3 +9,4 @@ export * from "./approval.js";
 export * from "./messages.js";
 export * from "./payments.js";
 export type * from "./types.js";
+export * from "./subscriptions.js";

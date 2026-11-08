@@ -12,6 +12,21 @@ service cloud.firestore {
       return signedIn()
         && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
     }
+    // The operator console (PLAN-SUBSCRIBERS D10): the claim is set only by
+    // ops/grant-operator.ts, and counts only when signed in with a second factor.
+    // Operators read; every change they make goes through an audited callable.
+    function isOperator() {
+      return signedIn() && request.auth.token.get('operator', false) == true
+        && request.auth.token.get('firebase', {}).get('sign_in_second_factor', null) != null;
+    }
+    function canRead(orgId) { return isMember(orgId) || isOperator(); }
+
+    // Rules cannot count, so a trigger keeps activeTenancyCount and the tenancy create
+    // rule compares it with the limit (PLAN-SUBSCRIBERS §6). No subscription, no new tenancy.
+    function underLimit(orgId) {
+      let sub = get(/databases/$(database)/documents/subscriptions/$(orgId)).data;
+      return sub.activeTenancyCount < sub.tenancyLimit;
+    }
 
     // Field validation mirrors core's setup.ts limits (docs/test-lists/step-2.md).
     function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
@@ -105,13 +120,13 @@ service cloud.firestore {
     }
 
     match /orgs/{orgId} {
-      allow read: if isMember(orgId);
+      allow read: if canRead(orgId);
       allow update: if isOwner(orgId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
         && validProfile(request.resource.data) && validLogo(orgId, request.resource.data);
 
       match /properties/{propertyId} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
         allow create, update: if isOwner(orgId) && validProperty(request.resource.data);
         // A property a tenancy uses is kept by the UI (core's deleteProblem); rules cannot
         // query. A tenancy carries its own copies, so drafting survives either way.
@@ -119,28 +134,29 @@ service cloud.firestore {
       }
 
       match /tenants/{tenantId} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
         allow create, update: if isOwner(orgId) && validTenant(request.resource.data);
         allow delete: if isOwner(orgId); // as for properties
       }
 
       // Runs and invoices: members read them for the review screens; only Functions write (I9).
       match /runs/{period} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
       }
       match /invoices/{invoiceId} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
       }
       // The email log: members read it so a missing email shows up; it holds no bodies.
       match /emails/{emailId} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
       }
 
       match /tenancies/{tenancyId} {
-        allow read: if isMember(orgId);
+        allow read: if canRead(orgId);
         allow create: if isOwner(orgId) && validTenancy(request.resource.data)
           && request.resource.data.invoiced == false
-          && copiesMatch(orgId, request.resource.data);
+          && copiesMatch(orgId, request.resource.data)
+          && underLimit(orgId);
         // invoiced is server-set; the copies are kept true by a trigger (step 3), and
         // re-pointing a tenancy at another tenant or unit means a new tenancy.
         allow update: if isOwner(orgId) && validTenancy(request.resource.data)
@@ -149,6 +165,24 @@ service cloud.firestore {
         // A billed tenancy is ended (endDate), never deleted (plan §4).
         allow delete: if isOwner(orgId) && resource.data.invoiced == false;
       }
+    }
+
+    // Subscribers (PLAN-SUBSCRIBERS §6). Plan, status, limits and payments are written
+    // only by Functions (I9); the owner reads their own, the operator reads all.
+    match /plans/{planId} {
+      allow read: if signedIn();
+    }
+    match /subscriptions/{orgId} {
+      allow read: if canRead(orgId);
+      match /payments/{paymentId} {
+        allow read: if canRead(orgId);
+      }
+      match /notes/{noteId} {
+        allow read: if isOperator();
+      }
+    }
+    match /operatorEvents/{eventId} {
+      allow read: if isOperator();
     }
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Invariant I9 (plan §1): the browser cannot write money state. Runs, invoices,
  * issued numbers, emails, approval tokens, the counter, memberships and user
- * records are written only by Cloud Functions through the Admin SDK.
+ * records, and subscribers' plans, status and payments are written only by Cloud Functions through the Admin SDK.
  */
 import { assertFails, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
@@ -24,6 +24,14 @@ const serverOnly = (orgId: string, uid: string): string[] => [
   `orgs/${orgId}/members/someone-else`,
   `approvalTokens/tok-${orgId}`,
   `users/${uid}`,
+  // Subscribers (PLAN-SUBSCRIBERS §2): plan, status, limits and payments are server-only too.
+  `subscriptions/${orgId}`,
+  `subscriptions/${orgId}/payments/pay1`,
+  `subscriptions/${orgId}/notes/n1`,
+  `plans/standard`,
+  `operatorEvents/ev1`,
+  `signupInvites/someone@example.com`,
+  `private/subscriptionCounter`,
 ];
 
 describe("I9: an owner cannot write money state from the browser", () => {
