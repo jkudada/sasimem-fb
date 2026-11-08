@@ -137,8 +137,21 @@ function dispatchLines(invoices: readonly Sent[], failures: ReadonlyMap<string, 
 }
 
 /** The scheduled function: hourly, retried on failure (every step is safe to rerun). */
+type Log = (message: string, data: object) => void;
+
+/**
+ * Run the tick, then log one structured "tick done" line. A log-based metric counts these
+ * lines, and an alert fires when none arrives for 3 hours (plan §12; ops/alerts.ts). A tick
+ * that throws logs nothing here: its error is the other alert.
+ */
+export async function tickAndLog(deps: TickDeps, opts: TickOptions = {}, log: Log = (m, d) => logger.info(m, d)): Promise<Tally> {
+  const tally = await runTick(deps, opts);
+  log("tick done", { event: "tick_done", ...tally });
+  return tally;
+}
+
 export function makeTick(deps: TickDeps) {
   return onSchedule({ schedule: "every 60 minutes", retryCount: 3, timeoutSeconds: 540, secrets: [RESEND_API_KEY] }, async () => {
-    await runTick(deps);
+    await tickAndLog(deps);
   });
 }

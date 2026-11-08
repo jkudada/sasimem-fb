@@ -103,12 +103,18 @@ importers:
         specifier: ^0.34.5
         version: 0.34.5
     devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@types/pdfkit':
         specifier: ^0.17.7
         version: 0.17.7
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      express:
+        specifier: 5.3.0
+        version: 5.3.0
 
   packages/core:
     dependencies:
