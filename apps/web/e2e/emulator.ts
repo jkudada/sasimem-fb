@@ -129,3 +129,22 @@ export async function pdfPathsOf(email: string): Promise<string[]> {
   const res = (await (await fetch(`${DOCS}/orgs/${orgId}/invoices`, { headers: OWNER })).json()) as { documents?: { fields: Record<string, { stringValue?: string }> }[] };
   return (res.documents ?? []).map((d) => d.fields["pdfPath"]?.stringValue ?? "");
 }
+
+/** Invite an email to sign up, as ops/invite.ts does on a real project (docs/PLAN-TEMPLATES.md §7). */
+export async function invite(email: string): Promise<void> {
+  const res = await fetch(`${DOCS}/signupInvites/${encodeURIComponent(email.toLowerCase())}`, {
+    method: "PATCH", headers: { ...OWNER, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { invitedAt: { timestampValue: new Date().toISOString() } } }),
+  });
+  if (!res.ok) throw new Error(`could not invite ${email}: ${res.status}`);
+}
+
+/** Open the confirmation link the Auth emulator "sent" to an address, as the landlord would. */
+export async function confirmEmail(email: string): Promise<void> {
+  const codes = "http://127.0.0.1:9099/emulator/v1/projects/demo-sasimem/oobCodes";
+  type Code = { email: string; requestType: string; oobLink: string };
+  const find = async () => ((await (await fetch(codes)).json()) as { oobCodes?: Code[] }).oobCodes?.filter((c) => c.email === email && c.requestType === "VERIFY_EMAIL").pop();
+  await expect.poll(async () => (await find()) !== undefined, { message: `a confirmation link for ${email}` }).toBe(true);
+  const res = await fetch((await find())?.oobLink ?? "");
+  if (!res.ok) throw new Error(`the confirmation link did not work: ${res.status}`);
+}

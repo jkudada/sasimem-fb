@@ -1,14 +1,25 @@
 /** What every journey starts with: a landlord signed up and onboarded, and a month drafted. */
 import { type Page, expect } from "@playwright/test";
+import { confirmEmail, invite } from "./emulator.js";
 
-/** Sign up, give the org's details and a first tenant; lands on home. Returns the landlord's email. */
-export async function onboard(page: Page): Promise<string> {
-  const email = `landlord-${crypto.randomUUID()}@test.example`;
+/** Create an account and confirm its email (sign-up is by invitation: docs/PLAN-TEMPLATES.md §7); lands on "Your details". */
+export async function signUp(page: Page, email: string): Promise<void> {
   await page.goto("/");
   await page.getByRole("link", { name: /create an account/i }).click();
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill("secret-123");
   await page.getByRole("button", { name: /create/i }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await confirmEmail(email);
+  await page.getByRole("button", { name: "I have opened the link" }).click();
+  await expect(page.getByRole("heading", { name: "Your details" })).toBeVisible();
+}
+
+/** An invited landlord signs up, gives the org's details and a first tenant; lands on home. Returns their email. */
+export async function onboard(page: Page): Promise<string> {
+  const email = `landlord-${crypto.randomUUID()}@test.example`;
+  await invite(email);
+  await signUp(page, email);
   await page.getByLabel(/name on your invoices/i).fill("Wari Holdings");
   await page.getByLabel(/your address/i).fill("Boroko");
   await page.getByLabel(/bank name/i).fill("BSP");

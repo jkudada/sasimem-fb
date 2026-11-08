@@ -7,7 +7,7 @@ import { makeCreateOrg } from "../../src/callables/createOrg.js";
 import { newUser, request, typedOrg } from "./callables.js";
 import { adminDb } from "./index.js";
 
-const createOrg = makeCreateOrg({ now: () => new Date("2026-09-01T00:00:00Z") });
+const createOrg = makeCreateOrg({ now: () => new Date("2026-09-01T00:00:00Z"), signupMode: () => "open" });
 
 export interface TenancySeed {
   id: string;
