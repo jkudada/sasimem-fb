@@ -5,11 +5,11 @@
  * small documents. Storage loads only when Settings shows or changes the logo.
  */
 import {
-  type InvoiceDocument, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
+  type InvoiceDocument, type InvoiceTemplate, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
   arrears, logoExtension,
 } from "@sasimem/core";
 import {
-  type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
+  type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch,
 } from "firebase/firestore/lite";
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
@@ -73,11 +73,12 @@ export function setupStore(orgId: string): SetupStore {
 
   return {
     async load(): Promise<Setup> {
-      const [o, properties, tenants, tenancies] = await Promise.all([
+      const [o, properties, tenants, tenancies, templates] = await Promise.all([
         getDoc(doc(db, org)),
         getDocs(collection(db, `${org}/properties`)),
         getDocs(collection(db, `${org}/tenants`)),
         getDocs(collection(db, `${org}/tenancies`)),
+        getDocs(collection(db, `${org}/templates`)),
       ]);
       const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
       return {
@@ -85,6 +86,7 @@ export function setupStore(orgId: string): SetupStore {
         properties: withIds<PropertyInput>(properties).sort((a, b) => a.address.localeCompare(b.address)),
         tenants: withIds<TenantInput>(tenants).sort(byName),
         tenancies: withIds<TenancyDocument>(tenancies),
+        templates: withIds<InvoiceTemplate>(templates).sort(byName),
       };
     },
 
@@ -104,6 +106,26 @@ export function setupStore(orgId: string): SetupStore {
       await uploadBytes(fileRef(await storage(), path), file, { contentType: file.type });
       await updateDoc(doc(db, org), { logoPath: path });
     }, "The logo could not be uploaded. Please try again."),
+
+    saveTemplate: (id, template, makeDefault) => attempt(async () => {
+      const batch = writeBatch(db);
+      const t = id === null ? doc(collection(db, `${org}/templates`)) : ref(`templates/${id}`);
+      batch.set(t, { ...template });
+      if (makeDefault) batch.update(doc(db, org), { defaultTemplateId: t.id });
+      await batch.commit();
+    }),
+    deleteTemplate: (id) => attempt(() => deleteDoc(ref(`templates/${id}`))),
+    setDefaultTemplate: (id) => attempt(() => updateDoc(doc(db, org), { defaultTemplateId: id ?? deleteField() })),
+
+    async previewTemplate(template) {
+      let file: { filename: string; base64: string } | undefined;
+      const outcome = await call("previewInvoicePdf", { orgId, template: { ...template } }, (r) => {
+        file = r as unknown as { filename: string; base64: string };
+        return "The sample PDF has downloaded. Open it to see your template.";
+      });
+      if (file !== undefined) save(file.filename, new Blob([fromBase64(file.base64)], { type: "application/pdf" }));
+      return outcome;
+    },
 
     removeLogo: () => attempt(() => updateDoc(doc(db, org), { logoPath: deleteField() })),
 

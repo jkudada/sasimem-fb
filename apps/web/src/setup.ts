@@ -4,12 +4,14 @@
  * save. Screens get plain data and functions that resolve to a plain-English
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
-import type { Arrears, CalendarDate, InvoiceStatus, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, CalendarDate, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 
 export type WithId<T> = T & { readonly id: string };
 
 export interface Org extends OrgProfile {
   readonly logoPath?: string;
+  /** The template new invoices use; absent (or deleted) means built-in Classic. */
+  readonly defaultTemplateId?: string;
 }
 
 export interface Setup {
@@ -17,6 +19,8 @@ export interface Setup {
   readonly properties: readonly WithId<PropertyInput>[];
   readonly tenants: readonly WithId<TenantInput>[];
   readonly tenancies: readonly WithId<TenancyDocument>[];
+  /** Invoice templates, by name (docs/PLAN-TEMPLATES.md). */
+  readonly templates: readonly WithId<InvoiceTemplate>[];
 }
 
 export interface Numbering {
@@ -40,6 +44,13 @@ export interface SetupStore {
   uploadLogo(file: File): Promise<string | null>;
   removeLogo(): Promise<string | null>;
   logoUrl(path: string): Promise<string | null>;
+  /** Save a template; with makeDefault, also make it the org's default, in one write. */
+  saveTemplate(id: string | null, template: InvoiceTemplate, makeDefault: boolean): Promise<string | null>;
+  deleteTemplate(id: string): Promise<string | null>;
+  /** null goes back to built-in Classic. */
+  setDefaultTemplate(id: string | null): Promise<string | null>;
+  /** Render a sample invoice with these settings and hand it to the browser as a download. */
+  previewTemplate(template: InvoiceTemplate): Promise<Outcome>;
   numbering(): Promise<Numbering | string>;
   setNextNumber(next: number): Promise<string | null>;
   /** A month's run and its invoices; null when it has not been drafted. A string is a problem. */

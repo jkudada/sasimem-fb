@@ -11,6 +11,8 @@ import "./SignedIn.js";
 import "./screens/Home.js";
 import "./screens/Tenants.js";
 import "./screens/Settings.js";
+import "./screens/Templates.js";
+import "./screens/TemplateForm.js";
 import "./screens/MonthCard.js";
 import "./screens/Review.js";
 import type { Setup, SetupStore } from "./setup.js";
@@ -21,13 +23,14 @@ const setup: Setup = {
     bankName: "BSP", bankAccount: "1000", invoicePrefix: "INV-", timezone: "Pacific/Port_Moresby",
     approvalLeadDays: 3, sendHour: 8, reminderAfterDays: 7, reminderMode: "auto",
   },
-  properties: [], tenants: [{ id: "t1", name: "Kila Trading", email: "a@kila.example", phone: "" }], tenancies: [],
+  properties: [], tenants: [{ id: "t1", name: "Kila Trading", email: "a@kila.example", phone: "" }], tenancies: [], templates: [],
 };
 const fakeStore = (): SetupStore => ({
   load: vi.fn(async () => ({ ...setup })), // a fresh object each time, as a real read gives
   saveProperty: vi.fn(), deleteProperty: vi.fn(), saveTenant: vi.fn(), deleteTenant: vi.fn(),
   createTenancy: vi.fn(), updateTenancy: vi.fn(), deleteTenancy: vi.fn(), saveProfile: vi.fn(),
   uploadLogo: vi.fn(), removeLogo: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
+  saveTemplate: vi.fn(), deleteTemplate: vi.fn(), setDefaultTemplate: vi.fn(), previewTemplate: vi.fn(),
   numbering: vi.fn().mockResolvedValue({ next: 1, started: false }), setNextNumber: vi.fn(),
   month: vi.fn().mockResolvedValue(null),
   draftNow: vi.fn(), setRent: vi.fn(), exclude: vi.fn(), include: vi.fn(), rebuildRun: vi.fn(), approveRun: vi.fn(),

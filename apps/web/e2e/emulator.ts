@@ -97,3 +97,14 @@ export async function mailTo(email: string, since: Date, subject: RegExp): Promi
   await expect.poll(async () => (await find()) !== undefined, { message: `mail to ${email} matching ${subject}`, timeout: 30_000 }).toBe(true);
   return (await find()) as Mailed;
 }
+
+/** The template frozen into each of the landlord's invoices, as stored. */
+export async function frozenTemplatesOf(email: string): Promise<Record<string, string>[]> {
+  const orgId = await orgIdOf(email);
+  type Value = { stringValue?: string; mapValue?: { fields?: Record<string, Value> } };
+  const res = (await (await fetch(`${DOCS}/orgs/${orgId}/invoices`, { headers: OWNER })).json()) as { documents?: { fields: Record<string, Value> }[] };
+  return (res.documents ?? []).map((d) => {
+    const template = d.fields["snapshot"]?.mapValue?.fields?.["template"]?.mapValue?.fields ?? {};
+    return Object.fromEntries(Object.entries(template).map(([k, v]) => [k, v.stringValue ?? ""]));
+  });
+}

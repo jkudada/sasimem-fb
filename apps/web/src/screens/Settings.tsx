@@ -133,6 +133,10 @@ export function Settings(props: {
         <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>
       )}
 
+      <h2>How your invoices look</h2>
+      <p><a href="/settings/templates">Invoice templates</a></p>
+      <p class="note">Choose a layout, colour, font and a note for your invoices.</p>
+
       <h2>Invoice numbers</h2>
       {numbering === null && <p class="note">Loading… You need a connection to see this.</p>}
       {numbering?.started === true && (

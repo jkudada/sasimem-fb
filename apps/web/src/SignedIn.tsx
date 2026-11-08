@@ -19,6 +19,8 @@ const Tenants = lazyScreen(() => import("./screens/Tenants.js").then((m) => m.Te
 const TenantForm = lazyScreen(() => import("./screens/TenantForm.js").then((m) => m.TenantForm));
 const TenancyForm = lazyScreen(() => import("./screens/TenancyForm.js").then((m) => m.TenancyForm));
 const Settings = lazyScreen(() => import("./screens/Settings.js").then((m) => m.Settings));
+const Templates = lazyScreen(() => import("./screens/Templates.js").then((m) => m.Templates));
+const TemplateForm = lazyScreen(() => import("./screens/TemplateForm.js").then((m) => m.TemplateForm));
 const MonthCard = lazyScreen(() => import("./screens/MonthCard.js").then((m) => m.MonthCard));
 const Review = lazyScreen(() => import("./screens/Review.js").then((m) => m.Review));
 const Tracking = lazyScreen(() => import("./screens/Tracking.js").then((m) => m.Tracking));
@@ -81,6 +83,8 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/tenants/:id" component={TenantRoute} />
           <Route path="/tenancies/:id" component={TenancyRoute} />
           <Route path="/settings" component={SettingsRoute} />
+          <Route path="/settings/templates" component={TemplatesRoute} />
+          <Route path="/settings/templates/:id" component={TemplateRoute} />
           <Route path="/month/:period" component={ReviewRoute} />
           <Route path="/invoices" component={InvoicesRoute} />
           <Route path="/owed" component={OwedRoute} />
@@ -213,6 +217,27 @@ function TenancyRoute(props: Params) {
   return (
     <TenancyForm key={props.params["id"]} id={idOf(props)} setup={c.setup.value} today={c.today}
       onCreate={c.store.createTenancy} onUpdate={c.store.updateTenancy} onDelete={c.store.deleteTenancy} onDone={done} />
+  );
+}
+
+/** The templates list saves in place: making one the default reloads and stays. */
+function TemplatesRoute() {
+  const { store, setup, reload } = useSignedIn();
+  return (
+    <Templates setup={setup.value} onSetDefault={async (id) => {
+      const problem = await store.setDefaultTemplate(id);
+      if (problem === null) await reload();
+      return problem;
+    }} />
+  );
+}
+
+function TemplateRoute(props: Params) {
+  const c = useSignedIn();
+  const done = useDoneTo("/settings/templates");
+  return (
+    <TemplateForm key={props.params["id"]} id={idOf(props)} setup={c.setup.value}
+      onSave={c.store.saveTemplate} onDelete={c.store.deleteTemplate} onPreview={c.store.previewTemplate} onDone={done} />
   );
 }
 
