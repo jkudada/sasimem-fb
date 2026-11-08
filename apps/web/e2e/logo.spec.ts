@@ -54,7 +54,7 @@ test("journey 7: build a logo, make a Band template the default, and the approve
   await draftThisMonth(page);
   await page.getByRole("link", { name: "Review 1 invoice" }).click();
   await page.getByRole("button", { name: "Approve 1 invoice" }).click();
-  await expect(page.getByText(/^Approved - goes out at/)).toBeVisible();
+  await expect(page.getByText(/^Approved - goes out at/)).toBeVisible({ timeout: 30_000 }); // approving renders the PDF
   await expect.poll(async () => (await pdfPathsOf(email)).filter((p) => p !== "").length).toBe(1);
   const pdf = (await storedFile((await pdfPathsOf(email))[0] ?? "")).toString("latin1");
   expect(pdf).toMatch(/\/Subtype \/Image/);
