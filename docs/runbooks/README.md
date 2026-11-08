@@ -30,6 +30,8 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
    openssl rand -base64 32 | firebase functions:secrets:set APPROVAL_SIGNING_KEY --project sasimem-prod --data-file -
    firebase functions:secrets:set RESEND_API_KEY --project sasimem-prod   # paste the Resend key
    ```
+   Production sends through Resend. Only a test project may set `MAIL_PROVIDER=gmail` in its
+   `functions/.env.<project>`, and then the secret is `GMAIL_APP_PASSWORD` instead.
    Without a real `RESEND_API_KEY` everything still works except email: "Generate now" says the
    approval email did not go, and the tick's emails fail (each failure is in the org's email log).
 3. **Set the parameters** in `functions/.env.sasimem-prod`: `APP_URL` (the Hosting origin, or the
