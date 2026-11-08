@@ -92,18 +92,41 @@ All items done. Choices made while building (say if any is wrong):
 
 ## P3: logo builder
 
+All items done. Choices made while building (say if any is wrong):
+- **Fonts:** Modern (Work Sans), Classic (Lora), Sturdy (Roboto Slab), Handwritten
+  (Pacifico); open licences, Latin subset, about 88 KB together, fetched only by the builder.
+- **Icons are drawn for Sasimem** (house, building, key, palm, wave, mountain, leaf, star),
+  not taken from an icon set.
+- **Colours:** the 8 invoice colours plus white and ink. White text needs a shape behind
+  it, and text cannot match its shape's colour (it would not show).
+- **A badge (circle or rounded square) is 400 × 400; "No shape" is a wordmark** 160 px high
+  and as wide as its text (up to 400), which suits the letterhead's wide space.
+- **Band's white plate now hugs the logo** instead of a fixed 160-point box, so a square
+  logo has no blank beside it.
+- **The logo model is `@sasimem/core/logo`**, not in core's main export: there it changed
+  how Vite split the sign-in route's chunks (+2 KB). The sign-in route is unchanged.
+- **Fix found on the way:** a journey's first callable can meet a cold Functions emulator;
+  the shared draft step now waits up to 30 s.
+
+### core (T1)
+- [x] a first design is the org's initials; text 1-24; unknown shape/font/icon/colour refused; text that would not show refused
+
 ### Web (T1)
-- [ ] the builder draws the text, shape, colours, font and icon chosen
-- [ ] saving uploads one PNG ≤ 400 px and ≤ 200 KB, then saves `logoDesign`
-- [ ] reopening the builder restores every choice
-- [ ] uploading a file instead clears `logoDesign`; removing the logo clears both
-- [ ] text over 24 characters or empty is refused with a message
+- [x] the builder draws the text, shape, colours, font and icon chosen
+- [x] saving draws one PNG and saves it with the design (the real PNG: ≤ 400 px and ≤ 200 KB, checked in journey 7)
+- [x] reopening the builder restores every choice
+- [x] uploading a file instead clears `logoDesign`; removing the logo clears both (journey 7)
+- [x] text over 24 characters or empty is refused with a message
+- [x] every shape × icon × font, short or long text, lays out within 400 px with the text inside
 
 ### Security rules (T2)
-- [ ] `logoDesign` validates every field; an owner only
+- [x] `logoDesign` validates every field; an owner only
 
 ### Budgets
-- [ ] the builder's JS and fonts load only on its route; the sign-in route budget is unchanged
+- [x] the builder's JS and fonts load only on its route (journey 7 watches the requests); the sign-in route budget is unchanged (50.79 KB); the builder's own JS ≤ 8 KB
+
+### T4
+- [x] journey 7: build a logo → Band template as default → approve → the PDF carries the logo; reopen, upload instead, remove
 
 ## P4: HTML email
 
@@ -134,5 +157,5 @@ All items done. Choices made while building (say if any is wrong):
 - [ ] `ops/invite.ts` refuses to run without `--project`, and adds an invite
 
 ## T4 journeys (Playwright, emulators, 360 × 740)
-- [ ] (P3) build a logo → create a Band template → set it as default → override one tenancy with Compact → draft → approve → the two PDFs use their templates (the override part is journey 6)
+- [x] (P2-P3) build a logo → Band default → approve → the PDF carries the logo (journey 7); a tenancy overriding the default (journey 6)
 - [ ] an invited user signs up, verifies, creates an org, and reaches Home

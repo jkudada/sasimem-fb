@@ -3,6 +3,7 @@ import { useSignal } from "@preact/signals";
 import { ACCENTS, CLASSIC, FONTS, type InvoiceTemplate, LAYOUTS, MARKS, MAX_FOOTER, templateDeleteProblem, templateProblems } from "@sasimem/core";
 import type { Outcome, Setup } from "../setup.js";
 import { Back } from "./Back.js";
+import { Choice, Swatches } from "./Choices.js";
 import { Field, value } from "./Field.js";
 import { TemplateSketch } from "./TemplateSketch.js";
 import { defaultTemplateOf } from "./Templates.js";
@@ -10,23 +11,6 @@ import { defaultTemplateOf } from "./Templates.js";
 type Problems = ReturnType<typeof templateProblems>;
 
 /** A group of radio buttons, one per option. */
-function Choice<T extends string>(props: {
-  legend: string; name: string; options: readonly { id: T; label: string; hint?: string }[]; value: T; onChange: (v: T) => void; problem?: string | undefined;
-}) {
-  return (
-    <fieldset class="choices">
-      <legend class="field-label">{props.legend}</legend>
-      {props.options.map((o) => (
-        <label key={o.id} class="check">
-          <input type="radio" name={props.name} value={o.id} checked={props.value === o.id} onChange={() => props.onChange(o.id)} />
-          <span>{o.label}{o.hint !== undefined && <span class="field-hint"> {o.hint}</span>}</span>
-        </label>
-      ))}
-      {props.problem !== undefined && <span class="field-problem">{props.problem}</span>}
-    </fieldset>
-  );
-}
-
 export function TemplateForm(props: {
   id: string | null;
   setup: Setup;
@@ -101,17 +85,7 @@ export function TemplateForm(props: {
           <input value={name} onInput={(e) => (name.value = value(e))} />
         </Field>
         <Choice legend="Layout" name="layout" options={LAYOUTS} value={layout.value} onChange={(v) => (layout.value = v)} problem={p.layout} />
-        <fieldset class="choices">
-          <legend class="field-label">Colour</legend>
-          <div class="swatches">
-            {ACCENTS.map((a) => (
-              <label key={a.hex} class="swatch" style={{ background: a.hex }} title={a.label}>
-                <input type="radio" name="accent" value={a.hex} aria-label={a.label} checked={accent.value === a.hex} onChange={() => (accent.value = a.hex)} />
-              </label>
-            ))}
-          </div>
-          {p.accent !== undefined && <span class="field-problem">{p.accent}</span>}
-        </fieldset>
+        <Swatches legend="Colour" name="accent" colours={ACCENTS} value={accent.value} onChange={(v) => (accent.value = v)} problem={p.accent} />
         <Choice legend="Font" name="font" options={FONTS} value={font.value} onChange={(v) => (font.value = v)} problem={p.font} />
         <Choice legend="Top left of the invoice" name="mark" options={MARKS} value={mark.value} onChange={(v) => (mark.value = v)} problem={p.mark} />
         <Field label="Note on every invoice (optional)" hint={`Up to ${MAX_FOOTER} characters, such as "Thank you. Rent is due on the 1st."`} problem={p.footer}>

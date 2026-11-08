@@ -238,6 +238,14 @@ function payment(p: Page, top: number, s: Scale, boxColour: string | null): void
   }
 }
 
+/** A prepared (PNG) logo's size when fitted inside box × box, keeping its shape. */
+function fitted(png: Buffer, boxW: number, boxH: number): { w: number; h: number } {
+  const pw = png.readUInt32BE(16);
+  const ph = png.readUInt32BE(20);
+  const scale = Math.min(boxW / pw, boxH / ph);
+  return { w: pw * scale, h: ph * scale };
+}
+
 // ---- Band: a coloured band across the top with the name in white; colour on the totals.
 
 function band(p: Page): void {
@@ -245,8 +253,10 @@ function band(p: Page): void {
   doc.rect(0, 0, doc.page.width, 120).fill(t.accent);
   const mark = markOf(p);
   if (mark === "logo" && p.logo !== null) {
-    doc.roundedRect(left, 28, 172, 64, 6).fill(WHITE);
-    doc.image(p.logo, left + 6, 32, { fit: [160, 56] });
+    // A white plate just round the logo as it fits 160 × 56, so a square logo has no blank beside it.
+    const { w, h } = fitted(p.logo, 160, 56);
+    doc.roundedRect(left, 60 - h / 2 - 6, w + 12, h + 12, 6).fill(WHITE);
+    doc.image(p.logo, left + 6, 60 - h / 2, { width: w, height: h });
   } else if (mark === "monogram") {
     doc.circle(left + 28, 60, 28).fill(WHITE);
     doc.fillColor(t.accent).font(f.bold).fontSize(18).text(initials(org.name), left, 51, { width: 56, align: "center" });

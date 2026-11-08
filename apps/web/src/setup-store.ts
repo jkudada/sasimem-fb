@@ -71,6 +71,14 @@ export function setupStore(orgId: string): SetupStore {
   const org = `orgs/${orgId}`;
   const ref = (path: string) => doc(db, `${org}/${path}`);
 
+  /** Upload a logo under a new name each time, so a browser never shows a cached old one as the new. Old files stay (plan §5). */
+  const upload = async (extension: string, data: Blob, contentType: string): Promise<string> => {
+    const { ref: fileRef, uploadBytes } = await import("firebase/storage");
+    const path = `logos/${orgId}/${Date.now()}.${extension}`;
+    await uploadBytes(fileRef(await storage(), path), data, { contentType });
+    return path;
+  };
+
   return {
     async load(): Promise<Setup> {
       const [o, properties, tenants, tenancies, templates] = await Promise.all([
@@ -101,12 +109,14 @@ export function setupStore(orgId: string): SetupStore {
     saveProfile: (profile: OrgProfile) => attempt(() => updateDoc(doc(db, org), { ...profile })),
 
     uploadLogo: (file) => attempt(async () => {
-      const { ref: fileRef, uploadBytes } = await import("firebase/storage");
-      // A new name each time, so an old logo cached by a browser is never shown as the new one.
-      const path = `logos/${orgId}/${Date.now()}.${logoExtension(file.type)}`;
-      await uploadBytes(fileRef(await storage(), path), file, { contentType: file.type });
-      await updateDoc(doc(db, org), { logoPath: path });
+      const path = await upload(logoExtension(file.type), file, file.type);
+      await updateDoc(doc(db, org), { logoPath: path, logoDesign: deleteField() });
     }, "The logo could not be uploaded. Please try again."),
+
+    saveLogoDesign: (design, png) => attempt(async () => {
+      const path = await upload("png", png, "image/png");
+      await updateDoc(doc(db, org), { logoPath: path, logoDesign: { ...design } });
+    }, "The logo could not be saved. Please try again."),
 
     saveTemplate: (id, template, makeDefault) => attempt(async () => {
       const batch = writeBatch(db);
@@ -128,7 +138,7 @@ export function setupStore(orgId: string): SetupStore {
       return outcome;
     },
 
-    removeLogo: () => attempt(() => updateDoc(doc(db, org), { logoPath: deleteField() })),
+    removeLogo: () => attempt(() => updateDoc(doc(db, org), { logoPath: deleteField(), logoDesign: deleteField() })),
 
     async logoUrl(path) {
       try {

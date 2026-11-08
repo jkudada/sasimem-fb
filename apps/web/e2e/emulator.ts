@@ -108,3 +108,24 @@ export async function frozenTemplatesOf(email: string): Promise<Record<string, s
     return Object.fromEntries(Object.entries(template).map(([k, v]) => [k, v.stringValue ?? ""]));
   });
 }
+
+/** The org's logo fields as stored: the path, and whether a builder design is kept beside it. */
+export async function logoOf(email: string): Promise<{ orgId: string; logoPath: string | null; designed: boolean }> {
+  const orgId = await orgIdOf(email);
+  const doc = (await (await fetch(`${DOCS}/orgs/${orgId}`, { headers: OWNER })).json()) as { fields: Record<string, { stringValue?: string }> };
+  return { orgId, logoPath: doc.fields["logoPath"]?.stringValue ?? null, designed: "logoDesign" in doc.fields };
+}
+
+/** A file's bytes from the Storage emulator, read as an admin. */
+export async function storedFile(path: string): Promise<Buffer> {
+  const res = await fetch(`http://127.0.0.1:9199/v0/b/demo-sasimem.appspot.com/o/${encodeURIComponent(path)}?alt=media`, { headers: OWNER });
+  if (!res.ok) throw new Error(`no file at ${path}: ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/** Each invoice's rendered PDF path, empty until the PDF is rendered. */
+export async function pdfPathsOf(email: string): Promise<string[]> {
+  const orgId = await orgIdOf(email);
+  const res = (await (await fetch(`${DOCS}/orgs/${orgId}/invoices`, { headers: OWNER })).json()) as { documents?: { fields: Record<string, { stringValue?: string }> }[] };
+  return (res.documents ?? []).map((d) => d.fields["pdfPath"]?.stringValue ?? "");
+}

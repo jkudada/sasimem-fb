@@ -28,5 +28,6 @@ export async function onboard(page: Page): Promise<string> {
 /** Journey 1's ending: generate this month's invoices from home. */
 export async function draftThisMonth(page: Page): Promise<void> {
   await page.getByRole("button", { name: /^Generate .+'s invoices now$/ }).click();
-  await expect(page.getByText(/Sent you the approval link/)).toBeVisible();
+  // The first callable of a run can meet a cold Functions emulator, well past 5 s.
+  await expect(page.getByText(/Sent you the approval link/)).toBeVisible({ timeout: 30_000 });
 }

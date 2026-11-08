@@ -29,7 +29,7 @@ const fakeStore = (): SetupStore => ({
   load: vi.fn(async () => ({ ...setup })), // a fresh object each time, as a real read gives
   saveProperty: vi.fn(), deleteProperty: vi.fn(), saveTenant: vi.fn(), deleteTenant: vi.fn(),
   createTenancy: vi.fn(), updateTenancy: vi.fn(), deleteTenancy: vi.fn(), saveProfile: vi.fn(),
-  uploadLogo: vi.fn(), removeLogo: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
+  uploadLogo: vi.fn(), removeLogo: vi.fn(), saveLogoDesign: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
   saveTemplate: vi.fn(), deleteTemplate: vi.fn(), setDefaultTemplate: vi.fn(), previewTemplate: vi.fn(),
   numbering: vi.fn().mockResolvedValue({ next: 1, started: false }), setNextNumber: vi.fn(),
   month: vi.fn().mockResolvedValue(null),
