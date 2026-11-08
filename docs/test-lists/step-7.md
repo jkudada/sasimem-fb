@@ -1,6 +1,8 @@
 # Step 7 test list: hardening
 
-All items done except where marked. Written before the code (plan §9.1). Ticked as each goes red → green.
+All items done.
+
+Written before the code (plan §9.1). Ticked as each goes red → green.
 
 Where step 7 ends (plan §11 leaves the edges open; chosen here):
 - **In:** App Check, enforced on every callable and sent by the app; the ops scripts that
@@ -55,6 +57,6 @@ Choices the plan leaves open (say if any is wrong):
 - [x] throttled phone (nightly): the four journeys pass
 
 ## Run on sasimem-dev (recorded in docs/runbooks)
-- [ ] the restore drill: newest backup restored, compared and deleted, with timings
+- [x] the restore drill: newest backup restored, compared and deleted, with timings; a PITR clone too (docs/runbooks/restore.md)
 - [x] App Check: a web app, the reCAPTCHA Enterprise key made and registered, Firestore and Storage enforced; a rerun reuses the key
 - [x] alerts: the metric and both policies created (no email), and updated in place on a rerun

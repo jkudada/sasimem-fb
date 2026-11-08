@@ -49,3 +49,12 @@ gcloud firestore databases clone --project <id> --source-database='projects/<id>
 
 | Date | Project | Kind | Result |
 |---|---|---|---|
+| 2026-11-08 | sasimem-dev | PITR clone at 02:53 UTC | PASS: 3 of 3 documents identical. The clone took 676 s, the drill 705 s in all |
+| 2026-11-08 | sasimem-dev | backup of 2026-11-07 17:33 UTC | PASS: 0 of 0 documents (dev held no data then). Restore took 12 s, the drill 33 s in all |
+
+**Lessons from the first run, now built into the script:**
+- A restored copy inherits delete protection.
+- Polling a database delete's own operation can hang, so the drill waits for the database to answer 404 instead.
+- Every wait now has a deadline. The first PITR attempt hung after sending its clone request, and that clone had to be deleted by hand.
+
+**Test documents.** `_drill_marker/org1`, `_drill_marker/org1/invoices/i1` and `_drill_marker/ghost/invoices/i2` (whose parent document does not exist) were written to dev's `(default)` on 2026-11-08 at 02:52 UTC. They give the drill nested documents to compare. From the 2026-11-08 backup onward, the backup drill compares them too. Nothing reads them, and the rules deny clients.
