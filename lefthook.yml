@@ -1,10 +1,11 @@
 # Pre-push: fast checks only, never emulators (plan §9.4). Target < 30 s.
-# T1 runs first and alone: its 100 ms per-test alarm measures wall time, and
+# T1 runs first and alone: its 100 ms per-test alarm measures wall time, and a test over
+# it is timed again, up to three times, before the push fails (tools/unit-gate.mjs); also,
 # running it beside typecheck and lint inflated a 60 ms test to 118 ms.
 pre-push:
   piped: true
   commands:
     1_unit:
-      run: pnpm test:unit
+      run: node tools/unit-gate.mjs
     2_typecheck_and_lint:
       run: pnpm exec concurrently --kill-others-on-fail --raw "pnpm typecheck" "pnpm lint"

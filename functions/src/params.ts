@@ -23,3 +23,12 @@ export const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 export const usesGmail = (): boolean => process.env["MAIL_PROVIDER"] === "gmail";
 /** The secrets every function that sends mail declares: both senders', see above. */
 export const MAIL_SECRETS = [GMAIL_APP_PASSWORD, RESEND_API_KEY];
+
+/**
+ * Who may create an organisation (docs/PLAN-TEMPLATES.md §7): "invite" (the default)
+ * admits only emails in signupInvites, added by ops/invite.ts; "open" admits any
+ * verified email. Anything else is read as "invite", so a typo fails closed.
+ */
+export const SIGNUP_MODE = defineString("SIGNUP_MODE", { default: "invite", description: "invite (only invited emails may create an organisation) or open" });
+export type SignupMode = "invite" | "open";
+export const signupModeOf = (value: string): SignupMode => (value === "open" ? "open" : "invite");

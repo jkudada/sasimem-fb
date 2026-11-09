@@ -156,20 +156,42 @@ All items done. Choices made while building (say if any is wrong):
 
 ## P5: sign-up
 
+All items done. Choices made while building (say if any is wrong):
+- **`SIGNUP_MODE` defaults to `invite`**, and any value but `open` means invite, so a typo
+  fails closed. Dev and the emulator set `invite` explicitly; prod gets the default.
+- **The invitation is checked and used up in the same transaction that creates the org**;
+  one invitation makes one organisation. A retry by the same user still gets its org.
+- **Verified and invited are read from the Auth user record**, not the ID token, so a
+  just-confirmed email counts without waiting for the token to refresh.
+- **Anyone can still create an account and confirm its email**; only creating an
+  organisation needs the invitation (that is where mail can start going out). The
+  refusal reads "Sign-up is by invitation for now. Ask Sasimem for an invitation for this
+  email address." If sign-up is turned off in Firebase Auth instead, the sign-up screen
+  says the same, not "Something went wrong".
+- **A landlord who already has an organisation is never stopped** by the confirm screen.
+- **With main's closed sign-up** (Auth sign-up off, landlords added in the console): a
+  console-added landlord also needs an invitation and confirms their email before
+  creating an organisation. P5 is the step to opening sign-up (the user chose this);
+  the runbook says so.
+- **Invitations are kept under the email in lower case**; `ops/invite.ts` never resets one
+  (Firestore's 409 means already invited).
+- The sign-in route grew 0.37 KB (50.79 → 51.16 KB) for sending the confirmation link.
+
 ### Functions (T3)
-- [ ] in invite mode, `createOrg` refuses an email with no invite, with a clear message
-- [ ] in invite mode, an invited, verified email creates its org; the invite is used up
-- [ ] `createOrg` refuses an unverified email in either mode
-- [ ] in open mode, any verified email creates an org
-- [ ] the browser cannot read or write `signupInvites` (T2)
+- [x] in invite mode, `createOrg` refuses an email with no invite, with a clear message
+- [x] in invite mode, an invited, verified email creates its org; the invite is used up
+- [x] a used invitation is refused to anyone else
+- [x] `createOrg` refuses an unverified email in either mode
+- [x] in open mode, any verified email creates an org
+- [x] the browser cannot read or write `signupInvites` (T2)
 
 ### Web (T1)
-- [ ] after sign-up the onboarding screen asks the user to verify, and continues once verified
-- [ ] a refused sign-up shows "Sign-up is by invitation for now", not "Something went wrong"
+- [x] after sign-up the onboarding screen asks the user to verify, and continues once verified
+- [x] a refused sign-up shows "Sign-up is by invitation for now", not "Something went wrong"
 
 ### Ops (T1)
-- [ ] `ops/invite.ts` refuses to run without `--project`, and adds an invite
+- [x] `ops/invite.ts` refuses to run without `--project`, and adds an invite
 
 ## T4 journeys (Playwright, emulators, 360 × 740)
 - [x] (P2-P3) build a logo → Band default → approve → the PDF carries the logo (journey 7); a tenancy overriding the default (journey 6)
-- [ ] an invited user signs up, verifies, creates an org, and reaches Home
+- [x] journey 8: an uninvited user is told so; once invited, creates an org (every journey's onboarding is now invited and verified)
