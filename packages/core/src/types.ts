@@ -1,6 +1,7 @@
 /** Domain types shared by web and functions. Pure data - no Firebase, no DOM. */
 import type { Toea } from "./money.js";
 import type { CalendarDate, Period } from "./period.js";
+import type { InvoiceTemplate } from "./templates.js";
 
 export type UseType = "residential" | "commercial";
 
@@ -115,6 +116,8 @@ export interface PropertyInput {
   readonly address: string;
   readonly useType: UseType;
   readonly units: readonly Unit[];
+  /** Overrides the org's default template for its tenancies (docs/PLAN-TEMPLATES.md §3). */
+  readonly templateId?: string;
 }
 
 export interface TenantInput {
@@ -150,6 +153,8 @@ export interface TenancyDocument {
   readonly referenceCode: string;
   readonly invoiced: boolean;
   readonly extras: readonly Charge[];
+  /** Overrides the property's template and the org's default. Not a copy: the sync trigger leaves it alone. */
+  readonly templateId?: string;
 }
 
 /** What an invoice prints, frozen at approval (plan §4). Later edits never reach it. */
@@ -168,6 +173,8 @@ export interface InvoiceSnapshot {
   readonly tenantEmail: string;
   readonly unitLabel: string;
   readonly propertyAddress: string;
+  /** How it prints, resolved at approval. Absent on invoices approved before templates: they print as CLASSIC. */
+  readonly template?: InvoiceTemplate;
 }
 
 /** An invoice as stored at orgs/{orgId}/invoices/{tenancyId}_{period} (plan §4). Server-written only. */

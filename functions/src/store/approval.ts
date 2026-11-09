@@ -4,8 +4,8 @@
  * once, so everything it does is reads and buffered writes. PDFs follow the commit.
  */
 import {
-  type ApprovalEdits, type InvoiceDocument, type Period, type RunStatus, type TenancyDocument,
-  allocateNumbers, applyApprovalEdits, approvalOutcome, formatKina, invoiceSnapshot, toea,
+  type ApprovalEdits, type InvoiceDocument, type InvoiceTemplate, type Period, type RunStatus, type TenancyDocument,
+  allocateNumbers, applyApprovalEdits, approvalOutcome, formatKina, invoiceSnapshot, templateFor, toea,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
@@ -29,8 +29,9 @@ export async function approveRun(orgId: string, period: Period, req: ApproveRequ
     const outcome = approvalOutcome(runSnap.get("status") as RunStatus);
     if (outcome !== "approve") return outcome; // I4: approved or sent comes back unchanged
 
-    const [orgSnap, counterSnap, invoiceSnap] = await Promise.all([tx.get(r.org), tx.get(r.counter), tx.get(r.invoicesOf(period))]);
+    const [orgSnap, counterSnap, invoiceSnap, templateSnap] = await Promise.all([tx.get(r.org), tx.get(r.counter), tx.get(r.invoicesOf(period)), tx.get(r.templates)]);
     const org = orgSnap.data() as OrgDoc;
+    const templates = Object.fromEntries(templateSnap.docs.map((d) => [d.id, d.data() as InvoiceTemplate]));
     const editable = invoiceSnap.docs
       .map((d) => ({ id: d.id, doc: d.data() as InvoiceDocument }))
       .filter((i) => i.doc.status === "draft" || i.doc.status === "excluded");
@@ -41,6 +42,15 @@ export async function approveRun(orgId: string, period: Period, req: ApproveRequ
     ]);
     const tenancyOf = new Map(tenancies.map((t) => [t.id, t.data() as TenancyDocument | undefined]));
     const emailOf = new Map(tenants.map((t) => [t.id, (t.get("email") as string | undefined) ?? ""]));
+    // How each invoice prints is resolved now and frozen with it: tenancy, property, org
+    // default (docs/PLAN-TEMPLATES.md §3). At most 20 tenancies, so at most 20 properties.
+    const propertyIds = [...new Set([...tenancyOf.values()].flatMap((t) => (t === undefined ? [] : [t.propertyId])))];
+    const properties = await Promise.all(propertyIds.map((id) => tx.get(r.property(id))));
+    const templateIdOf = new Map(properties.map((p) => [p.id, p.get("templateId") as string | undefined]));
+    const templateOfTenancy = (id: string) => {
+      const tenancy = tenancyOf.get(id);
+      return templateFor({ tenancy, property: { templateId: tenancy === undefined ? undefined : templateIdOf.get(tenancy.propertyId) }, org }, templates);
+    };
 
     // The page's edits first, so numbering sees what the landlord ticked.
     const edited = req.edits === undefined
@@ -70,7 +80,7 @@ export async function approveRun(orgId: string, period: Period, req: ApproveRequ
       tx.update(r.invoice(e.id), {
         ...e.draft,
         status: "approved", number: n.number, numberSeq: n.seq, pdfPath: "",
-        snapshot: invoiceSnapshot(org, tenancyOf.get(doc.tenancyId) ?? { ...doc, propertyAddress: "" }, emailOf.get(doc.tenantId) ?? ""),
+        snapshot: invoiceSnapshot(org, tenancyOf.get(doc.tenancyId) ?? { ...doc, propertyAddress: "" }, emailOf.get(doc.tenantId) ?? "", templateOfTenancy(doc.tenancyId)),
       });
     }
     // A tenancy with an issued invoice is ended, never deleted (plan §4); the rules read this flag.
