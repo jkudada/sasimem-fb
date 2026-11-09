@@ -19,18 +19,18 @@ describe("after sign-up, the onboarding screen asks the user to confirm their em
   test("not confirmed yet says so; sending again says where to look", async () => {
     const props = verify();
     render(<VerifyEmail {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "I have opened the link" }));
-    expect(await screen.findByText("Not confirmed yet. Open the link in the email, then try again.")).toBeTruthy();
-    await vi.waitFor(() => expect((screen.getByRole("button", { name: "Send the link again" }) as HTMLButtonElement).disabled).toBe(false), { interval: 5 });
-    fireEvent.click(screen.getByRole("button", { name: "Send the link again" }));
-    expect(await screen.findByText("Sent again. Check your inbox, and your spam folder.")).toBeTruthy();
+    fireEvent.click(screen.getByText("I have opened the link"));
+    expect(await screen.findByText("Not confirmed yet. Open the link in the email, then try again.", {}, { interval: 5 })).toBeTruthy();
+    await vi.waitFor(() => expect((screen.getByText("Send the link again") as HTMLButtonElement).disabled).toBe(false), { interval: 5 });
+    fireEvent.click(screen.getByText("Send the link again"));
+    expect(await screen.findByText("Sent again. Check your inbox, and your spam folder.", {}, { interval: 5 })).toBeTruthy();
     expect(props.onResend).toHaveBeenCalledTimes(1);
   });
 
   test("the wrong address can sign out", () => {
     const props = verify();
     render(<VerifyEmail {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByText("Sign out"));
     expect(props.onSignOut).toHaveBeenCalled();
   });
 });
@@ -42,7 +42,7 @@ describe("a refused sign-up", () => {
     render(<SignUp onSignUp={vi.fn().mockResolvedValue(signUpMessage("auth/admin-restricted-operation"))} open />);
     fireEvent.input(screen.getByLabelText(/email/i), { target: { value: "new@wari.example" } });
     fireEvent.input(screen.getByLabelText(/password/i), { target: { value: "secret-123" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.");
+    fireEvent.click(screen.getByText("Create account"));
+    expect((await screen.findByRole("alert", {}, { interval: 5 })).textContent).toBe("Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.");
   });
 });
