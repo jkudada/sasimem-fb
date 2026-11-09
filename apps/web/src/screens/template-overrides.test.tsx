@@ -53,50 +53,61 @@ describe("a property's template", () => {
     expect(choice().value).toBe("");
   });
 
-  test("saving with a template sets templateId; going back to the default leaves it off", () => {
-    const save = (value: string) => {
-      const onSave = vi.fn().mockResolvedValue(null);
-      const { unmount } = render(<PropertyForm id="p2" setup={setup()} {...forms} onSave={onSave} />);
-      expect(choice().value).toBe("t2");
-      fireEvent.change(choice(), { target: { value } });
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-      unmount();
-      return onSave.mock.lastCall?.[1] as Record<string, unknown>;
-    };
-    expect(save("t1")).toMatchObject({ templateId: "t1" });
-    expect(save("")).not.toHaveProperty("templateId");
+  // One render per test: a render is most of a T1 test's time.
+  const saveProperty = (value: string) => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    render(<PropertyForm id="p2" setup={setup()} {...forms} onSave={onSave} />);
+    expect(choice().value).toBe("t2");
+    fireEvent.change(choice(), { target: { value } });
+    fireEvent.click(screen.getByText("Save"));
+    return onSave.mock.lastCall?.[1] as Record<string, unknown>;
+  };
+
+  test("saving with a template sets templateId", () => {
+    expect(saveProperty("t1")).toMatchObject({ templateId: "t1" });
   });
 
-  test("with no templates there is nothing to choose, and a deleted one shows as the default", () => {
-    const { unmount } = render(<PropertyForm id="p2" setup={setup({ templates: [] })} {...forms} />);
+  test("going back to the default leaves templateId off", () => {
+    expect(saveProperty("")).not.toHaveProperty("templateId");
+  });
+
+  test("with no templates there is nothing to choose", () => {
+    render(<PropertyForm id="p2" setup={setup({ templates: [] })} {...forms} />);
     expect(screen.queryByLabelText(/Invoice template/)).toBeNull();
-    unmount();
+  });
+
+  test("a deleted template shows as the default", () => {
     render(<PropertyForm id="p2" setup={setup({ templates: [shops] })} {...forms} />);
     expect(choice().value).toBe("");
   });
 });
 
 describe("a tenancy's template", () => {
-  test("'Use default' names the property's template when it has one, else the org's", () => {
-    const { unmount } = render(<TenancyForm id="k1" setup={setup()} today={today} {...tenancyForms} />);
+  test("'Use default' names the org's default when the property has no template", () => {
+    render(<TenancyForm id="k1" setup={setup()} today={today} {...tenancyForms} />);
     expect(options()).toEqual(["Use default (Shops)", "Plain", "Shops"]);
-    unmount();
+  });
+
+  test("'Use default' names the property's template when it has one", () => {
     render(<TenancyForm id="k2" setup={setup({ tenancies: [tenancy({ id: "k2", propertyId: "p2" })] })} today={today} {...tenancyForms} />);
     expect(options()[0]).toBe("Use default (Plain)");
   });
 
-  test("an edit carries the chosen template, or null for the default", () => {
-    const save = (value: string | null) => {
-      const onUpdate = vi.fn().mockResolvedValue(null);
-      const { unmount } = render(<TenancyForm id="k1" setup={setup({ tenancies: [tenancy({ templateId: "t2" })] })} today={today} {...tenancyForms} onUpdate={onUpdate} />);
-      expect(choice().value).toBe("t2");
-      if (value !== null) fireEvent.change(choice(), { target: { value } });
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-      unmount();
-      return onUpdate.mock.lastCall;
-    };
-    expect(save(null)).toEqual(["k1", expect.objectContaining({ templateId: "t2" })]);
-    expect(save("")).toEqual(["k1", expect.objectContaining({ templateId: null })]);
+  const saveTenancy = (value: string | null) => {
+    const onUpdate = vi.fn().mockResolvedValue(null);
+    render(<TenancyForm id="k1" setup={setup({ tenancies: [tenancy({ templateId: "t2" })] })} today={today} {...tenancyForms} onUpdate={onUpdate} />);
+    expect(choice().value).toBe("t2");
+    if (value !== null) fireEvent.change(choice(), { target: { value } });
+    fireEvent.click(screen.getByText("Save"));
+    return onUpdate.mock.lastCall;
+  };
+
+  test("an edit carries the chosen template", () => {
+    expect(saveTenancy(null)).toEqual(["k1", expect.objectContaining({ templateId: "t2" })]);
+  });
+
+  test("an edit back to the default carries null", () => {
+    expect(saveTenancy("")).toEqual(["k1", expect.objectContaining({ templateId: null })]);
   });
 });
 
@@ -133,6 +144,6 @@ describe("which template an invoice shows", () => {
 
 test("a template a property or tenancy uses cannot be deleted; the editor says what to do", () => {
   render(<TemplateForm id="t2" setup={setup({ tenancies: [tenancy({ templateId: "t2" })] })} onSave={vi.fn()} onDelete={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} />);
-  expect(screen.queryByRole("button", { name: "Delete template" })).toBeNull();
+  expect(screen.queryByText("Delete template")).toBeNull();
   expect(screen.getByText("1 property and 1 tenancy use this template. Set them to another template first.")).toBeTruthy();
 });

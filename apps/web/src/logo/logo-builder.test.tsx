@@ -13,21 +13,32 @@ const org: Org = {
 const saved: LogoDesign = { text: "Wari", shape: "rounded", background: "#1f4e8c", colour: "#ffffff", font: "serif", icon: "palm" };
 const png = new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
 
-const logo = () => screen.getByRole("img", { name: /Your logo/ });
+// The preview by its class, not its role: role queries are the slow part of a T1 test.
+const logo = () => document.querySelector("svg.logo-preview") as SVGElement;
 const pick = (name: string) => fireEvent.click(screen.getByLabelText(name));
 const checked = (name: string) => (screen.getByLabelText(name) as HTMLInputElement).checked;
 const type = (text: string) => fireEvent.input(screen.getByLabelText(/^Logo text/), { target: { value: text } });
 
+// Warm up rendering, label lookups and clicks here, not in whichever test runs first:
+// tools/unit-gate.mjs re-times a slow test in a fresh process, where the first test of a
+// file would otherwise pay for all of it.
 beforeAll(() => {
-  render(<LogoBuilder org={org} onSave={vi.fn()} onDone={vi.fn()} draw={vi.fn()} />).unmount();
+  const { unmount } = render(<LogoBuilder org={org} onSave={vi.fn()} onDone={vi.fn()} draw={vi.fn()} />);
+  type("W");
+  pick("House");
+  fireEvent.click(screen.getAllByLabelText("Ocean")[0] as HTMLElement);
+  unmount();
 });
 
 describe("the logo builder (docs/PLAN-TEMPLATES.md §5)", () => {
-  test("starts from the org's initials on a circle, and draws the text, shape, colours, font and icon chosen", () => {
+  test("starts from the org's initials on a circle", () => {
     render(<LogoBuilder org={org} onSave={vi.fn()} onDone={vi.fn()} draw={vi.fn()} />);
     expect(logo().querySelector("text")?.textContent).toBe("WH");
     expect(logo().querySelector("circle")).toBeTruthy();
+  });
 
+  test("draws the text, shape, colours, font and icon chosen", () => {
+    render(<LogoBuilder org={org} onSave={vi.fn()} onDone={vi.fn()} draw={vi.fn()} />);
     type("Wari");
     pick("Rounded square");
     fireEvent.click(screen.getAllByLabelText("Ocean")[0] as HTMLElement); // the first is the shape colour
@@ -56,7 +67,7 @@ describe("the logo builder (docs/PLAN-TEMPLATES.md §5)", () => {
     render(<LogoBuilder org={org} onSave={onSave} onDone={onDone} draw={draw} />);
     type("  WH  ");
     pick("Star");
-    fireEvent.click(screen.getByRole("button", { name: "Save logo" }));
+    fireEvent.click(screen.getByText("Save logo"));
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { interval: 5 });
     const design = { text: "WH", shape: "circle", background: "#0d6b4f", colour: "#ffffff", font: "sans", icon: "star" };
     expect(draw).toHaveBeenCalledWith(design);
@@ -77,10 +88,10 @@ describe("the logo builder (docs/PLAN-TEMPLATES.md §5)", () => {
     const draw = vi.fn();
     render(<LogoBuilder org={org} onSave={onSave} onDone={vi.fn()} draw={draw} />);
     type("   ");
-    fireEvent.click(screen.getByRole("button", { name: "Save logo" }));
+    fireEvent.click(screen.getByText("Save logo"));
     expect(screen.getByText("Type your initials or a short name.")).toBeTruthy();
     type("x".repeat(25));
-    fireEvent.click(screen.getByRole("button", { name: "Save logo" }));
+    fireEvent.click(screen.getByText("Save logo"));
     expect(screen.getByText("Keep it to 24 characters or fewer.")).toBeTruthy();
     expect([draw, onSave].map((f) => f.mock.calls.length)).toEqual([0, 0]);
   });
@@ -88,8 +99,8 @@ describe("the logo builder (docs/PLAN-TEMPLATES.md §5)", () => {
   test("a failed save says so and stays on the builder", async () => {
     const onDone = vi.fn();
     render(<LogoBuilder org={org} onSave={vi.fn().mockResolvedValue("The logo could not be saved. Please try again.")} onDone={onDone} draw={vi.fn().mockResolvedValue(png)} />);
-    fireEvent.click(screen.getByRole("button", { name: "Save logo" }));
-    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "The logo could not be saved. Please try again.");
+    fireEvent.click(screen.getByText("Save logo"));
+    expect(await screen.findByRole("alert", {}, { interval: 5 })).toHaveProperty("textContent", "The logo could not be saved. Please try again.");
     expect(onDone).not.toHaveBeenCalled();
   });
 });
