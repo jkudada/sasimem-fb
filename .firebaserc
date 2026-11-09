@@ -1,1 +1,6 @@
-{ "projects": { "dev": "sasimem-dev" } }
+{
+  "projects": { "dev": "sasimem-dev" },
+  "targets": {
+    "sasimem-dev": { "hosting": { "console": ["sasimem-ops-dev"] } }
+  }
+}

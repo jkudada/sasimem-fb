@@ -19,7 +19,7 @@ import { FakeMailer, tokens } from "../harness/mailer.js";
 describe("I7: no float reaches a document", () => {
   test("in anything createOrg writes", async () => {
     const uid = await newUser();
-    const { orgId } = await makeCreateOrg({ now: () => new Date("2026-09-20T01:00:00Z") }).run(request(uid, { ...typedOrg, firstInvoiceNumber: 142 }));
+    const { orgId } = await makeCreateOrg({ now: () => new Date("2026-09-20T01:00:00Z"), signupMode: () => "open" }).run(request(uid, { ...typedOrg, firstInvoiceNumber: 142 }));
     expect(await floatsUnder(adminDb(), `orgs/${orgId}`)).toEqual([]);
     expect(await floatsUnder(adminDb(), `users/${uid}`)).toEqual([]);
   });

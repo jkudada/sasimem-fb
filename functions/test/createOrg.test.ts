@@ -6,7 +6,7 @@ import { newUser, request, typedOrg } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 
 const now = new Date("2026-09-20T01:00:00Z");
-const createOrg = makeCreateOrg({ now: () => now });
+const createOrg = makeCreateOrg({ now: () => now, signupMode: () => "open" });
 
 describe("createOrg", () => {
   test("creates the organisation with the plan's defaults, its owner, the user's org list and the custom claim", async () => {
@@ -59,5 +59,102 @@ describe("createOrg", () => {
     expect((await adminDb().doc(`orgs/${fresh.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 1 });
     const continuing = await createOrg.run(request(await newUser(), { ...typedOrg, firstInvoiceNumber: 142 }));
     expect((await adminDb().doc(`orgs/${continuing.orgId}/private/counter`).get()).data()).toEqual({ nextInvoiceNumber: 142 });
+  });
+
+  test("starts a sixty-day Standard trial with the next SUB- reference, in the same transaction (PLAN-SUBSCRIBERS S1)", async () => {
+    const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+    const sub = (await adminDb().doc(`subscriptions/${orgId}`).get()).data();
+    expect(sub).toMatchObject({
+      planId: "standard", status: "trial", interval: "annual", priceToea: 40_000, tenancyLimit: 10, limitOverride: null,
+      trialEndsOn: "2026-11-18", paidThrough: null, graceDays: 14, activeTenancyCount: 0,
+      createdAt: Timestamp.fromDate(now), updatedAt: Timestamp.fromDate(now),
+    });
+    expect(sub?.["paymentReference"]).toMatch(/^SUB-\d{4,}$/);
+  });
+
+  test("each new subscriber gets the next reference, never one already given", async () => {
+    const refs = [];
+    for (let i = 0; i < 3; i++) {
+      const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+      refs.push((await adminDb().doc(`subscriptions/${orgId}`).get()).get("paymentReference") as string);
+    }
+    const numbers = refs.map((r) => Number(r.slice(4)));
+    expect(numbers[1]).toBe((numbers[0] ?? 0) + 1);
+    expect(numbers[2]).toBe((numbers[0] ?? 0) + 2);
+  });
+
+  test("the plan's price and limit come from plans/standard when it exists: prices are data", async () => {
+    await adminDb().doc("plans/standard").set({ name: "Standard", tenancyLimit: 12, priceToeaMonthly: 4_500, priceToeaAnnual: 45_000, public: true, order: 1 });
+    try {
+      const { orgId } = await createOrg.run(request(await newUser(), typedOrg));
+      expect((await adminDb().doc(`subscriptions/${orgId}`).get()).data()).toMatchObject({ priceToea: 45_000, tenancyLimit: 12 });
+    } finally {
+      await adminDb().doc("plans/standard").delete();
+    }
+  });
+
+  test("a retried call does not start a second subscription or use a second reference", async () => {
+    const uid = await newUser();
+    const first = await createOrg.run(request(uid, typedOrg));
+    const ref = (await adminDb().doc(`subscriptions/${first.orgId}`).get()).get("paymentReference");
+    const counterBefore = (await adminDb().doc("private/subscriptionCounter").get()).get("nextReference");
+    await createOrg.run(request(uid, typedOrg));
+    expect((await adminDb().doc(`subscriptions/${first.orgId}`).get()).get("paymentReference")).toBe(ref);
+    expect((await adminDb().doc("private/subscriptionCounter").get()).get("nextReference")).toBe(counterBefore);
+  });
+});
+
+describe("sign-up (docs/PLAN-TEMPLATES.md §7)", () => {
+  const invited = makeCreateOrg({ now: () => now, signupMode: () => "invite" });
+  const invite = (email: string) => adminDb().doc(`signupInvites/${email.toLowerCase()}`).set({ invitedAt: now });
+
+  test("in invite mode, an email with no invitation is refused with a clear message, and nothing is written", async () => {
+    const uid = await newUser();
+    const counterBefore = (await adminDb().doc("private/subscriptionCounter").get()).get("nextReference");
+    await expect(invited.run(request(uid, typedOrg))).rejects.toMatchObject({
+      code: "permission-denied", message: "Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.",
+    });
+    expect((await adminDb().doc(`users/${uid}`).get()).exists).toBe(false);
+    // A refused sign-up starts no trial and uses no SUB- reference (PLAN-SUBSCRIBERS S1).
+    expect((await adminDb().doc("private/subscriptionCounter").get()).get("nextReference")).toBe(counterBefore);
+  });
+
+  test("in invite mode, an invited, verified email creates its org and uses the invitation up", async () => {
+    const email = `Mary.${crypto.randomUUID()}@Wari.example`;
+    const uid = await newUser({ email });
+    await invite(email); // invitations are kept lower-case; the sign-up's case does not matter
+    const { orgId } = await invited.run(request(uid, typedOrg));
+    expect(orgId).toMatch(/.+/);
+    expect((await adminDb().doc(`subscriptions/${orgId}`).get()).data()).toMatchObject({ planId: "standard", status: "trial" });
+    expect((await adminDb().doc(`signupInvites/${email.toLowerCase()}`).get()).data()).toMatchObject({ usedBy: uid, usedAt: Timestamp.fromDate(now) });
+    expect((await invited.run(request(uid, typedOrg))).orgId).toBe(orgId); // a retry still gets its org
+  });
+
+  test("an invitation makes one organisation: a used one is refused to anyone else", async () => {
+    const email = `${crypto.randomUUID()}@wari.example`;
+    await invite(email);
+    await adminDb().doc(`signupInvites/${email}`).update({ usedBy: "someone-else", usedAt: now });
+    await expect(invited.run(request(await newUser({ email }), typedOrg))).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  test("an unverified email is refused in either mode, saying what to do", async () => {
+    const email = `${crypto.randomUUID()}@wari.example`;
+    await invite(email);
+    const uid = await newUser({ email, verified: false });
+    for (const call of [invited, createOrg]) {
+      await expect(call.run(request(uid, typedOrg))).rejects.toMatchObject({
+        code: "failed-precondition", message: "Confirm your email address first: open the link we emailed you, then try again.",
+      });
+    }
+    expect((await adminDb().doc(`signupInvites/${email}`).get()).get("usedBy")).toBeUndefined();
+  });
+
+  test("in open mode, any verified email creates an org, with no invitation", async () => {
+    expect((await createOrg.run(request(await newUser(), typedOrg))).orgId).toMatch(/.+/);
+  });
+
+  test("the deployed setting: only \"open\" opens sign-up; anything else, a typo included, means invite", async () => {
+    const { signupModeOf } = await import("../src/params.js");
+    expect(["open", "invite", "", "Open", "opne"].map(signupModeOf)).toEqual(["open", "invite", "invite", "invite", "invite"]);
   });
 });

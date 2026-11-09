@@ -10,7 +10,7 @@ import {
 import { type Firestore, Timestamp, type Transaction } from "firebase-admin/firestore";
 import { db } from "../admin.js";
 
-export type OrgDoc = OrgProfile & { readonly logoPath?: string };
+export type OrgDoc = OrgProfile & { readonly logoPath?: string; readonly defaultTemplateId?: string };
 
 export const invoiceId = (tenancyId: string, period: Period): string => `${tenancyId}_${period}`;
 
@@ -23,9 +23,11 @@ export function refs(orgId: string, firestore: Firestore = db()) {
     invoicesOf: (period: Period) => org.collection("invoices").where("period", "==", period),
     tenancies: org.collection("tenancies"),
     tenant: (id: string) => org.collection("tenants").doc(id),
+    property: (id: string) => org.collection("properties").doc(id),
     counter: org.collection("private").doc("counter"),
     issued: (n: number) => org.collection("issuedNumbers").doc(String(n)),
     events: org.collection("events"),
+    templates: org.collection("templates"),
   };
 }
 

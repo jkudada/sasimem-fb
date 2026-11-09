@@ -4,22 +4,26 @@ import * as a from "./approval.js";
 import { draftInvoice } from "./billing.js";
 import { parseKina, toea } from "./money.js";
 import { parsePeriod } from "./period.js";
+import { CLASSIC } from "./templates.js";
 import type { InvoiceStatus } from "./types.js";
 
 const OCT = parsePeriod("2026-10");
 
+const band = { name: "Shops", layout: "band", accent: "#1f4e8c", font: "times", mark: "monogram", footer: "Thank you." } as const;
+
 describe("the snapshot frozen at approval (plan §4)", () => {
-  test("holds the org's letterhead, bank and GST, and the tenant, unit and address, as they are now", () => {
+  test("holds the org's letterhead, bank and GST, the tenant, unit and address, and the template, as they are now", () => {
     const org = {
       name: "Wari Holdings", address: "Boroko", email: "mary@wari.example", logoPath: "logos/o1/1.png",
       gstRegistered: true, gstNumber: "500012345", bankName: "BSP", bankAccount: "1000 2345",
       invoicePrefix: "INV-", timezone: "Pacific/Port_Moresby", approvalLeadDays: 3, sendHour: 8, reminderAfterDays: 7, reminderMode: "auto" as const,
     };
-    expect(a.invoiceSnapshot(org, { tenantName: "Kila Trading", unitLabel: "Shop 1", propertyAddress: "Lot 9, Gordons" }, "pay@kila.example")).toEqual({
+    expect(a.invoiceSnapshot(org, { tenantName: "Kila Trading", unitLabel: "Shop 1", propertyAddress: "Lot 9, Gordons" }, "pay@kila.example", band)).toEqual({
       org: { name: "Wari Holdings", address: "Boroko", email: "mary@wari.example", logoPath: "logos/o1/1.png", gstRegistered: true, gstNumber: "500012345", bankName: "BSP", bankAccount: "1000 2345" },
       tenantName: "Kila Trading", tenantEmail: "pay@kila.example", unitLabel: "Shop 1", propertyAddress: "Lot 9, Gordons",
+      template: band,
     });
-    expect(a.invoiceSnapshot({ ...org, logoPath: undefined }, { tenantName: "K", unitLabel: "S", propertyAddress: "L" }, "k@k.example").org.logoPath).toBeNull();
+    expect(a.invoiceSnapshot({ ...org, logoPath: undefined }, { tenantName: "K", unitLabel: "S", propertyAddress: "L" }, "k@k.example", CLASSIC).org.logoPath).toBeNull();
   });
 });
 

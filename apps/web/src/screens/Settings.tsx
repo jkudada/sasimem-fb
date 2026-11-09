@@ -128,10 +128,16 @@ export function Settings(props: {
       <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF under 200 KB. It goes on future invoices.">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => void pickLogo(e)} />
       </Field>
+      <p><a href="/settings/logo">{o.logoDesign === undefined ? "Design a logo" : "Change your logo design"}</a></p>
+      {o.logoPath === undefined && <p class="note">No logo yet? Make one from your initials or name, a shape and an icon.</p>}
       {logoMessage.value !== null && <p role="status">{logoMessage.value}</p>}
       {o.logoPath !== undefined && (
         <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>
       )}
+
+      <h2>How your invoices look</h2>
+      <p><a href="/settings/templates">Invoice templates</a></p>
+      <p class="note">Choose a layout, colour, font and a note for your invoices.</p>
 
       <h2>Invoice numbers</h2>
       {numbering === null && <p class="note">Loading… You need a connection to see this.</p>}

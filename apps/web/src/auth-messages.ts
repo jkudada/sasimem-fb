@@ -12,4 +12,12 @@ const MESSAGES: Record<string, string> = {
   "auth/admin-restricted-operation": "Sasimem is not taking new accounts yet. If you already have one, sign in.",
 };
 
+/** Sign-up turned off in Firebase Auth, or the email provider: say so, not "Something went wrong". */
+export const SIGN_UP_CLOSED = "Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.";
+const SIGN_UP: Record<string, string> = {
+  "auth/admin-restricted-operation": SIGN_UP_CLOSED,
+  "auth/operation-not-allowed": SIGN_UP_CLOSED,
+};
+export const signUpMessage = (code: string): string => SIGN_UP[code] ?? authMessage(code);
+
 export const authMessage = (code: string): string => MESSAGES[code] ?? "Something went wrong. Please try again.";

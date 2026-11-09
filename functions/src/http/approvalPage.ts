@@ -10,8 +10,8 @@
  */
 import { createHash } from "node:crypto";
 import {
-  type CalendarDate, type InvoiceDocument, type Period, type RunStatus, type Toea,
-  arrears, dateLabel, formatKina, invoiceChip, isEditable, localDate, owedTotal, paidSummary, periodLabel, readApprovalForm,
+  type CalendarDate, type InvoiceDocument, type InvoiceTemplate, type Period, type RunStatus, type TenancyDocument, type Toea,
+  arrears, dateLabel, formatKina, invoiceChip, isEditable, localDate, owedTotal, paidSummary, periodLabel, readApprovalForm, templateFor,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
@@ -105,22 +105,42 @@ interface View {
   readonly sendAt: Date;
   readonly invoices: readonly (InvoiceDocument & { readonly id: string })[];
   readonly editable: readonly (InvoiceDocument & { readonly id: string })[];
+  /** Each draft's template name, as approval would resolve it now; empty when the org has no templates (all Classic). */
+  readonly templateNames: ReadonlyMap<string, string>;
 }
 
 async function loadView(orgId: string, period: Period): Promise<View> {
   const r = refs(orgId);
-  const [org, run, invoices] = await Promise.all([r.org.get(), r.run(period).get(), r.invoicesOf(period).get()]);
+  const [org, run, invoices, templateSnap] = await Promise.all([r.org.get(), r.run(period).get(), r.invoicesOf(period).get(), r.templates.get()]);
   const all = invoices.docs
     .map((d) => ({ ...(d.data() as InvoiceDocument), id: d.id }))
     .sort((a, b) => (a.tenantName < b.tenantName ? -1 : a.tenantName > b.tenantName ? 1 : 0));
+  const editable = all.filter((i) => i.status === "draft" || i.status === "excluded");
+  const o = org.data() as OrgDoc;
   return {
-    org: org.data() as OrgDoc,
+    org: o,
     period,
     status: run.get("status") as RunStatus,
     sendAt: (run.get("sendAt") as Timestamp).toDate(),
     invoices: all,
-    editable: all.filter((i) => i.status === "draft" || i.status === "excluded"),
+    editable,
+    templateNames: templateSnap.empty || editable.length === 0 ? new Map() : await templateNames(r, o, editable, templateSnap.docs),
   };
+}
+
+/** The template each draft would print with if approved now (the same resolution as approveRun). */
+async function templateNames(
+  r: ReturnType<typeof refs>, org: OrgDoc, drafts: readonly (InvoiceDocument & { readonly id: string })[],
+  docs: readonly FirebaseFirestore.QueryDocumentSnapshot[],
+): Promise<Map<string, string>> {
+  const templates = Object.fromEntries(docs.map((d) => [d.id, d.data() as InvoiceTemplate]));
+  const [tenancies, properties] = await Promise.all([r.tenancies.get(), r.org.collection("properties").get()]);
+  const tenancyOf = new Map(tenancies.docs.map((d) => [d.id, d.data() as TenancyDocument]));
+  const propertyOf = new Map(properties.docs.map((d) => [d.id, { templateId: d.get("templateId") as string | undefined }]));
+  return new Map(drafts.map((i) => {
+    const tenancy = tenancyOf.get(i.tenancyId);
+    return [i.id, templateFor({ tenancy, property: tenancy === undefined ? undefined : propertyOf.get(tenancy.propertyId), org }, templates).name];
+  }));
 }
 
 const FRESH_LINK_GAP_MS = 10 * 60_000;
@@ -182,7 +202,7 @@ function runPage(v: View, token: string, nonce: string, again?: { typed: PageReq
   const lead = v.status === "held"
     ? `<p class="w">These were held at ${esc(when)} because they had not been approved. This will go out within the hour once you approve.</p>`
     : `<p>Check each rent, untick anyone not to invoice this month, then approve. Nothing is sent before ${esc(when)}.</p>`;
-  const rows = v.editable.map((inv) => row(inv, again)).join("");
+  const rows = v.editable.map((inv) => row(inv, v.templateNames.get(inv.id), again)).join("");
   const included = v.editable.filter((i) => i.status === "draft");
   const total = included.reduce((s, i) => s + i.totalToea, 0);
   const n = included.length;
@@ -193,7 +213,7 @@ function runPage(v: View, token: string, nonce: string, again?: { typed: PageReq
 <p class="m">Approving gives each invoice its number and fixes it. Unticked tenants are not invoiced this month.</p>`;
 }
 
-function row(inv: InvoiceDocument & { id: string }, again?: { typed: PageRequest["form"]; problems: Readonly<Record<string, string>> }): string {
+function row(inv: InvoiceDocument & { id: string }, template: string | undefined, again?: { typed: PageRequest["form"]; problems: Readonly<Record<string, string>> }): string {
   const rent = inv.lines.find((l) => l.kind === "rent");
   const extras = inv.lines.filter((l) => l.kind !== "rent");
   const other = extras.reduce((s, l) => s + l.amountToea + l.gstToea, 0);
@@ -203,7 +223,7 @@ function row(inv: InvoiceDocument & { id: string }, again?: { typed: PageRequest
   // data-g: rent attracts GST; data-o: other charges with their GST. Only the optional script reads them.
   return `<div class="r"><p><b>${esc(inv.tenantName)}</b> · ${esc(inv.unitLabel)} · <span class="m">${esc(inv.paymentReference)}</span></p>
 <label>Rent<span class="sr"> for ${esc(inv.tenantName)}</span> <input name="rent.${esc(inv.id)}" value="${esc(typed ?? k(rent?.amountToea ?? 0))}" inputmode="decimal" data-g="${rent?.gstApplicable === true ? 1 : 0}" data-o="${other}"></label>${problem === undefined ? "" : `<span class="p">${esc(problem)}</span>`}
-<label class="c"><input type="checkbox" name="include.${esc(inv.id)}"${ticked ? " checked" : ""}> Invoice<span class="sr"> ${esc(inv.tenantName)}</span> this month</label>${extras.length > 0 ? `<p class="m">Plus ${k(other)} in other charges${inv.gstToea > 0 ? ", GST included" : ""}.</p>` : ""}</div>`;
+<label class="c"><input type="checkbox" name="include.${esc(inv.id)}"${ticked ? " checked" : ""}> Invoice<span class="sr"> ${esc(inv.tenantName)}</span> this month</label>${extras.length > 0 ? `<p class="m">Plus ${k(other)} in other charges${inv.gstToea > 0 ? ", GST included" : ""}.</p>` : ""}${template === undefined ? "" : `<p class="m">Template: ${esc(template)}</p>`}</div>`;
 }
 
 type Issued = InvoiceDocument & { readonly id: string };

@@ -1,6 +1,6 @@
 # Subscribers: plans, billing, the operator console
 
-Status: **planned, not started.** Agreed with the user on 2026-11-08 ("go with
+Status: **S1 and S2 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console); S3-S6 to come. Agreed with the user on 2026-11-08 ("go with
 your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 `docs/product.md` §9 (business model), and on `docs/PLAN-TEMPLATES.md` §7
 (sign-up by invitation, phase P5).
@@ -17,7 +17,7 @@ your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 | D6 | Existing users before billing | Marked **free for good** with their own limit (`limitOverride`). The first landlord ("Suzie Oken") is one |
 | D7 | How subscriber invoices are made, first | **Phase A, dogfooding:** a "Sasimem" org in prod bills subscribers as its tenants, with Sasimem's own engine (§5). The user creates it; Claude never touches prod |
 | D8 | Later | **Phase B:** a `subscriptionBilling` module with its own `SUB-` numbering and a renewal tick, when Phase A gets tedious (about 20+ paying subscribers) |
-| D9 | Operator console | **A separate app** (`apps/ops`) on its own Hosting site, not a route in the landlord app |
+| D9 | Operator console | **A separate app** (`apps/console`; `ops/` is taken by the scripts) on its own Hosting site, not a route in the landlord app |
 | D10 | Operator access | An `operator: true` custom claim, set only by an ops script; **TOTP MFA required** (Identity Platform upgrade). Starts with the user alone; the model allows more |
 | D11 | Support access | **Read-only "view as".** No impersonation that can write. Operator changes go through named, audited callables |
 | D12 | Cancellation | 90 days read-only with export, then purge. **Issued invoices and their PDFs are kept 7 years** (to confirm with an accountant) |
@@ -63,15 +63,18 @@ invite → trial ──┤                                                      
 
 | Status | The landlord can | Changes when |
 |---|---|---|
-| `trial` | everything, Standard limits | `trialEndsAt` passes: `active` if paid (`paidThrough` in the future), else `past_due` |
+| `trial` | everything, Standard limits | the day after `trialEndsOn`: `active` if paid (`paidThrough` not passed), else `past_due` |
 | `free` | everything within the limit | an operator changes the plan |
-| `active` | everything | `paidThrough` passes: `past_due` |
-| `past_due` | everything, with a banner and reminder emails | payment: `active`; `graceDays` (14) pass: `restricted` |
+| `active` | everything | the day after `paidThrough`: `past_due` |
+| `past_due` | everything, with a banner and reminder emails | payment: `active`; after `graceDays` (14) days: `restricted` |
 | `restricted` | read, export, mark paid, approve and send runs already drafted; **no new period is drafted** | payment: `active`, and the missed period drafts on the next tick |
 | `cancelled` | read and export | 90 days pass: `purged` |
 | `purged` | nothing (the org is gone; issued invoices are kept in cold storage) | - |
 
-- **One pure function decides:** `nextSubscriptionStatus(sub, now)` → status.
+- **Dates, not instants.** `trialEndsOn`, `paidThrough`, `cancelledOn` and `purgeAfter` are
+  calendar dates (`"YYYY-MM-DD"`) in Port Moresby time, each the last day covered.
+  Past-due and restricted dates are worked out from them, not stored.
+- **One pure function decides:** `subscriptionStatus(sub, today)` → status (core).
   The daily subscription tick (§6) applies it; the operator's actions apply it
   straight after recording a payment or changing a plan.
 - **Going over the limit** (a plan downgraded below current use) never ends a
@@ -125,10 +128,10 @@ plans/{planId}                     name, tenancyLimit, priceToeaMonthly, priceTo
 subscriptions/{orgId}              planId, status, interval ("annual"|"monthly"),
                                    priceToea (locked), tenancyLimit (copied from the plan,
                                    or limitOverride), limitOverride?,
-                                   trialEndsAt?, paidThrough?, graceDays (14),
-                                   pastDueAt?, restrictedAt?, cancelledAt?, purgeAfter?,
-                                   paymentReference ("SUB-0042"), activeTenancyCount,
-                                   termsVersion, termsAcceptedAt, createdAt, updatedAt
+                                   trialEndsOn, paidThrough, graceDays (14),        # calendar dates or null
+                                   cancelledOn, purgeAfter,                          # calendar dates or null
+                                   paymentReference ("SUB-0042", null for free), activeTenancyCount,
+                                   createdAt, updatedAt         (+ termsVersion, termsAcceptedAt in S4/P5)
                                                                             server-write; owner read
   payments/{autoId}                amountToea, receivedOn ("YYYY-MM-DD"), method ("bank"),
                                    bankReference, coversFrom, coversTo, recordedBy, at
@@ -146,8 +149,9 @@ private/subscriptionCounter        { nextReference }                        serv
   rules. A separate server-write-only collection uses the rule pattern already
   used for runs and invoices.
 - **The tenancy limit in rules.** Rules cannot count, so a trigger on
-  `orgs/{orgId}/tenancies/{id}` keeps `activeTenancyCount` (tenancies with no
-  `endDate`, or an `endDate` today or later). The tenancy **create** rule adds one
+  `orgs/{orgId}/tenancies/{id}` (`onTenancyWritten`) **recounts** `activeTenancyCount`
+  (tenancies with no `endDate`, or an `endDate` today or later) on every write; a
+  recount, not +1/-1, so a lost or repeated event cannot leave it wrong. The tenancy **create** rule adds one
   `get()`: `subscriptions/{orgId}.activeTenancyCount < tenancyLimit`. Two creates
   at the same instant can pass together; the daily tick recounts and the draft
   step re-checks, so the worst case is one tenancy over for a day. A tenancy
@@ -156,21 +160,24 @@ private/subscriptionCounter        { nextReference }                        serv
   `restricted`, `cancelled` or `purged`, and logs it; `draftNow` refuses the same
   orgs with a plain message. It does not trim tenancies over
   the limit (§4: going over never ends one).
-- **Custom claims.** `operator: true` sits beside `orgIds`. Rules:
-  `isOperator() = request.auth.token.operator == true && request.auth.token.firebase.sign_in_second_factor != null`.
+- **Custom claims.** `operator: true` sits beside `orgIds`. Rules: `isOperator()` needs
+  the claim **and** `request.auth.token.firebase.sign_in_second_factor`.
   Operators **read** `orgs/**` (not `private/*`), `subscriptions/**`, `operatorEvents`, `plans`;
   they write nothing directly.
-- **Indexes:** `subscriptions` by `status` + `paidThrough`; by `status` + `trialEndsAt`.
+- **Indexes (S2):** `subscriptions` by `status` + `paidThrough`; by `status` + `trialEndsOn`.
 
-## 7. Operator console (`apps/ops`)
+## 7. Operator console (`apps/console`)
 
 A small Preact + Vite app, sharing `core` and the design tokens, deployed to its
-own Hosting site (`sasimem-ops` / `sasimem-ops-dev`) with its own App Check
-registration. Sign-in requires a second factor.
+own Hosting site (`sasimem-ops` / `sasimem-ops-dev`) from `firebase.console.json`, so the
+main `firebase.json` and the emulators are unchanged. It uses the landlord app's Firebase
+web app and App Check key, with the console's domains added to the key. Sign-in requires
+a TOTP second factor; the console has no emulator mode, since the Auth emulator has no TOTP.
+The Health page reads `system/tick`, which the tick writes after each successful run.
 
 | Screen | Content |
 |---|---|
-| **Subscribers** | One row per org: name, plan, status, tenancies used / limit, `paidThrough` or `trialEndsAt`, last approval, held runs, email bounces in 30 days. Filters: past due, restricted, trial ending in 14 days, unhealthy |
+| **Subscribers** | One row per org: name, plan, status, tenancies used / limit, `paidThrough` or `trialEndsOn`, last approval, held runs, email bounces in 30 days. Filters: past due, restricted, trial ending in 14 days, unhealthy |
 | **Subscriber** | Org details, subscription, payments, notes, audit trail; their recent runs, invoices and email log read-only ("view as", D11) |
 | **Actions** (callables) | `recordPayment`, `changePlan`, `extendTrial`, `setLimitOverride`, `restrict` / `unrestrict` (manual), `cancelSubscription`, `reinstate`, `addNote` |
 | **Invites** | Send, resend and revoke invitations with a plan and trial length (extends P5's `ops/invite.ts`) |
@@ -181,7 +188,9 @@ registration. Sign-in requires a second factor.
 Every action is one callable that checks `isOperator`, applies `core`'s rules,
 writes the subscription and an `operatorEvents` document in one transaction, and
 returns the new state. `recordPayment` moves `paidThrough` forward by the term
-paid for (from the later of today and the old `paidThrough`) and re-evaluates the status.
+paid for and re-evaluates the status. The term continues from the last day covered
+(a trial's end, or the old `paidThrough` while in grace, so grace is not free time),
+except when restricted, when it starts today (core's `extendPaidThrough`).
 
 ## 8. What the landlord sees
 
@@ -246,8 +255,8 @@ gets a second policy for it.
 
 | Phase | Content | Estimate |
 |---|---|---|
-| S1 | `core`: plans, `nextSubscriptionStatus`, limit check, `paidThrough` arithmetic, payment references. `plans`, `subscriptions`, `operatorEvents` + rules + rules tests; tenancy-count trigger and the create rule; `createOrg` makes a trial (or free, by flag) subscription; `ops/plans.ts`, `ops/grant-operator.ts`, `ops/backfill-subscriptions.ts` (existing orgs → free, D6) | ~3 days |
-| S2 | `apps/ops`: MFA sign-in, Subscribers, Subscriber (read-only), Health; Hosting site for dev | ~4 days |
+| S1 ✓ | `core`: plans, `subscriptionStatus`, limit check, `paidThrough` arithmetic, payment references. `plans`, `subscriptions`, `operatorEvents` + rules + rules tests; tenancy-count trigger and the create rule; `createOrg` makes a trial (or free, by flag) subscription; `ops/plans.ts`, `ops/grant-operator.ts`, `ops/backfill-subscriptions.ts` (existing orgs → free, D6) | ~3 days |
+| S2 ✓ | `apps/console`: TOTP sign-in and set-up, Subscribers, Subscriber (read-only), Health; `system/tick`; hosting config for dev (deploy waits for TOTP on dev) | ~4 days |
 | S3 | Operator callables and the audit trail; Invites (after Templates P5) | ~3 days |
 | S4 | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
 | S5 | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
@@ -258,6 +267,11 @@ About 3½ weeks for S1-S6. Phase A works in prod from the first paying subscribe
 with no code.
 
 ## 13. Actions for the user (prod, or account-level)
+
+- **Deploy order for S1** (on any project): `node ops/plans.ts`, then
+  `node ops/backfill-subscriptions.ts`, **then** deploy Functions and rules. The new
+  tenancy rule refuses an org with no subscription, so backfill comes first.
+  See `docs/runbooks/subscribers.md`.
 
 - Create the "Sasimem" org in prod for Phase A (D7), with the business's details.
 - Upgrade Firebase Auth to Identity Platform (TOTP MFA) on dev and prod; a small

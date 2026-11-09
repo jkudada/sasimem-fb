@@ -14,6 +14,7 @@ import type { FirstTenancy } from "./screens/TenancyStep.js";
 const SignIn = lazyScreen(() => import("./screens/SignIn.js").then((m) => m.SignIn));
 const SignUp = lazyScreen(() => import("./screens/SignUp.js").then((m) => m.SignUp));
 const ResetPassword = lazyScreen(() => import("./screens/ResetPassword.js").then((m) => m.ResetPassword));
+const VerifyEmail = lazyScreen(() => import("./screens/VerifyEmail.js").then((m) => m.VerifyEmail));
 const OrgStep = lazyScreen(() => import("./screens/OrgStep.js").then((m) => m.OrgStep));
 const TenancyStep = lazyScreen(() => import("./screens/TenancyStep.js").then((m) => m.TenancyStep));
 const SignedIn = lazyScreen(() => import("./SignedIn.js").then((m) => m.SignedIn));
@@ -24,6 +25,10 @@ export interface Actions {
   signUp: SignInAction;
   reset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Email the confirmation link again; a problem, or null. */
+  resendVerification: () => Promise<string | null>;
+  /** Ask Auth whether the email is confirmed now; the session follows when it is. */
+  checkVerified: () => Promise<boolean>;
   createOrg: (input: OrgSetupInput) => Promise<string | null>;
   saveFirstTenancy: (first: FirstTenancy) => Promise<string | null>;
   /** Firestore for the setup screens, loaded after sign-in. */
@@ -60,6 +65,9 @@ export function App(props: { session: ReadonlySignal<Session>; actions: Actions;
         </Router>
       </LocationProvider>
     );
+  }
+  if (screen === "verify" && session.status === "signedIn") {
+    return <VerifyEmail email={session.email} onCheck={actions.checkVerified} onResend={actions.resendVerification} onSignOut={actions.signOut} />;
   }
   if (screen === "onboarding" && session.status === "signedIn") return <OrgStep defaultEmail={session.email} onSubmit={createOrg} />;
   if (addingTenant.value) return <TenancyStep today={props.today() as CalendarDate} onSubmit={saveFirstTenancy} />;

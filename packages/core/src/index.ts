@@ -8,4 +8,7 @@ export * from "./tenancies.js";
 export * from "./approval.js";
 export * from "./messages.js";
 export * from "./payments.js";
+export * from "./templates.js";
+export * from "./sample.js";
 export type * from "./types.js";
+export * from "./subscriptions.js";
