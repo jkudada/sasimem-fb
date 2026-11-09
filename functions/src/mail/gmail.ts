@@ -46,7 +46,15 @@ export class GmailMailer implements Mailer {
       ...(mail.replyTo === undefined ? {} : { replyTo: mail.replyTo }),
       subject: mail.subject,
       text: mail.text,
-      ...(mail.attachments === undefined ? {} : { attachments: mail.attachments.map((a) => ({ filename: a.filename, content: a.content })) }),
+      ...(mail.html === undefined ? {} : { html: mail.html }),
+      // An inline image (the logo) carries its content ID, which the HTML shows as cid:{id}.
+      ...(mail.attachments === undefined ? {} : {
+        attachments: mail.attachments.map((a) => ({
+          filename: a.filename, content: a.content,
+          ...(a.contentId === undefined ? {} : { cid: a.contentId }),
+          ...(a.contentType === undefined ? {} : { contentType: a.contentType }),
+        })),
+      }),
     };
     try {
       const sent = await this.smtp().sendMail(message);

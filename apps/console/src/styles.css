@@ -1,0 +1,71 @@
+/* Plain CSS with tokens, mobile-first (plan §7). Works at 320 px; tap targets >= 44 px. */
+:root {
+  --ink: #1c2321; --muted: #5b6662; --line: #c9d1ce; --paper: #fbfbf9; --accent: #0d6b4f; --problem: #a3261b;
+  --gap: 16px; --radius: 8px; --tap: 44px;
+  font: 16px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+.narrow { max-width: 32rem; margin: 0 auto; padding: var(--gap); }
+h1 { font-size: 1.5rem; margin: 0.5rem 0 1rem; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+form { display: grid; gap: var(--gap); }
+.field { display: grid; gap: 4px; }
+.field-label { font-weight: 600; }
+.field-hint, .note { color: var(--muted); font-size: 0.9rem; }
+.field-problem, [role="alert"] { color: var(--problem); font-size: 0.95rem; }
+input:not([type="checkbox"]):not([type="radio"]) { min-height: var(--tap); padding: 8px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius); width: 100%; }
+.check { display: flex; gap: 12px; align-items: center; min-height: var(--tap); }
+.check input { width: 22px; height: 22px; }
+fieldset { border: 0; padding: 0; margin: 0; }
+button { min-height: var(--tap); padding: 0 20px; font: inherit; font-weight: 600; border: 0; border-radius: var(--radius); background: var(--accent); color: #fff; width: 100%; }
+button.quiet { background: transparent; color: var(--accent); margin-top: 8px; }
+button:disabled { opacity: 0.6; }
+a { color: var(--accent); }
+/* Step 3: setup screens. */
+select { min-height: var(--tap); padding: 8px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius); width: 100%; background: #fff; color: var(--ink); }
+a.button { display: flex; align-items: center; justify-content: center; min-height: var(--tap); padding: 0 20px; font-weight: 600; border-radius: var(--radius); background: var(--accent); color: #fff; text-decoration: none; margin: var(--gap) 0; }
+a.back { display: inline-flex; align-items: center; min-height: var(--tap); text-decoration: none; }
+ul.links, ul.units { list-style: none; padding: 0; margin: 0; }
+ul.links li { display: grid; min-height: var(--tap); align-content: center; border-bottom: 1px solid var(--line); padding: 8px 0; }
+ul.links a { font-weight: 600; }
+summary { min-height: var(--tap); line-height: var(--tap); cursor: pointer; } /* a 44 px target, like every other control */
+ul.units li { padding: 6px 0; overflow-wrap: anywhere; }
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px var(--gap); margin: 0 0 var(--gap); display: grid; gap: 12px; }
+.card h2 { margin: 0; }
+.card legend { font-weight: 600; padding: 0 4px; }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+/* A line of separate actions under a card: each one as wide as its words, underlined like a link, wrapping on a narrow phone. */
+.actions { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.actions button { width: auto; margin: 0; padding: 0 2px; text-decoration: underline; text-underline-offset: 4px; }
+.state { color: var(--muted); font-size: 0.9rem; }
+.state.current { color: var(--accent); }
+button.danger { background: transparent; color: var(--problem); border: 1px solid var(--problem); }
+button.small { width: auto; margin: 0; }
+img.logo { max-width: 160px; max-height: 80px; display: block; margin-bottom: 8px; }
+[role="status"] { color: var(--accent); }
+.card a, ul.units a { display: inline-flex; align-items: center; min-height: var(--tap); } /* inline links still get a 44 px target */
+
+/* Where an invoice stands (core.invoiceChip): words first, colour only as a hint. */
+.chip { font-weight: 600; }
+.chip-paid { color: var(--accent); }
+.chip-overdue { color: var(--problem); }
+
+/* The operator console: wider pages and tables, for a desk more than a phone. */
+main:not(.narrow) { max-width: 72rem; margin: 0 auto; padding: var(--gap); }
+header.top { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; max-width: 72rem; margin: 0 auto; padding: 8px var(--gap); border-bottom: 1px solid var(--line); }
+header.top nav { display: flex; gap: 24px; flex: 1; }
+header.top nav a { display: inline-flex; align-items: center; min-height: var(--tap); font-weight: 600; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 var(--gap); }
+.filters button { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.filters button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.problem { color: var(--problem); }
+.status-past_due, .status-restricted, .status-none { color: var(--problem); font-weight: 600; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+code.key { font-size: 1.1rem; letter-spacing: 0.1em; overflow-wrap: anywhere; }

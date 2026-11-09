@@ -23,7 +23,7 @@ export default tseslint.config(
   },
   {
     // Money is integer toea (plan §3.1, I7). parseFloat on an amount is the classic drift bug.
-    files: ["packages/core/**/*.ts", "functions/**/*.ts", "apps/web/**/*.{ts,tsx}"],
+    files: ["packages/core/**/*.ts", "functions/**/*.ts", "apps/web/**/*.{ts,tsx}", "apps/console/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-globals": ["error", noParseFloat],
       "no-restricted-properties": ["error", { object: "Number", property: "parseFloat", message: "Use parseKina from @sasimem/core." }],

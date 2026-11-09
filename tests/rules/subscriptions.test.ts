@@ -98,18 +98,23 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
       [`orgs/${s.orgId}/runs/2026-10`]: { status: "sent" },
       [`orgs/${s.orgId}/invoices/k1_2026-10`]: { status: "sent" },
       [`orgs/${s.orgId}/emails/e1`]: { kind: "invoice" },
+      [`orgs/${s.orgId}/templates/t1`]: { name: "Plain" },
       [`subscriptions/${s.orgId}/notes/n1`]: { text: "note" },
       [`subscriptions/${s.orgId}/payments/pay1`]: { amountToea: 40_000 },
       "operatorEvents/ev1": { kind: "recordPayment", orgId: s.orgId },
+      "system/tick": { lastSuccessAt: new Date(), tally: {} },
     });
     const op = operator();
     for (const path of [
       `orgs/${s.orgId}`, `orgs/${s.orgId}/properties/${s.propertyId}`, `orgs/${s.orgId}/tenants/${s.tenantId}`,
       `orgs/${s.orgId}/tenancies/k1`, `orgs/${s.orgId}/runs/2026-10`, `orgs/${s.orgId}/invoices/k1_2026-10`,
-      `orgs/${s.orgId}/emails/e1`, `subscriptions/${s.orgId}`, `subscriptions/${s.orgId}/notes/n1`,
-      `subscriptions/${s.orgId}/payments/pay1`, "operatorEvents/ev1",
+      `orgs/${s.orgId}/emails/e1`, `orgs/${s.orgId}/templates/t1`, `subscriptions/${s.orgId}`, `subscriptions/${s.orgId}/notes/n1`,
+      `subscriptions/${s.orgId}/payments/pay1`, "operatorEvents/ev1", "system/tick",
     ]) await assertSucceeds(getDoc(doc(op, path)));
+    // The Subscribers list reads whole collections.
     await assertSucceeds(getDocs(collection(op, "subscriptions")));
+    await assertSucceeds(getDocs(collection(op, "orgs")));
+    await assertSucceeds(getDocs(collection(op, `orgs/${s.orgId}/runs`)));
   });
 
   test("not even an operator reads the invoice counter", async () => {
@@ -136,9 +141,12 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
     await assertFails(setDoc(doc(op, "plans/standard"), { tenancyLimit: 99 }));
   });
 
-  test("an owner cannot read the audit trail", async () => {
+  test("an owner cannot read the audit trail or the tick's heartbeat, or list other orgs", async () => {
     const s = await seedOrg(env);
-    await seed({ "operatorEvents/ev3": { kind: "x", orgId: s.orgId } });
-    await assertFails(getDoc(doc(env.authenticatedContext(s.ownerUid).firestore(), "operatorEvents/ev3")));
+    await seed({ "operatorEvents/ev3": { kind: "x", orgId: s.orgId }, "system/tick": { lastSuccessAt: new Date(), tally: {} } });
+    const owner = env.authenticatedContext(s.ownerUid).firestore();
+    await assertFails(getDoc(doc(owner, "operatorEvents/ev3")));
+    await assertFails(getDoc(doc(owner, "system/tick")));
+    await assertFails(getDocs(collection(owner, "orgs")));
   });
 });

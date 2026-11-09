@@ -34,6 +34,21 @@ describe("the Resend adapter (plan §6.6)", () => {
     });
   });
 
+  test("sends the HTML part and the logo as an inline attachment with its content ID (docs/PLAN-TEMPLATES.md §6)", async () => {
+    const f = fakeFetch(200, { id: "re_2" });
+    const logo = Buffer.from("\x89PNG tiny");
+    await new ResendMailer({ apiKey: () => "k", from: () => "invoices@x.example", fetch: f.fetch }).send({
+      ...mail, html: "<p>Hello Peter</p><img src=\"cid:logo\">",
+      attachments: [...mail.attachments, { filename: "logo.png", content: logo, contentId: "logo", contentType: "image/png" }],
+    });
+    const body = JSON.parse(String(f.calls[0]?.init.body));
+    expect(body).toMatchObject({ text: "Hello Peter", html: "<p>Hello Peter</p><img src=\"cid:logo\">" });
+    expect(body.attachments).toEqual([
+      { filename: "INV-0001.pdf", content: Buffer.from("%PDF-1.3 tiny").toString("base64") },
+      { filename: "logo.png", content: logo.toString("base64"), content_id: "logo", content_type: "image/png" },
+    ]);
+  });
+
   test("a display name cannot break the From header", async () => {
     const f = fakeFetch(200, { id: "re_1" });
     await new ResendMailer({ apiKey: () => "k", from: () => "invoices@x.example", fetch: f.fetch }).send({ ...mail, fromName: 'Wari "Best" <Holdings>\r\nBcc: x' });

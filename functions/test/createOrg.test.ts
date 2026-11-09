@@ -6,7 +6,7 @@ import { newUser, request, typedOrg } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 
 const now = new Date("2026-09-20T01:00:00Z");
-const createOrg = makeCreateOrg({ now: () => now });
+const createOrg = makeCreateOrg({ now: () => now, signupMode: () => "open" });
 
 describe("createOrg", () => {
   test("creates the organisation with the plan's defaults, its owner, the user's org list and the custom claim", async () => {
@@ -101,5 +101,60 @@ describe("createOrg", () => {
     await createOrg.run(request(uid, typedOrg));
     expect((await adminDb().doc(`subscriptions/${first.orgId}`).get()).get("paymentReference")).toBe(ref);
     expect((await adminDb().doc("private/subscriptionCounter").get()).get("nextReference")).toBe(counterBefore);
+  });
+});
+
+describe("sign-up (docs/PLAN-TEMPLATES.md §7)", () => {
+  const invited = makeCreateOrg({ now: () => now, signupMode: () => "invite" });
+  const invite = (email: string) => adminDb().doc(`signupInvites/${email.toLowerCase()}`).set({ invitedAt: now });
+
+  test("in invite mode, an email with no invitation is refused with a clear message, and nothing is written", async () => {
+    const uid = await newUser();
+    const counterBefore = (await adminDb().doc("private/subscriptionCounter").get()).get("nextReference");
+    await expect(invited.run(request(uid, typedOrg))).rejects.toMatchObject({
+      code: "permission-denied", message: "Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.",
+    });
+    expect((await adminDb().doc(`users/${uid}`).get()).exists).toBe(false);
+    // A refused sign-up starts no trial and uses no SUB- reference (PLAN-SUBSCRIBERS S1).
+    expect((await adminDb().doc("private/subscriptionCounter").get()).get("nextReference")).toBe(counterBefore);
+  });
+
+  test("in invite mode, an invited, verified email creates its org and uses the invitation up", async () => {
+    const email = `Mary.${crypto.randomUUID()}@Wari.example`;
+    const uid = await newUser({ email });
+    await invite(email); // invitations are kept lower-case; the sign-up's case does not matter
+    const { orgId } = await invited.run(request(uid, typedOrg));
+    expect(orgId).toMatch(/.+/);
+    expect((await adminDb().doc(`subscriptions/${orgId}`).get()).data()).toMatchObject({ planId: "standard", status: "trial" });
+    expect((await adminDb().doc(`signupInvites/${email.toLowerCase()}`).get()).data()).toMatchObject({ usedBy: uid, usedAt: Timestamp.fromDate(now) });
+    expect((await invited.run(request(uid, typedOrg))).orgId).toBe(orgId); // a retry still gets its org
+  });
+
+  test("an invitation makes one organisation: a used one is refused to anyone else", async () => {
+    const email = `${crypto.randomUUID()}@wari.example`;
+    await invite(email);
+    await adminDb().doc(`signupInvites/${email}`).update({ usedBy: "someone-else", usedAt: now });
+    await expect(invited.run(request(await newUser({ email }), typedOrg))).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  test("an unverified email is refused in either mode, saying what to do", async () => {
+    const email = `${crypto.randomUUID()}@wari.example`;
+    await invite(email);
+    const uid = await newUser({ email, verified: false });
+    for (const call of [invited, createOrg]) {
+      await expect(call.run(request(uid, typedOrg))).rejects.toMatchObject({
+        code: "failed-precondition", message: "Confirm your email address first: open the link we emailed you, then try again.",
+      });
+    }
+    expect((await adminDb().doc(`signupInvites/${email}`).get()).get("usedBy")).toBeUndefined();
+  });
+
+  test("in open mode, any verified email creates an org, with no invitation", async () => {
+    expect((await createOrg.run(request(await newUser(), typedOrg))).orgId).toMatch(/.+/);
+  });
+
+  test("the deployed setting: only \"open\" opens sign-up; anything else, a typo included, means invite", async () => {
+    const { signupModeOf } = await import("../src/params.js");
+    expect(["open", "invite", "", "Open", "opne"].map(signupModeOf)).toEqual(["open", "invite", "invite", "invite", "invite"]);
   });
 });

@@ -32,6 +32,7 @@ const serverOnly = (orgId: string, uid: string): string[] => [
   `operatorEvents/ev1`,
   `signupInvites/someone@example.com`,
   `private/subscriptionCounter`,
+  `system/tick`,
 ];
 
 describe("I9: an owner cannot write money state from the browser", () => {

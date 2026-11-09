@@ -2,39 +2,9 @@
  * The four T4 journeys (plan §9.2). Journey 3 fires the real scheduled tick through the
  * Functions emulator (see runTheTick), after moving the month's send time into the past.
  */
-import type { Page } from "@playwright/test";
 import { expect, test } from "./phone.js";
+import { draftThisMonth, onboard } from "./landlord.js";
 import { expire, linksMailedTo, mailTo, pathOf, runTheTick, sendTimeHasPassed } from "./emulator.js";
-
-/** Sign up, give the org's details and a first tenant; lands on home. Returns the landlord's email. */
-async function onboard(page: Page): Promise<string> {
-  const email = `landlord-${crypto.randomUUID()}@test.example`;
-  await page.goto("/");
-  await page.getByRole("link", { name: /create an account/i }).click();
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill("secret-123");
-  await page.getByRole("button", { name: /create/i }).click();
-  await page.getByLabel(/name on your invoices/i).fill("Wari Holdings");
-  await page.getByLabel(/your address/i).fill("Boroko");
-  await page.getByLabel(/bank name/i).fill("BSP");
-  await page.getByLabel(/bank account/i).fill("1000 2345");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel(/property address/i).fill("Lot 4, Boroko");
-  await page.getByLabel(/tenant's name/i).fill("Peter Kila");
-  await page.getByLabel(/tenant's email/i).fill("peter@kila.example");
-  await page.getByLabel(/monthly rent/i).fill("K1,200");
-  await page.getByLabel(/day of the month/i).fill("28");
-  await page.getByLabel(/payment reference/i).fill("KILA");
-  await page.getByRole("button", { name: "Save and finish" }).click();
-  await expect(page.getByRole("heading", { name: "Wari Holdings" })).toBeVisible();
-  return email;
-}
-
-/** Journey 1's ending: generate this month's invoices from home. */
-async function draftThisMonth(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /^Generate .+'s invoices now$/ }).click();
-  await expect(page.getByText(/Sent you the approval link/)).toBeVisible();
-}
 
 test("journey 1: onboarding to first draft", async ({ page }) => {
   await onboard(page);

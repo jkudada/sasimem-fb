@@ -23,6 +23,14 @@
       "gzip": true
     },
     {
+      "name": "logo builder route (its own JS, gzip)",
+      "path": [
+        "dist/assets/LogoBuilder-*.js"
+      ],
+      "limit": "8 KB",
+      "gzip": true
+    },
+    {
       "name": "signed-in app shell (all JS, gzip)",
       "path": "dist/assets/*.js",
       "limit": "160 KB",

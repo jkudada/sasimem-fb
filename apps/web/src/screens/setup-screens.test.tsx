@@ -37,6 +37,7 @@ const setup = (over: Partial<Setup> = {}): Setup => ({
     { id: "t2", name: "Kila Trading", email: "accounts@kila.example", phone: "7000 0000" },
   ],
   tenancies: [tenancy()],
+  templates: [],
   ...over,
 });
 

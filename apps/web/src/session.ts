@@ -4,9 +4,11 @@
  */
 import { signal } from "@preact/signals";
 import type { OrgSetupInput } from "@sasimem/core";
-import { createUserWithEmailAndPassword, onIdTokenChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword, onIdTokenChanged, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut,
+} from "firebase/auth";
 import type { Actions } from "./app.js";
-import { authMessage } from "./auth-messages.js";
+import { authMessage, signUpMessage } from "./auth-messages.js";
 import { auth } from "./firebase.js";
 import type { Session } from "./route.js";
 import type { FirstTenancy } from "./screens/TenancyStep.js";
@@ -21,7 +23,7 @@ onIdTokenChanged(auth, async (user) => {
   }
   const claims = (await user.getIdTokenResult()).claims;
   const orgIds = Array.isArray(claims["orgIds"]) ? (claims["orgIds"] as string[]) : [];
-  session.value = { status: "signedIn", email: user.email ?? "", orgId: orgIds[0] ?? null };
+  session.value = { status: "signedIn", email: user.email ?? "", emailVerified: user.emailVerified, orgId: orgIds[0] ?? null };
 });
 
 const codeOf = (e: unknown): string => (typeof e === "object" && e !== null && "code" in e ? String(e.code) : "");
@@ -39,7 +41,30 @@ export const actions: Actions = {
     return signInWithEmailAndPassword(auth, email, password).then(() => null, (e: unknown) => authMessage(codeOf(e)));
   },
   async signUp(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password).then(() => null, (e: unknown) => authMessage(codeOf(e)));
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      // The confirmation link; if it does not go, the next screen offers to send it again.
+      await sendEmailVerification(user).catch(() => undefined);
+      return null;
+    } catch (e) {
+      return signUpMessage(codeOf(e));
+    }
+  },
+  async resendVerification() {
+    const user = auth.currentUser;
+    if (user === null) return "Sign in first.";
+    return sendEmailVerification(user).then(() => null, (e: unknown) => authMessage(codeOf(e)));
+  },
+  async checkVerified() {
+    const user = auth.currentUser;
+    if (user === null) return false;
+    try {
+      await user.reload();
+      if (user.emailVerified) await user.getIdToken(true); // the session follows the token
+      return user.emailVerified;
+    } catch {
+      return false;
+    }
   },
   async reset(email) {
     await sendPasswordResetEmail(auth, email);

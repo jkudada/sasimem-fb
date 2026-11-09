@@ -17,6 +17,7 @@ import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
 import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } from "./store/runs.js";
 import { MAIL_SECRETS } from "./params.js";
+import { db } from "./admin.js";
 import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
 
 export type TickDeps = NotifyDeps;
@@ -147,7 +148,17 @@ type Log = (message: string, data: object) => void;
 export async function tickAndLog(deps: TickDeps, opts: TickOptions = {}, log: Log = (m, d) => logger.info(m, d)): Promise<Tally> {
   const tally = await runTick(deps, opts);
   log("tick done", { event: "tick_done", ...tally });
+  // Only a tick over every org says the tick is healthy; a scoped one (tests) is not the tick.
+  if (opts.orgIds === undefined) await recordTickDone(deps.now(), tally);
   return tally;
+}
+
+/**
+ * The console's Health page reads when the tick last succeeded (PLAN-SUBSCRIBERS §7).
+ * The 3-hour alert still comes from the log line; this is for people, not paging.
+ */
+export async function recordTickDone(at: Date, tally: Tally): Promise<void> {
+  await db().doc("system/tick").set({ lastSuccessAt: at, tally: { ...tally } });
 }
 
 export function makeTick(deps: TickDeps) {

@@ -1,0 +1,42 @@
+WH
+Wari Holdings
+Section 12, Lot 4, Boroko  ·  mary@wari.example
+TAX INVOICE
+Number
+INV-0142
+Issued
+1 October 2026
+Due
+15 October 2026
+GST number
+500012345
+Bill to
+Kila Trading
+Shop 1, Lot 9, Gordons
+Description
+GST
+Amount
+Rent - Shop 1
+K240.00
+K2,400.00
+1 - 31 October 2026
+Water
+-
+K50.00
+October 2026
+Repair credit
+-
+-K20.00
+Subtotal
+K2,430.00
+GST
+K240.00
+Total
+K2,670.00
+Pay by bank deposit
+Bank
+BSP
+Account
+1000 2345 6789
+Write this reference on your deposit
+KILA-OCT26
