@@ -1,7 +1,8 @@
 import { defineConfig } from "vitest/config";
 
 // One entry point for every Vitest tier. Pick a tier with --project.
-//   core-unit, web-unit  T1   (no emulator, milliseconds)
+//   core-unit, web-unit,
+//   console-unit, ops-unit T1  (no emulator, milliseconds)
 //   core-property        T1p  (fast-check)
 //   rules                T2   (Firestore emulator)
 //   integration          T3   (Firestore + Auth + Storage emulators)
@@ -11,6 +12,7 @@ export default defineConfig({
       "packages/core/vitest.config.ts",
       "packages/core/vitest.property.config.ts",
       "apps/web/vitest.config.ts",
+      "apps/console/vitest.config.ts",
       "tests/rules/vitest.config.ts",
       "functions/vitest.config.ts",
       "ops/vitest.config.ts",

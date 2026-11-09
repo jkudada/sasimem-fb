@@ -1,6 +1,6 @@
 # Subscribers: plans, billing, the operator console
 
-Status: **S1 built** (core rules, rules, `createOrg` trial, tenancy count, ops scripts); S2-S6 to come. Agreed with the user on 2026-11-08 ("go with
+Status: **S1 and S2 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console); S3-S6 to come. Agreed with the user on 2026-11-08 ("go with
 your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 `docs/product.md` §9 (business model), and on `docs/PLAN-TEMPLATES.md` §7
 (sign-up by invitation, phase P5).
@@ -17,7 +17,7 @@ your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 | D6 | Existing users before billing | Marked **free for good** with their own limit (`limitOverride`). The first landlord ("Suzie Oken") is one |
 | D7 | How subscriber invoices are made, first | **Phase A, dogfooding:** a "Sasimem" org in prod bills subscribers as its tenants, with Sasimem's own engine (§5). The user creates it; Claude never touches prod |
 | D8 | Later | **Phase B:** a `subscriptionBilling` module with its own `SUB-` numbering and a renewal tick, when Phase A gets tedious (about 20+ paying subscribers) |
-| D9 | Operator console | **A separate app** (`apps/ops`) on its own Hosting site, not a route in the landlord app |
+| D9 | Operator console | **A separate app** (`apps/console`; `ops/` is taken by the scripts) on its own Hosting site, not a route in the landlord app |
 | D10 | Operator access | An `operator: true` custom claim, set only by an ops script; **TOTP MFA required** (Identity Platform upgrade). Starts with the user alone; the model allows more |
 | D11 | Support access | **Read-only "view as".** No impersonation that can write. Operator changes go through named, audited callables |
 | D12 | Cancellation | 90 days read-only with export, then purge. **Issued invoices and their PDFs are kept 7 years** (to confirm with an accountant) |
@@ -166,11 +166,14 @@ private/subscriptionCounter        { nextReference }                        serv
   they write nothing directly.
 - **Indexes (S2):** `subscriptions` by `status` + `paidThrough`; by `status` + `trialEndsOn`.
 
-## 7. Operator console (`apps/ops`)
+## 7. Operator console (`apps/console`)
 
 A small Preact + Vite app, sharing `core` and the design tokens, deployed to its
-own Hosting site (`sasimem-ops` / `sasimem-ops-dev`) with its own App Check
-registration. Sign-in requires a second factor.
+own Hosting site (`sasimem-ops` / `sasimem-ops-dev`) from `firebase.console.json`, so the
+main `firebase.json` and the emulators are unchanged. It uses the landlord app's Firebase
+web app and App Check key, with the console's domains added to the key. Sign-in requires
+a TOTP second factor; the console has no emulator mode, since the Auth emulator has no TOTP.
+The Health page reads `system/tick`, which the tick writes after each successful run.
 
 | Screen | Content |
 |---|---|
@@ -253,7 +256,7 @@ gets a second policy for it.
 | Phase | Content | Estimate |
 |---|---|---|
 | S1 ✓ | `core`: plans, `subscriptionStatus`, limit check, `paidThrough` arithmetic, payment references. `plans`, `subscriptions`, `operatorEvents` + rules + rules tests; tenancy-count trigger and the create rule; `createOrg` makes a trial (or free, by flag) subscription; `ops/plans.ts`, `ops/grant-operator.ts`, `ops/backfill-subscriptions.ts` (existing orgs → free, D6) | ~3 days |
-| S2 | `apps/ops`: MFA sign-in, Subscribers, Subscriber (read-only), Health; Hosting site for dev | ~4 days |
+| S2 ✓ | `apps/console`: TOTP sign-in and set-up, Subscribers, Subscriber (read-only), Health; `system/tick`; hosting config for dev (deploy waits for TOTP on dev) | ~4 days |
 | S3 | Operator callables and the audit trail; Invites (after Templates P5) | ~3 days |
 | S4 | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
 | S5 | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |

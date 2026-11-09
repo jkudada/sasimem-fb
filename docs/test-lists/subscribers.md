@@ -1,6 +1,6 @@
 # Subscribers test list (docs/PLAN-SUBSCRIBERS.md)
 
-S1 done (2026-11-08); S2-S6 to come.
+S1 done (2026-11-08), S2 done (2026-11-09); S3-S6 to come.
 
 Written before the code (plan §9.1 of PLAN-SASIMEM-FB). Ticked as each goes red → green.
 Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
@@ -57,12 +57,21 @@ Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
 - [x] `ops/grant-operator.ts` adds `operator: true` keeping `orgIds`; `--revoke` removes only it
 - [x] dry runs against sasimem-dev: 3 plans to create; 1 org to backfill (1 tenancy, limit 2)
 
-## S2 - operator console (T1, T4)
-- [ ] sign-in without a second factor is sent to MFA enrolment, and sees no data
-- [ ] Subscribers lists every org with plan, status, used / limit, dates; each filter narrows correctly
-- [ ] Subscriber shows runs, invoices and email log read-only: no button that writes
-- [ ] Health shows the last tick, held runs and failed emails across orgs
-- [ ] the console bundle shares nothing with the landlord app's sign-in route budget (budget test unchanged)
+## S2 - operator console (T1, T2, T3)
+The Auth emulator has no TOTP (it supports SMS second factors only), so there is no T4
+journey for the console: who gets in is a pure function (T1), what they can read is the
+rules (T2), and a real sign-in is tried on sasimem-dev once TOTP is on there.
+- [x] who gets in: signed out → sign-in; operator with code → in; no code set up → set one up; code set up but not used this session → sign in again; no operator claim → told so (T1, session.ts)
+- [x] sign-in asks for the authenticator code when Firebase requires it; a wrong code and a wrong password each say so in plain words (T1)
+- [x] setting up a code shows the key and an otpauth link, takes the code, reads no data; a project without TOTP says so (T1)
+- [x] Subscribers lists every org with plan, status as of today (from core, not the stored field), used / limit, the date that matters, reference, last approval, problems (T1)
+- [x] each filter narrows correctly: all, past due, restricted, trial ending in 14 days, needs a look (T1)
+- [x] needs a look: a held run, failed emails in 30 days, no approval in 2 months (orgs older than that), over the limit, no subscription (T1)
+- [x] Subscriber shows org, subscription, payments, notes, audit trail, runs, the latest run's invoices and 30 days of email, with no button that writes; an unknown ID says so (T1)
+- [x] Health shows the last successful tick (overdue after 3 hours), held runs, failed emails and quiet orgs, each linking to the org (T1)
+- [x] the tick records `system/tick` after a successful full run; a scoped (test) tick does not (T3)
+- [x] operators read `system/tick` and list `orgs`, `subscriptions` and an org's runs; owners cannot read `system/tick` or list `orgs` (T2; `system/tick` added to I9)
+- [x] the console is its own package and Hosting site (`firebase.console.json`); the landlord app's sources and budgets are untouched
 
 ## S3 - operator actions (T3)
 - [ ] every action refuses a caller without `operator` and a second factor

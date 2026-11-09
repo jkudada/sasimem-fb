@@ -38,3 +38,41 @@ first, or landlords cannot add tenancies until you do.
 Edit `plans/{id}` in the Firestore console (whole toea: K40 is `4000`). New trials lock the
 new price; existing subscriptions keep theirs until renewal. `createOrg` refuses to guess
 at a malformed plan document, so check the types: every number a whole number.
+
+## The operator console (S2)
+
+The console is `apps/console`, deployed to its own Hosting site from `firebase.console.json`.
+It reads only (S2): Subscribers, one subscriber's details, and Health. It works only
+against a real project: the Auth emulator has no TOTP, and the rules give operators
+nothing without a second factor.
+
+Once per project, in this order:
+
+1. **Turn on TOTP two-step codes (the owner).** Firebase console → Authentication → Settings:
+   upgrade to **Identity Platform** (a small cost at this scale), then under
+   **Multi-factor authentication** enable it and tick **Time-based one-time password (TOTP)**.
+   Until this is done, "Set up the code" in the console says so and nothing else works.
+2. **Make the Hosting site** and point the `console` target at it (dev's is in `.firebaserc`):
+   ```sh
+   firebase hosting:sites:create sasimem-ops-dev --project sasimem-dev
+   # prod, by the owner:
+   firebase hosting:sites:create sasimem-ops --project sasimem-prod
+   firebase target:apply hosting console sasimem-ops --project sasimem-prod
+   ```
+3. **Let App Check accept the console's domain.** Rerun App Check with the site added:
+   ```sh
+   node ops/app-check.ts --project sasimem-dev --domain sasimem-ops-dev.web.app --domain sasimem-ops-dev.firebaseapp.com
+   ```
+   It reuses the same key and always keeps the project's own two domains; any other custom
+   domain added earlier must be passed again, as the list is replaced.
+4. **Build and deploy.** `apps/console/.env.local` holds the same values as the landlord app's
+   (`apps/console/.env.example` lists them):
+   ```sh
+   pnpm --filter @sasimem/console build
+   firebase deploy --config firebase.console.json --only hosting:console --project sasimem-dev
+   ```
+5. **Make yourself an operator** (step 4 of the rollout above), sign in to the console, and
+   set up your code when it asks. You are then signed out: sign in again with the code.
+
+The tick writes `system/tick` after each successful hourly run; Health shows it. The
+3-hour alert still comes from the log line (`docs/runbooks/alerts.md`).

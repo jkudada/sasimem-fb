@@ -184,5 +184,9 @@ service cloud.firestore {
     match /operatorEvents/{eventId} {
       allow read: if isOperator();
     }
+    // The tick's heartbeat, for the console's Health page; written only by the tick.
+    match /system/{docId} {
+      allow read: if isOperator();
+    }
   }
 }
