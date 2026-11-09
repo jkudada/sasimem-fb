@@ -13,6 +13,7 @@ a key file. Run them from the repository root with Node 22 (`node ops/<script>.t
 | [Budget alert](budget.md) | `ops/budget.ts` (prints a command) | n/a: a billing account |
 | [Restore drill](restore.md) | `ops/restore-drill.ts` | 2026-11-08 (see the log there) |
 | [Sending domain](sending-domain.md) | `ops/mail-dns.ts` | n/a: needs the real domain |
+| [Subscribers](subscribers.md) | `ops/plans.ts`, `ops/backfill-subscriptions.ts`, `ops/grant-operator.ts` | dry runs only, 2026-11-08 |
 
 ## The first deploy to a new project (the owner, on `sasimem-prod`)
 
