@@ -39,6 +39,35 @@ describe("approval freezes the template (docs/PLAN-TEMPLATES.md §3)", () => {
     expect((await snapshotOf(b.orgId, "k1_2026-10")).template).toEqual(CLASSIC);
   });
 
+  test("one run with three tenancies freezes three templates: org default, property override, tenancy override (P2)", async () => {
+    const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }, { id: "k2" }, { id: "k3" }] });
+    const compact: InvoiceTemplate = { ...band, name: "Plain", layout: "compact" };
+    const office: InvoiceTemplate = { ...band, name: "Office", layout: "classic", accent: "#a3312a" };
+    const db = adminDb();
+    await Promise.all([
+      db.doc(`orgs/${orgId}/templates/t1`).set(band), db.doc(`orgs/${orgId}/templates/t2`).set(compact), db.doc(`orgs/${orgId}/templates/t3`).set(office),
+      db.doc(`orgs/${orgId}`).update({ defaultTemplateId: "t1" }),
+      db.doc(`orgs/${orgId}/properties/prop-k2`).update({ templateId: "t2" }),
+      db.doc(`orgs/${orgId}/properties/prop-k3`).update({ templateId: "t2" }),
+      db.doc(`orgs/${orgId}/tenancies/k3`).update({ templateId: "t3" }),
+    ]);
+    await draftRun(orgId, OCT, now);
+    await approveRun(orgId, OCT, { actor: "uid-1", now });
+    expect((await snapshotOf(orgId, "k1_2026-10")).template).toEqual(band);
+    expect((await snapshotOf(orgId, "k2_2026-10")).template).toEqual(compact);
+    expect((await snapshotOf(orgId, "k3_2026-10")).template).toEqual(office);
+  });
+
+  test("a deleted override falls through to the next level at approval", async () => {
+    const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
+    await adminDb().doc(`orgs/${orgId}/templates/t1`).set(band);
+    await adminDb().doc(`orgs/${orgId}/properties/prop-k1`).update({ templateId: "t1" });
+    await adminDb().doc(`orgs/${orgId}/tenancies/k1`).update({ templateId: "gone" });
+    await draftRun(orgId, OCT, now);
+    await approveRun(orgId, OCT, { actor: "uid-1", now });
+    expect((await snapshotOf(orgId, "k1_2026-10")).template).toEqual(band);
+  });
+
   test("editing or deleting the template after approval changes neither the snapshot nor the PDF (I5)", async () => {
     const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
     await adminDb().doc(`orgs/${orgId}/templates/t1`).set(band);

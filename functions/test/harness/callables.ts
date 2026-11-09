@@ -12,10 +12,10 @@ export function request<T>(uid: string | null, data: T): CallableRequest<T> {
   };
 }
 
-/** A fresh user in the Auth emulator, so custom claims can be set and read back. */
-export async function newUser(): Promise<string> {
+/** A fresh user in the Auth emulator, so custom claims can be set and read back; verified unless a test says not. */
+export async function newUser(opts: { email?: string; verified?: boolean } = {}): Promise<string> {
   adminDb(); // make sure the default app exists
-  const { uid } = await getAuth().createUser({ email: `${crypto.randomUUID()}@test.example`, password: "secret-123" });
+  const { uid } = await getAuth().createUser({ email: opts.email ?? `${crypto.randomUUID()}@test.example`, password: "secret-123", emailVerified: opts.verified ?? true });
   return uid;
 }
 

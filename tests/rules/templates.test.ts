@@ -2,7 +2,7 @@ import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebas
 import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, describe, test } from "vitest";
 import { ACCENTS, FONTS, LAYOUTS, MARKS } from "../../packages/core/src/templates.js";
-import { seedOrg } from "./fixtures.js";
+import { seedOrg, validTenancy } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
 
 let env: RulesTestEnvironment;
@@ -63,5 +63,33 @@ describe("invoice templates (docs/PLAN-TEMPLATES.md §3)", () => {
     await assertSucceeds(updateDoc(org, { defaultTemplateId: deleteField() }));
     for (const bad of ["", "a/b", "x".repeat(65), 7, null]) await assertFails(updateDoc(org, { defaultTemplateId: bad }));
     await assertFails(updateDoc(doc(env.authenticatedContext("stranger").firestore(), `orgs/${s.orgId}`), { defaultTemplateId: "t1" }));
+  });
+
+  test("templateId is optional on properties and tenancies; a bad id or any other new key is still refused", async () => {
+    const s = await seedOrg(env);
+    const owner = env.authenticatedContext(s.ownerUid).firestore();
+    const property = doc(owner, `orgs/${s.orgId}/properties/${s.propertyId}`);
+    const base = { address: "Section 12, Lot 4, Boroko", useType: "residential", units: [{ id: s.unitId, label: "Flat 1" }] };
+    await assertSucceeds(setDoc(property, { ...base, templateId: "t1" }));
+    await assertSucceeds(setDoc(property, base));
+    for (const bad of [{ templateId: "" }, { templateId: "a/b" }, { templateId: 7 }, { templateId: null }, { colour: "red" }]) {
+      await assertFails(setDoc(property, { ...base, ...bad }));
+    }
+
+    const tenancy = doc(owner, `orgs/${s.orgId}/tenancies/k1`);
+    await assertSucceeds(setDoc(tenancy, validTenancy(s, { templateId: "t1" })));
+    for (const bad of [{ templateId: "x".repeat(65) }, { templateId: false }, { colour: "red" }]) {
+      await assertFails(setDoc(doc(owner, `orgs/${s.orgId}/tenancies/k2`), validTenancy(s, bad)));
+    }
+  });
+
+  test("setting or clearing a tenancy's templateId does not trip the copies guard, even once invoiced", async () => {
+    const s = await seedOrg(env);
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `orgs/${s.orgId}/tenancies/k1`), validTenancy(s, { invoiced: true })));
+    const tenancy = doc(env.authenticatedContext(s.ownerUid).firestore(), `orgs/${s.orgId}/tenancies/k1`);
+    await assertSucceeds(updateDoc(tenancy, { templateId: "t2" }));
+    await assertSucceeds(updateDoc(tenancy, { templateId: deleteField() }));
+    await assertFails(updateDoc(tenancy, { templateId: "t2", tenantName: "Someone else" }));
+    await assertFails(updateDoc(doc(env.authenticatedContext("stranger").firestore(), `orgs/${s.orgId}/tenancies/k1`), { templateId: "t2" }));
   });
 });

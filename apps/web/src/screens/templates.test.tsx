@@ -18,13 +18,20 @@ const setup = (over: Partial<Setup["org"]> = {}, templates: readonly WithId<Invo
 });
 // The first render of these screens pays for warming up the renderer: pay it once
 // here, not in whichever test runs first (as the T3 harness does for Firestore).
+// Clicks and label lookups too: tools/unit-gate.mjs re-times a slow test in a fresh
+// process, where a file's first test would otherwise pay for warming them up.
 beforeAll(() => {
-  render(<TemplateForm id={null} setup={setup()} onSave={vi.fn()} onDelete={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} />).unmount();
+  const form = render(<TemplateForm id={null} setup={setup()} onSave={vi.fn()} onDelete={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} />);
+  fireEvent.click(screen.getByLabelText(/^Band/));
+  fireEvent.click(screen.getByLabelText("Ocean"));
+  fireEvent.input(screen.getByLabelText(/Template name/), { target: { value: "x" } });
+  form.unmount();
   render(<Templates setup={setup()} onSetDefault={vi.fn()} />).unmount();
 });
 
 const sections = () => screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
-const sketch = () => screen.getByRole("img", { name: /Sketch of the/ });
+// The sketch by its class, not its role: a role query here was most of a test's time.
+const sketch = () => document.querySelector("svg.sketch") as SVGElement;
 
 describe("the templates list", () => {
   test("the default comes first and says so; the rest, then built-in Classic, can be made the default", async () => {
@@ -32,17 +39,19 @@ describe("the templates list", () => {
     render(<Templates setup={setup({ defaultTemplateId: "t2" })} onSetDefault={onSetDefault} />);
     expect(sections()).toEqual(["Houses", "Shops", "Classic (built in)"]);
     expect(within(screen.getByRole("region", { name: "Houses" })).getByText(/Default: used for every invoice/)).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("region", { name: "Shops" })).getByRole("button", { name: "Make default" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Shops" })).getByText("Make default"));
     expect(onSetDefault).toHaveBeenCalledWith("t1");
-    expect(await screen.findByRole("status")).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("region", { name: "Classic (built in)" })).getByRole("button", { name: "Make default" }));
+    expect(await screen.findByRole("status", {}, { interval: 5 })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("region", { name: "Classic (built in)" })).getByText("Make default"));
     expect(onSetDefault).toHaveBeenLastCalledWith(null);
   });
 
-  test("with no default, or one that was deleted, built-in Classic is the default", () => {
-    const { unmount } = render(<Templates setup={setup()} onSetDefault={vi.fn()} />);
+  test("with no default, built-in Classic is the default", () => {
+    render(<Templates setup={setup()} onSetDefault={vi.fn()} />);
     expect(sections()[0]).toBe("Classic (built in)");
-    unmount();
+  });
+
+  test("with a default that was deleted, built-in Classic is the default", () => {
     render(<Templates setup={setup({ defaultTemplateId: "gone" })} onSetDefault={vi.fn()} />);
     expect(within(screen.getByRole("region", { name: "Classic (built in)" })).getByText(/Default/)).toBeTruthy();
   });
@@ -74,7 +83,7 @@ describe("a template's editor", () => {
     fireEvent.click(screen.getByLabelText("Ocean"));
     fireEvent.input(screen.getByLabelText(/Note on every invoice/), { target: { value: "Thank you." } });
     expect((screen.getByLabelText(/for all my invoices/) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    fireEvent.click(screen.getByText("Save template"));
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { interval: 5 });
     expect(onSave).toHaveBeenCalledWith(null, { name: "Shops", layout: "band", accent: "#1f4e8c", font: "helvetica", mark: "logo", footer: "Thank you." }, true);
   });
@@ -83,7 +92,7 @@ describe("a template's editor", () => {
     const onSave = vi.fn();
     render(<TemplateForm id={null} setup={setup()} {...forms} onSave={onSave} />);
     expect((screen.getByLabelText(/for all my invoices/) as HTMLInputElement).checked).toBe(true); // no default yet, only built-in Classic
-    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    fireEvent.click(screen.getByText("Save template"));
     expect(screen.getByText(/Give the template a name/)).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -95,6 +104,7 @@ describe("a template's editor", () => {
     fireEvent.click(screen.getByLabelText("Brick"));
     fireEvent.click(screen.getByLabelText(/Traditional/));
     expect(sketch().dataset).toMatchObject({ layout: "compact", accent: "#a3312a", font: "times" });
+    expect([sketch().getAttribute("role"), sketch().getAttribute("aria-label")]).toEqual(["img", "Sketch of the Compact layout"]);
     expect(sketch().querySelector("[data-mark=monogram]")).not.toBeNull(); // no logo uploaded: the initials
   });
 
@@ -115,29 +125,33 @@ describe("a template's editor", () => {
     const onPreview = vi.fn().mockResolvedValue({ ok: true, message: "The sample PDF has downloaded." });
     render(<TemplateForm id="t1" setup={setup()} {...forms} onPreview={onPreview} />);
     fireEvent.click(screen.getByLabelText(/^Classic/));
-    fireEvent.click(screen.getByRole("button", { name: "See a sample PDF" }));
-    expect(await screen.findByText("The sample PDF has downloaded.")).toBeTruthy();
+    fireEvent.click(screen.getByText("See a sample PDF"));
+    expect(await screen.findByText("The sample PDF has downloaded.", {}, { interval: 5 })).toBeTruthy();
     const { id: _, ...settings } = shops;
     expect(onPreview).toHaveBeenCalledWith({ ...settings, layout: "classic" });
   });
 
   test("the default template cannot be deleted, and the screen says what to do instead", () => {
     render(<TemplateForm id="t1" setup={setup({ defaultTemplateId: "t1" })} {...forms} />);
-    expect(screen.queryByRole("button", { name: "Delete template" })).toBeNull();
+    expect(screen.queryByText("Delete template")).toBeNull();
     expect(screen.getByText(/cannot be deleted/)).toBeTruthy();
     expect(screen.queryByLabelText(/for all my invoices/)).toBeNull();
   });
 
-  test("another template can be deleted, and editing it keeps the default unless ticked", async () => {
-    const onDelete = vi.fn().mockResolvedValue(null);
+  test("editing another template keeps the default unless ticked", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
     const onDone = vi.fn();
-    render(<TemplateForm id="t2" setup={setup({ defaultTemplateId: "t1" })} {...forms} onDelete={onDelete} onSave={onSave} onDone={onDone} />);
+    render(<TemplateForm id="t2" setup={setup({ defaultTemplateId: "t1" })} {...forms} onSave={onSave} onDone={onDone} />);
     expect((screen.getByLabelText(/for all my invoices/) as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    fireEvent.click(screen.getByText("Save template"));
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1), { interval: 5 });
     expect(onSave).toHaveBeenCalledWith("t2", { name: "Houses", layout: "compact", accent: "#a3312a", font: "helvetica", mark: "none", footer: "Thank you." }, false);
-    fireEvent.click(screen.getByRole("button", { name: "Delete template" }));
+  });
+
+  test("another template can be deleted", async () => {
+    const onDelete = vi.fn().mockResolvedValue(null);
+    render(<TemplateForm id="t2" setup={setup({ defaultTemplateId: "t1" })} {...forms} onDelete={onDelete} />);
+    fireEvent.click(screen.getByText("Delete template"));
     await vi.waitFor(() => expect(onDelete).toHaveBeenCalledWith("t2"), { interval: 5 });
   });
 });
