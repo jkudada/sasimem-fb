@@ -49,7 +49,13 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
    - the Pub/Sub service agent (`service-<project number>@gcp-sa-pubsub.iam.gserviceaccount.com`):
      **Service Account Token Creator**;
    - the default compute service account (`<project number>-compute@developer.gserviceaccount.com`):
-     **Cloud Run Invoker** and **Eventarc Event Receiver**.
+     **Cloud Run Invoker** and **Eventarc Event Receiver**;
+   - the Cloud Storage for Firebase service agent
+     (`service-<project number>@gcp-sa-firebasestorage.iam.gserviceaccount.com`):
+     **Firebase Rules Firestore Service Agent** (`roles/firebaserules.firestoreServiceAgent`).
+     `storage.rules` reads the org's members from Firestore to decide who may upload a logo.
+     Without this role every logo upload is refused ("The logo could not be saved"), and a
+     non-interactive deploy does not offer to add it. `sasimem-dev` missed it until 2026-11-09.
 5. **Deploy.** First do steps 1 and 2 of the next section: they give the web app's config and its
    `VITE_RECAPTCHA_SITE_KEY`. Build the web app with those (the variables are in
    `apps/web/.env.example`), then
