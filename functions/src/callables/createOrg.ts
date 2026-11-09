@@ -1,15 +1,25 @@
 /**
  * createOrg (plan §6.2): the org, the owner membership, the counter and the
  * custom claim. The browser cannot create an org itself (I9).
+ *
+ * Sign-up (docs/PLAN-TEMPLATES.md §7): the user's email must be verified, and in
+ * invite mode it must have an unused invitation, which this uses up in the same
+ * transaction. Both are read from the Auth user record, not the ID token, so a
+ * just-verified email counts without waiting for a token refresh.
  */
 import { type OrgSetup, type OrgSetupInput, orgProblems, withOrgDefaults } from "@sasimem/core";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { auth } from "../admin.js";
+import { SIGNUP_MODE, type SignupMode, signupModeOf } from "../params.js";
 import { createOrgFor } from "../store/orgs.js";
 
 export interface CreateOrgDeps {
   readonly now: () => Date;
+  readonly signupMode: () => SignupMode;
 }
+
+export const NOT_VERIFIED = "Confirm your email address first: open the link we emailed you, then try again.";
+export const NOT_INVITED = "Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.";
 
 export function makeCreateOrg(deps: CreateOrgDeps) {
   return onCall<OrgSetupInput, Promise<{ orgId: string }>>(async (request) => {
@@ -19,7 +29,10 @@ export function makeCreateOrg(deps: CreateOrgDeps) {
     const problems = orgProblems(setup);
     const first = Object.values(problems)[0];
     if (first !== undefined) throw new HttpsError("invalid-argument", first, { problems });
-    const orgId = await createOrgFor(uid, setup, deps.now());
+    const user = await auth().getUser(uid);
+    if (!user.emailVerified || user.email === undefined) throw new HttpsError("failed-precondition", NOT_VERIFIED);
+    const orgId = await createOrgFor(uid, setup, deps.now(), deps.signupMode() === "invite" ? user.email : null);
+    if (orgId === null) throw new HttpsError("permission-denied", NOT_INVITED);
     await auth().setCustomUserClaims(uid, { orgIds: [orgId] });
     return { orgId };
   });
@@ -43,4 +56,4 @@ function readOrgSetup(data: unknown): OrgSetup {
   return setup;
 }
 
-export const createOrg = makeCreateOrg({ now: () => new Date() });
+export const createOrg = makeCreateOrg({ now: () => new Date(), signupMode: () => signupModeOf(SIGNUP_MODE.value()) });

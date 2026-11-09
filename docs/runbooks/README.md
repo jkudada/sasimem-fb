@@ -25,7 +25,13 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
    Sasimem is invite-only for now: real builds hide sign-up (`VITE_SIGN_UP=closed` in
    `apps/web/.env.production`), so also untick **Enable create (sign-up)** under Authentication →
    Settings → User actions. Otherwise anyone can still create an account straight through the
-   Auth API. Add each landlord yourself under Authentication → Users → **Add user**.
+   Auth API. Add each landlord yourself under Authentication → Users → **Add user**, and
+   invite their email so they can create their organisation (`SIGNUP_MODE` defaults to
+   `invite`; docs/PLAN-TEMPLATES.md §7):
+   `node ops/invite.ts --project sasimem-prod --i-am-the-owner name@example.com`.
+   They also confirm their email address on first sign-in (Sasimem sends the link).
+   To open sign-up later: build with `VITE_SIGN_UP` unset, tick **Enable create (sign-up)**
+   again, and keep inviting; only invited, confirmed emails can create an organisation.
 2. **Create all three secrets before deploying any function:**
    ```sh
    openssl rand -base64 32 | firebase functions:secrets:set APPROVAL_SIGNING_KEY --project sasimem-prod --data-file -
@@ -56,7 +62,8 @@ deploy that fails part-way leaves functions that are not public, and is slow to 
    creates it, and a callable cannot declare it. Delete the callables (`firebase functions:delete
    <names> --project sasimem-prod --region australia-southeast1`), then deploy again.
    `approvalPage` declares itself public, so a redeploy fixes it.
-7. **Smoke test** on the live URL: add a user in the console, sign in as them, create the
+7. **Smoke test** on the live URL: add a user in the console and invite their email
+   (`ops/invite.ts`), sign in as them, confirm the email from the link, create the
    organisation, add a tenancy, "Generate now", approve, open the PDF. Check that `/sign-up` says
    accounts are closed.
 

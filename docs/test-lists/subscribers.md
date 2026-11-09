@@ -46,6 +46,7 @@ Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
 - [x] `createOrg` makes a trial subscription: Standard, 60 days, the next `SUB-` reference, `activeTenancyCount` 0, in the same transaction
 - [x] references are consecutive across sign-ups; a retried `createOrg` uses no second reference
 - [x] `createOrg` takes price and limit from `plans/standard` when it exists
+- [x] in invite mode (Templates P5), an invited sign-up gets its trial; a refused one starts no trial and uses no reference (every read before any write)
 - [x] the count trigger **recounts** on every tenancy write (not +1/−1): ended tenancies drop out, drift is corrected both ways, other orgs untouched, no subscription → no write, unchanged → no write
 - moved to S3: `createOrg` with an invite's plan `free` (invites arrive with P5)
 

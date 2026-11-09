@@ -13,6 +13,8 @@ interface Props {
   onInclude: (invoiceId: string) => Promise<Outcome>;
   onRebuild: (period: Period) => Promise<Outcome>;
   onApprove: (period: Period) => Promise<Outcome>;
+  /** The template each invoice prints with; null hides it (docs/PLAN-TEMPLATES.md §3). */
+  templateName?: (inv: MonthInvoice) => string | null;
 }
 
 /** A month's invoices before approval: rents, who is in, rebuild, approve. Same callables as the page. */
@@ -62,6 +64,7 @@ export function Review(props: Props) {
 
 function Row(props: Props & { inv: MonthInvoice; editable: boolean; busy: boolean; act: (run: () => Promise<Outcome>) => Promise<void> }) {
   const { inv } = props;
+  const template = props.templateName?.(inv) ?? null;
   const rent = useSignal(formatKina(inv.rentToea));
   const problem = useSignal<string | null>(null);
   const saveRent = () => {
@@ -94,6 +97,7 @@ function Row(props: Props & { inv: MonthInvoice; editable: boolean; busy: boolea
         </>
       ) : null}
       <p class="note">{inv.status === "excluded" ? "Left out this month" : `Total ${formatKina(inv.totalToea)}`}</p>
+      {template !== null && <p class="note">Template: {template}</p>}
     </li>
   );
 }

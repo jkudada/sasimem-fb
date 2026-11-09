@@ -50,3 +50,24 @@ img.logo { max-width: 160px; max-height: 80px; display: block; margin-bottom: 8p
 .chip { font-weight: 600; }
 .chip-paid { color: var(--accent); }
 .chip-overdue { color: var(--problem); }
+
+/* Invoice templates (docs/PLAN-TEMPLATES.md). */
+svg.sketch { display: block; width: 100%; max-width: 16rem; margin: 0 auto var(--gap); filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.12)); }
+.dot { width: 20px; height: 20px; border-radius: 50%; margin-top: 4px; }
+.card.template { grid-template-columns: auto 1fr; align-items: start; }
+.card.template h2 { margin-bottom: 0; }
+.card.template p { margin: 0; }
+fieldset.choices { display: grid; gap: 4px; }
+fieldset.choices .check { align-items: flex-start; padding: 8px 0; }
+fieldset.choices .check input { flex: none; margin-top: 2px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch { width: var(--tap); height: var(--tap); border-radius: 50%; display: grid; place-items: center; border: 3px solid transparent; }
+.swatch:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 3px #fff; }
+.swatch:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
+.swatch.light { box-shadow: inset 0 0 0 1px var(--line); }
+.swatch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+textarea { padding: 8px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius); width: 100%; resize: vertical; }
+
+/* The logo builder (docs/PLAN-TEMPLATES.md §5). */
+svg.logo-preview { display: block; width: 100%; max-width: 12rem; max-height: 12rem; margin: 0 auto var(--gap); }
+svg.logo-icon { width: 28px; height: 28px; vertical-align: middle; margin-right: 8px; }

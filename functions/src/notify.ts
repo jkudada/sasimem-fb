@@ -3,7 +3,7 @@
  * callables, the approval page and the tick call these after their transaction has
  * committed, and only the caller that won the compare-and-set does.
  */
-import type { InvoiceDocument, Period, Toea } from "@sasimem/core";
+import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type Period, type Toea } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -11,6 +11,7 @@ import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
 import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, freshTrackingLink, heldNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { prepareLogo } from "./pdf.js";
 import { type OrgDoc, refs } from "./store/runs.js";
 
 export interface NotifyDeps {
@@ -79,7 +80,23 @@ async function invoiceMail(invoice: InvoiceDocument, make: typeof tenantInvoice)
   return make({
     snapshot: invoice.snapshot, number: invoice.number, documentTitle: invoice.documentTitle, period: invoice.period,
     totalToea: invoice.totalToea, dueDate: invoice.dueDate, paymentReference: invoice.paymentReference, pdf,
+    logo: await emailLogo(invoice.snapshot),
   });
+}
+
+/**
+ * The logo for the email's header, as the PDF prepares it, when the frozen template shows
+ * it. A lost or unreadable logo gives initials instead; it never stops an invoice going.
+ */
+async function emailLogo(snapshot: InvoiceSnapshot): Promise<Buffer | null> {
+  const path = snapshot.org.logoPath;
+  if ((snapshot.template ?? CLASSIC).mark !== "logo" || path === null) return null;
+  try {
+    const [bytes] = await bucket().file(path).download();
+    return await prepareLogo(bytes);
+  } catch {
+    return null;
+  }
 }
 
 export async function sendTenantInvoice(deps: NotifyDeps, orgId: string, invoiceId: string, invoice: InvoiceDocument): Promise<void> {

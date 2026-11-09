@@ -5,6 +5,8 @@ import {
   type TenancyDocument,
 } from "@sasimem/core";
 import { newId, type Setup, type TenancyEdit } from "../setup.js";
+import { propertyTemplate } from "../template-choice.js";
+import { TemplateChoice, knownTemplate } from "./TemplateChoice.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { prefix, readKina, whole } from "./read.js";
@@ -75,6 +77,7 @@ export function TenancyForm(props: {
   const endDate = useSignal(before?.endDate ?? "");
   const reference = useSignal(before?.referenceCode ?? "");
   const charges = useSignal<readonly ChargeRow[]>(before?.extras.map(toRow) ?? []);
+  const templateId = useSignal(knownTemplate(props.setup, before?.templateId));
   const problems = useSignal<Problems>({});
   const failure = useSignal<string | null>(null);
   const busy = useSignal(false);
@@ -114,14 +117,14 @@ export function TenancyForm(props: {
     if (Object.values(found).some((v) => v !== undefined)) return;
 
     if (before !== undefined) {
-      const edit: TenancyEdit = { ...terms, referenceCode: terms.referenceCode.toUpperCase(), extras };
+      const edit: TenancyEdit = { ...terms, referenceCode: terms.referenceCode.toUpperCase(), extras, templateId: templateId.value === "" ? null : templateId.value };
       await run(() => props.onUpdate(before.id, edit));
       return;
     }
     const tenant = tenants.find((t) => t.id === tenantId.value);
     if (property === undefined || tenant === undefined) return;
     const doc = newTenancyDocument({ propertyId: property.id, property, unitId: unitId.value, tenantId: tenant.id, tenant, terms });
-    await run(() => props.onCreate({ ...doc, extras }));
+    await run(() => props.onCreate({ ...doc, extras, ...(templateId.value === "" ? {} : { templateId: templateId.value }) }));
   };
 
   const remove = async () => {
@@ -175,6 +178,10 @@ export function TenancyForm(props: {
         <Field label="Payment reference" hint="A short code the tenant writes on the bank deposit, such as KILA." problem={p["terms.referenceCode"]}>
           <input value={reference} onInput={(e) => (reference.value = value(e))} />
         </Field>
+
+        <TemplateChoice setup={props.setup} value={templateId}
+          fallsBackTo={propertyTemplate(props.setup, properties.find((x) => x.id === (before?.propertyId ?? propertyId.value)) ?? {}).name}
+          hint="How this tenant's invoices look. The default is the property's template, or yours." />
 
         <h2>Additional charges</h2>
         <p class="note">Water, power, a levy, or a credit (use a minus sign). Sasimem works out GST for you, but it is a tool, not an accountant.</p>

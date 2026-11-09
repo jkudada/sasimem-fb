@@ -98,6 +98,7 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
       [`orgs/${s.orgId}/runs/2026-10`]: { status: "sent" },
       [`orgs/${s.orgId}/invoices/k1_2026-10`]: { status: "sent" },
       [`orgs/${s.orgId}/emails/e1`]: { kind: "invoice" },
+      [`orgs/${s.orgId}/templates/t1`]: { name: "Plain" },
       [`subscriptions/${s.orgId}/notes/n1`]: { text: "note" },
       [`subscriptions/${s.orgId}/payments/pay1`]: { amountToea: 40_000 },
       "operatorEvents/ev1": { kind: "recordPayment", orgId: s.orgId },
@@ -107,7 +108,7 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
     for (const path of [
       `orgs/${s.orgId}`, `orgs/${s.orgId}/properties/${s.propertyId}`, `orgs/${s.orgId}/tenants/${s.tenantId}`,
       `orgs/${s.orgId}/tenancies/k1`, `orgs/${s.orgId}/runs/2026-10`, `orgs/${s.orgId}/invoices/k1_2026-10`,
-      `orgs/${s.orgId}/emails/e1`, `subscriptions/${s.orgId}`, `subscriptions/${s.orgId}/notes/n1`,
+      `orgs/${s.orgId}/emails/e1`, `orgs/${s.orgId}/templates/t1`, `subscriptions/${s.orgId}`, `subscriptions/${s.orgId}/notes/n1`,
       `subscriptions/${s.orgId}/payments/pay1`, "operatorEvents/ev1", "system/tick",
     ]) await assertSucceeds(getDoc(doc(op, path)));
     // The Subscribers list reads whole collections.

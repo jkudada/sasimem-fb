@@ -1,6 +1,6 @@
 /**
- * The Resend adapter (plan §6.6, A6): one POST per message, plain text, the PDF as a
- * base64 attachment. The sender is MAIL_FROM on the sending domain, with the
+ * The Resend adapter (plan §6.6, A6): one POST per message, text and HTML, the PDF as a
+ * base64 attachment and the logo as an inline one (content_id, shown as cid: in the HTML). The sender is MAIL_FROM on the sending domain, with the
  * landlord's name as its display name; replies go to the landlord.
  */
 import type { Mail, Mailer } from "./mailer.js";
@@ -26,7 +26,14 @@ export class ResendMailer implements Mailer {
       ...(mail.replyTo === undefined ? {} : { reply_to: mail.replyTo }),
       subject: mail.subject,
       text: mail.text,
-      ...(mail.attachments === undefined ? {} : { attachments: mail.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") })) }),
+      ...(mail.html === undefined ? {} : { html: mail.html }),
+      ...(mail.attachments === undefined ? {} : {
+        attachments: mail.attachments.map((a) => ({
+          filename: a.filename, content: a.content.toString("base64"),
+          ...(a.contentId === undefined ? {} : { content_id: a.contentId }),
+          ...(a.contentType === undefined ? {} : { content_type: a.contentType }),
+        })),
+      }),
     };
     const res = await (this.config.fetch ?? fetch)("https://api.resend.com/emails", {
       method: "POST",
