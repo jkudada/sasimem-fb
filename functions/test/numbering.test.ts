@@ -4,7 +4,7 @@ import { getNumbering, setNextInvoiceNumber } from "../src/callables/numbering.j
 import { newUser, request, typedOrg } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 
-const createOrg = makeCreateOrg({ now: () => new Date("2026-09-20T01:00:00Z") });
+const createOrg = makeCreateOrg({ now: () => new Date("2026-09-20T01:00:00Z"), signupMode: () => "open" });
 
 async function anOrg() {
   const uid = await newUser();

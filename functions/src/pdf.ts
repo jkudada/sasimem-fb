@@ -12,6 +12,7 @@
 import { CLASSIC, type CalendarDate, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, type Toea, dateLabel, formatKina, initials } from "@sasimem/core";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
+import { fitInside } from "./png.js";
 
 const INK = "#1c2321";
 const MUTED = "#5b6662";
@@ -245,8 +246,10 @@ function band(p: Page): void {
   doc.rect(0, 0, doc.page.width, 120).fill(t.accent);
   const mark = markOf(p);
   if (mark === "logo" && p.logo !== null) {
-    doc.roundedRect(left, 28, 172, 64, 6).fill(WHITE);
-    doc.image(p.logo, left + 6, 32, { fit: [160, 56] });
+    // A white plate just round the logo as it fits 160 × 56, so a square logo has no blank beside it.
+    const { w, h } = fitInside(p.logo, 160, 56);
+    doc.roundedRect(left, 60 - h / 2 - 6, w + 12, h + 12, 6).fill(WHITE);
+    doc.image(p.logo, left + 6, 60 - h / 2, { width: w, height: h });
   } else if (mark === "monogram") {
     doc.circle(left + 28, 60, 28).fill(WHITE);
     doc.fillColor(t.accent).font(f.bold).fontSize(18).text(initials(org.name), left, 51, { width: 56, align: "center" });

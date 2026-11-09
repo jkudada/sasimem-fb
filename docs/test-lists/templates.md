@@ -92,47 +92,106 @@ All items done. Choices made while building (say if any is wrong):
 
 ## P3: logo builder
 
+All items done. Choices made while building (say if any is wrong):
+- **Fonts:** Modern (Work Sans), Classic (Lora), Sturdy (Roboto Slab), Handwritten
+  (Pacifico); open licences, Latin subset, about 88 KB together, fetched only by the builder.
+- **Icons are drawn for Sasimem** (house, building, key, palm, wave, mountain, leaf, star),
+  not taken from an icon set.
+- **Colours:** the 8 invoice colours plus white and ink. White text needs a shape behind
+  it, and text cannot match its shape's colour (it would not show).
+- **A badge (circle or rounded square) is 400 × 400; "No shape" is a wordmark** 160 px high
+  and as wide as its text (up to 400), which suits the letterhead's wide space.
+- **Band's white plate now hugs the logo** instead of a fixed 160-point box, so a square
+  logo has no blank beside it.
+- **The logo model is `@sasimem/core/logo`**, not in core's main export: there it changed
+  how Vite split the sign-in route's chunks (+2 KB). The sign-in route is unchanged.
+- **Fix found on the way:** a journey's first callable can meet a cold Functions emulator;
+  the shared draft step now waits up to 30 s.
+
+### core (T1)
+- [x] a first design is the org's initials; text 1-24; unknown shape/font/icon/colour refused; text that would not show refused
+
 ### Web (T1)
-- [ ] the builder draws the text, shape, colours, font and icon chosen
-- [ ] saving uploads one PNG ≤ 400 px and ≤ 200 KB, then saves `logoDesign`
-- [ ] reopening the builder restores every choice
-- [ ] uploading a file instead clears `logoDesign`; removing the logo clears both
-- [ ] text over 24 characters or empty is refused with a message
+- [x] the builder draws the text, shape, colours, font and icon chosen
+- [x] saving draws one PNG and saves it with the design (the real PNG: ≤ 400 px and ≤ 200 KB, checked in journey 7)
+- [x] reopening the builder restores every choice
+- [x] uploading a file instead clears `logoDesign`; removing the logo clears both (journey 7)
+- [x] text over 24 characters or empty is refused with a message
+- [x] every shape × icon × font, short or long text, lays out within 400 px with the text inside
 
 ### Security rules (T2)
-- [ ] `logoDesign` validates every field; an owner only
+- [x] `logoDesign` validates every field; an owner only
 
 ### Budgets
-- [ ] the builder's JS and fonts load only on its route; the sign-in route budget is unchanged
+- [x] the builder's JS and fonts load only on its route (journey 7 watches the requests); the sign-in route budget is unchanged (50.79 KB); the builder's own JS ≤ 8 KB
+
+### T4
+- [x] journey 7: build a logo → Band template as default → approve → the PDF carries the logo; reopen, upload instead, remove
 
 ## P4: HTML email
 
+All items done. Choices made while building (say if any is wrong):
+- **Resend's inline images are confirmed** (an attachment with `content_id`, shown as
+  `cid:` in the HTML), so the logo goes inline; no fallback was needed.
+- **Each email is written once** as a greeting and blocks (letter.ts) and rendered to both
+  parts, so the text and HTML cannot drift. The text bodies read as before.
+- **The template's note now ends the tenant's email too**, in both parts (it was on the
+  PDF only).
+- **Tenant emails:** the accent as a top rule, the org's name in it, the logo (fitted to
+  160 × 60, as on the PDF), or initials, or nothing, as the template says; the template's
+  font family. A lost logo gives initials and the email still goes.
+- **Landlord emails:** the house style, Sasimem green, no logo.
+- **The dispatch notice's tenant lines are a two-column table in HTML.**
+
 ### Functions (T3)
-- [ ] the tenant invoice email has a text and an HTML part saying the same facts
-- [ ] the HTML uses the invoice's frozen template (accent, logo inline by content id, footer)
-- [ ] a tenant or property name containing `<script>` / `&` / quotes is escaped in HTML
-- [ ] the HTML has no remote images and no tracking; ≤ 20 KB before the logo
-- [ ] reminders are branded the same way; landlord emails use the house style
-- [ ] the approval link appears as visible text in both parts
-- [ ] golden HTML per email kind
-- [ ] the Resend adapter sends `html` and inline attachments; the console mailer and outbox record them
+- [x] the tenant invoice email has a text and an HTML part saying the same facts
+- [x] the HTML uses the invoice's frozen template (accent, logo inline by content id, footer)
+- [x] a tenant or property name containing `<script>` / `&` / quotes is escaped in HTML
+- [x] the HTML has no remote images and no tracking; ≤ 20 KB before the logo
+- [x] reminders are branded the same way; landlord emails use the house style
+- [x] the approval link appears as visible text in both parts
+- [x] golden HTML per email kind
+- [x] the Resend adapter sends `html` and inline attachments; so does the Gmail adapter (nodemailer `cid`); the console mailer and outbox record them
+- [x] sending from a stored logo: inline when the template shows it; a lost logo gives initials
 
 ## P5: sign-up
 
+All items done. Choices made while building (say if any is wrong):
+- **`SIGNUP_MODE` defaults to `invite`**, and any value but `open` means invite, so a typo
+  fails closed. Dev and the emulator set `invite` explicitly; prod gets the default.
+- **The invitation is checked and used up in the same transaction that creates the org**;
+  one invitation makes one organisation. A retry by the same user still gets its org.
+- **Verified and invited are read from the Auth user record**, not the ID token, so a
+  just-confirmed email counts without waiting for the token to refresh.
+- **Anyone can still create an account and confirm its email**; only creating an
+  organisation needs the invitation (that is where mail can start going out). The
+  refusal reads "Sign-up is by invitation for now. Ask Sasimem for an invitation for this
+  email address." If sign-up is turned off in Firebase Auth instead, the sign-up screen
+  says the same, not "Something went wrong".
+- **A landlord who already has an organisation is never stopped** by the confirm screen.
+- **With main's closed sign-up** (Auth sign-up off, landlords added in the console): a
+  console-added landlord also needs an invitation and confirms their email before
+  creating an organisation. P5 is the step to opening sign-up (the user chose this);
+  the runbook says so.
+- **Invitations are kept under the email in lower case**; `ops/invite.ts` never resets one
+  (Firestore's 409 means already invited).
+- The sign-in route grew 0.37 KB (50.79 → 51.16 KB) for sending the confirmation link.
+
 ### Functions (T3)
-- [ ] in invite mode, `createOrg` refuses an email with no invite, with a clear message
-- [ ] in invite mode, an invited, verified email creates its org; the invite is used up
-- [ ] `createOrg` refuses an unverified email in either mode
-- [ ] in open mode, any verified email creates an org
-- [ ] the browser cannot read or write `signupInvites` (T2)
+- [x] in invite mode, `createOrg` refuses an email with no invite, with a clear message
+- [x] in invite mode, an invited, verified email creates its org; the invite is used up
+- [x] a used invitation is refused to anyone else
+- [x] `createOrg` refuses an unverified email in either mode
+- [x] in open mode, any verified email creates an org
+- [x] the browser cannot read or write `signupInvites` (T2)
 
 ### Web (T1)
-- [ ] after sign-up the onboarding screen asks the user to verify, and continues once verified
-- [ ] a refused sign-up shows "Sign-up is by invitation for now", not "Something went wrong"
+- [x] after sign-up the onboarding screen asks the user to verify, and continues once verified
+- [x] a refused sign-up shows "Sign-up is by invitation for now", not "Something went wrong"
 
 ### Ops (T1)
-- [ ] `ops/invite.ts` refuses to run without `--project`, and adds an invite
+- [x] `ops/invite.ts` refuses to run without `--project`, and adds an invite
 
 ## T4 journeys (Playwright, emulators, 360 × 740)
-- [ ] (P3) build a logo → create a Band template → set it as default → override one tenancy with Compact → draft → approve → the two PDFs use their templates (the override part is journey 6)
-- [ ] an invited user signs up, verifies, creates an org, and reaches Home
+- [x] (P2-P3) build a logo → Band default → approve → the PDF carries the logo (journey 7); a tenancy overriding the default (journey 6)
+- [x] journey 8: an uninvited user is told so; once invited, creates an org (every journey's onboarding is now invited and verified)

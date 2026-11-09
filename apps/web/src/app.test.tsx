@@ -5,6 +5,7 @@ import { type Actions, App } from "./app.js";
 import type { Session } from "./route.js";
 // The screens are lazy in the app; loading them here keeps module transforms out of test timings.
 import "./screens/OrgStep.js";
+import "./screens/VerifyEmail.js";
 import "./screens/SignIn.js";
 import "./screens/TenancyStep.js";
 import "./SignedIn.js";
@@ -29,7 +30,7 @@ const fakeStore = (): SetupStore => ({
   load: vi.fn(async () => ({ ...setup })), // a fresh object each time, as a real read gives
   saveProperty: vi.fn(), deleteProperty: vi.fn(), saveTenant: vi.fn(), deleteTenant: vi.fn(),
   createTenancy: vi.fn(), updateTenancy: vi.fn(), deleteTenancy: vi.fn(), saveProfile: vi.fn(),
-  uploadLogo: vi.fn(), removeLogo: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
+  uploadLogo: vi.fn(), removeLogo: vi.fn(), saveLogoDesign: vi.fn(), logoUrl: vi.fn().mockResolvedValue(null),
   saveTemplate: vi.fn(), deleteTemplate: vi.fn(), setDefaultTemplate: vi.fn(), previewTemplate: vi.fn(),
   numbering: vi.fn().mockResolvedValue({ next: 1, started: false }), setNextNumber: vi.fn(),
   month: vi.fn().mockResolvedValue(null),
@@ -41,6 +42,8 @@ const fakeStore = (): SetupStore => ({
 const noActions = (): Actions => ({
   signIn: vi.fn().mockResolvedValue(null),
   signUp: vi.fn().mockResolvedValue(null),
+  resendVerification: vi.fn().mockResolvedValue(null),
+  checkVerified: vi.fn().mockResolvedValue(false),
   reset: vi.fn().mockResolvedValue(undefined),
   signOut: vi.fn().mockResolvedValue(undefined),
   createOrg: vi.fn().mockResolvedValue(null),
@@ -55,11 +58,25 @@ describe("the app shell", () => {
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 
+  test("an unconfirmed email sees \"Check your email\", not the organisation form, and continues once confirmed (docs/PLAN-TEMPLATES.md §7)", async () => {
+    const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", emailVerified: false, orgId: null });
+    const actions = noActions();
+    actions.checkVerified = vi.fn(async () => {
+      session.value = { status: "signedIn", email: "mary@wari.example", emailVerified: true, orgId: null };
+      return true;
+    });
+    render(<App session={session} actions={actions} today={() => "2026-09-20"} />);
+    expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
+    expect(screen.queryByLabelText(/name on your invoices/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "I have opened the link" }));
+    expect(await screen.findByRole("heading", { name: "Your details" })).toBeTruthy();
+  });
+
   test("once a new landlord's details are saved, they go straight on to their first tenant", async () => {
-    const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", orgId: null });
+    const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", emailVerified: true, orgId: null });
     const actions = noActions();
     actions.createOrg = vi.fn(async () => {
-      session.value = { status: "signedIn", email: "mary@wari.example", orgId: "org1" };
+      session.value = { status: "signedIn", email: "mary@wari.example", emailVerified: true, orgId: "org1" };
       return null;
     });
     render(<App session={session} actions={actions} today={() => "2026-09-20"} />);
@@ -70,10 +87,10 @@ describe("the app shell", () => {
   });
 
   test("after the first tenant is saved in onboarding, the landlord lands on home", async () => {
-    const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", orgId: null });
+    const session = signal<Session>({ status: "signedIn", email: "mary@wari.example", emailVerified: true, orgId: null });
     const actions = noActions();
     actions.createOrg = vi.fn(async () => {
-      session.value = { status: "signedIn", email: "mary@wari.example", orgId: "org1" };
+      session.value = { status: "signedIn", email: "mary@wari.example", emailVerified: true, orgId: "org1" };
       return null;
     });
     render(<App session={session} actions={actions} today={() => "2026-09-20"} />);
@@ -96,7 +113,7 @@ describe("signed-in routes", () => {
   afterEach(() => history.replaceState(null, "", "/"));
   const at = (path: string) => {
     history.replaceState(null, "", path);
-    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={noActions()} today={() => "2026-09-20"} />);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={noActions()} today={() => "2026-09-20"} />);
   };
 
   test("each setup screen has its own address", async () => {
@@ -116,7 +133,7 @@ describe("signed-in routes", () => {
     store.saveProfile = vi.fn().mockResolvedValue(null);
     actions.setupStore = vi.fn(async () => store);
     history.replaceState(null, "", "/settings");
-    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
     await screen.findByLabelText(/number for your next invoice/i);
     fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
     await vi.waitFor(() => expect(store.load).toHaveBeenCalledTimes(2), { interval: 5 });
@@ -131,7 +148,7 @@ describe("signed-in routes", () => {
     store.logoUrl = vi.fn().mockResolvedValue("https://logo.example/1.png");
     actions.setupStore = vi.fn(async () => store);
     history.replaceState(null, "", "/settings");
-    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
     fireEvent.change(await screen.findByLabelText(/logo/i), { target: { files: [new File(["x"], "logo.png", { type: "image/png" })] } });
     expect((await screen.findByRole("img", { name: "Your logo" })).getAttribute("src")).toBe("https://logo.example/1.png");
   });
@@ -144,7 +161,7 @@ describe("signed-in routes", () => {
       invoices: [{ id: "k1_2026-09", tenantName: "Kila Trading", unitLabel: "Shop 1", status: "draft", rentToea: 120_000, totalToea: 120_000, number: null }],
     } : null)) as never;
     actions.setupStore = vi.fn(async () => store);
-    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
     const review = await screen.findByRole("link", { name: "Review 1 invoice" });
     expect(review.getAttribute("href")).toBe("/month/2026-09");
     fireEvent.click(review);

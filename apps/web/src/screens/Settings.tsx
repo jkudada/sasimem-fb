@@ -128,6 +128,8 @@ export function Settings(props: {
       <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF under 200 KB. It goes on future invoices.">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => void pickLogo(e)} />
       </Field>
+      <p><a href="/settings/logo">{o.logoDesign === undefined ? "Design a logo" : "Change your logo design"}</a></p>
+      {o.logoPath === undefined && <p class="note">No logo yet? Make one from your initials or name, a shape and an icon.</p>}
       {logoMessage.value !== null && <p role="status">{logoMessage.value}</p>}
       {o.logoPath !== undefined && (
         <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>

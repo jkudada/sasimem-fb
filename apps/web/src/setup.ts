@@ -5,6 +5,7 @@
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
 import type { Arrears, CalendarDate, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
 
@@ -12,6 +13,8 @@ export interface Org extends OrgProfile {
   readonly logoPath?: string;
   /** The template new invoices use; absent (or deleted) means built-in Classic. */
   readonly defaultTemplateId?: string;
+  /** The logo builder's choices, to reopen it; absent when the logo was uploaded as a file. */
+  readonly logoDesign?: LogoDesign;
 }
 
 export interface Setup {
@@ -44,8 +47,12 @@ export interface SetupStore {
   updateTenancy(id: string, edit: TenancyEdit): Promise<string | null>;
   deleteTenancy(id: string): Promise<string | null>;
   saveProfile(profile: OrgProfile): Promise<string | null>;
+  /** A file the landlord picked; it replaces any built logo, so the design is cleared. */
   uploadLogo(file: File): Promise<string | null>;
+  /** Clears the logo and its design. */
   removeLogo(): Promise<string | null>;
+  /** Upload the builder's PNG as the logo and keep its design, to reopen it. */
+  saveLogoDesign(design: LogoDesign, png: Blob): Promise<string | null>;
   logoUrl(path: string): Promise<string | null>;
   /** Save a template; with makeDefault, also make it the org's default, in one write. */
   saveTemplate(id: string | null, template: InvoiceTemplate, makeDefault: boolean): Promise<string | null>;
