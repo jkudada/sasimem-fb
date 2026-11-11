@@ -102,3 +102,27 @@ describe("the limit (PLAN-SUBSCRIBERS §8)", () => {
     expect(n.STATUS_LABELS.past_due).toBe("Payment overdue");
   });
 });
+
+describe("the edges", () => {
+  test("no branch and no reference are left out; monthly pays three months", () => {
+    expect(n.howToPay(sub({ interval: "monthly", priceToea: toea(4_000), paymentReference: null }), { ...BANK, branch: "" }))
+      .toBe("Pay K120.00 for three months to Sasimem Ltd, BSP account 1001 2345 678.");
+  });
+
+  test("never covered at all: past due from the start, with no restriction date to give", () => {
+    const notice = n.subscriptionNotice(sub({ status: "active", trialEndsOn: null, paidThrough: null }), d("2026-12-01"), BANK);
+    expect(notice?.kind).toBe("pastDue");
+    expect(notice?.body).not.toContain("From ");
+  });
+
+  test("cancelled names the contact address when there is one, and no purge date when there is none", () => {
+    const notice = n.subscriptionNotice(sub({ status: "cancelled", cancelledOn: d("2026-12-01"), purgeAfter: null }), d("2026-12-02"), BANK);
+    expect(notice?.body).toBe("No new month will be drafted. Contact Sasimem at help@sasimem.example.");
+  });
+
+  test("a limit of one reads in the singular", () => {
+    const one = sub({ tenancyLimit: 1, activeTenancyCount: 1 });
+    expect(n.usageText(one)).toBe("1 of 1 tenancy");
+    expect(n.limitText(one)).toContain("you can have 1 tenancy at once");
+  });
+});
