@@ -15,7 +15,7 @@ test("the subscription tick runs daily at 06:00 Port Moresby time, retried (PLAN
   expect(endpoint("subscriptionTick").scheduleTrigger).toMatchObject({ schedule: "0 6 * * *", timeZone: "Pacific/Port_Moresby", retryConfig: { retryCount: 3 } });
 });
 
-const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange"] as const;
+const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange", "subscriptionTick", "onSubscriptionCreated"] as const;
 
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);

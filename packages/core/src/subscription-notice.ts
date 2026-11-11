@@ -8,7 +8,7 @@ import { formatKina, type Toea, toea } from "./money.js";
 import { addDays, type CalendarDate, dateLabel } from "./period.js";
 import { defaultPlan, type SubscriptionFields, type SubscriptionStatus, subscriptionStatus, pastDueSince } from "./subscriptions.js";
 
-/** A trial's banner shows in its last two weeks. */
+/** A trial's banner shows from two weeks before its last day, when the first reminder email goes (S5). */
 export const TRIAL_WARNING_DAYS = 14;
 
 /** Where subscribers pay (`sasimem/billing`, seeded by ops/billing-details.ts). */
@@ -63,7 +63,7 @@ export function subscriptionNotice(s: SubscriptionFields, today: CalendarDate, b
     case "trial": {
       if (s.trialEndsOn === null) return null;
       const left = daysFrom(today, s.trialEndsOn);
-      if (left >= TRIAL_WARNING_DAYS) return null;
+      if (left > TRIAL_WARNING_DAYS) return null;
       const when = left === 0 ? "today" : left === 1 ? "tomorrow" : `on ${dateLabel(s.trialEndsOn)}`;
       return {
         kind: "trialEnding", tone: "warning", title: `Your free trial ends ${when}`,

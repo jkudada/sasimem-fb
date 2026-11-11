@@ -105,21 +105,21 @@ const HEADER = ["Number", "Issue date", "Due date", "Month", "Tenant", "Unit", "
 const STATUS: Record<InvoiceStatus, string> = { draft: "Draft", excluded: "Left out", approved: "Approved", sent: "Sent", paid: "Paid", void: "Void" };
 
 /** 120050 → "1200.50": a spreadsheet reads it as a number, with no currency symbol or grouping. */
-function decimal(amount: number): string {
+export function csvDecimal(amount: number): string {
   const abs = Math.abs(amount);
   return `${amount < 0 ? "-" : ""}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
 }
 
 /** Text a person typed: quoted when it must be, and never run as a formula by a spreadsheet. */
-function text(value: string): string {
+export function csvText(value: string): string {
   const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
 export function invoicesCsv(rows: readonly CsvRow[]): string {
   const lines = rows.map((r) => [
-    text(r.number), r.issueDate, r.dueDate, r.period, text(r.tenantName), text(r.unitLabel), text(r.paymentReference),
-    decimal(r.subtotalToea), decimal(r.gstToea), decimal(r.totalToea), STATUS[r.status], r.paidOn ?? "", text(r.paidNote), text(r.voidReason),
+    csvText(r.number), r.issueDate, r.dueDate, r.period, csvText(r.tenantName), csvText(r.unitLabel), csvText(r.paymentReference),
+    csvDecimal(r.subtotalToea), csvDecimal(r.gstToea), csvDecimal(r.totalToea), STATUS[r.status], r.paidOn ?? "", csvText(r.paidNote), csvText(r.voidReason),
   ].join(","));
   return [HEADER.join(","), ...lines, ""].join("\r\n");
 }

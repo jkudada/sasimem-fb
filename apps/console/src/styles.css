@@ -69,3 +69,4 @@ dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margi
 dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 code.key { font-size: 1.1rem; letter-spacing: 0.1em; overflow-wrap: anywhere; }
+.big { font-size: 1.6rem; font-weight: 700; margin: 0; }

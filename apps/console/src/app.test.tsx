@@ -14,6 +14,8 @@ import "./screens/Subscriber.js";
 import "./screens/Health.js";
 import { SubscriberActions } from "./screens/SubscriberActions.js";
 import "./screens/Invites.js";
+import "./screens/Billing.js";
+import "./screens/Metrics.js";
 
 const now = () => new Date("2027-03-01T00:00:00Z");
 const sub = newTrialSubscription({ plan: defaultPlan("standard"), today: "2027-02-01" as CalendarDate, referenceNumber: 7 });
@@ -46,6 +48,10 @@ const data = (): ConsoleData => ({
   subscriber: vi.fn(async (id: string) => (id === "o1" ? detail : null)),
   tick: vi.fn(async () => ({ lastSuccessAt: new Date("2027-02-28T23:30:00Z"), tally: {} })),
   subscriptionTick: vi.fn(async () => ({ lastSuccessAt: new Date("2027-02-28T20:00:00Z"), tally: {} })),
+  payments: vi.fn(async () => [{
+    id: "bank-BSP%20123", orgId: "o1", orgName: "Wari Holdings", subscriptionReference: "SUB-0007", amountToea: 40_000,
+    receivedOn: "2027-03-01" as CalendarDate, bankReference: "BSP 123", coversFrom: "2027-04-01" as CalendarDate, coversTo: "2028-03-31" as CalendarDate,
+  }]),
   invites: vi.fn(async () => [
     { email: "ann@kila.example", planId: "plus" as const, trialDays: 30, expiresAt: new Date("2027-03-20T00:00:00Z"), invitedAt: new Date("2027-02-20T00:00:00Z"), used: false, sendCount: 1, lastError: null },
     { email: "mary@wari.example", planId: null, trialDays: null, expiresAt: null, invitedAt: new Date("2026-06-01T00:00:00Z"), used: true, sendCount: 0, lastError: null },
@@ -332,6 +338,25 @@ describe("Health", () => {
     expect((await screen.findByRole("region", { name: "The daily subscription tick" })).textContent).toMatch(/last succeeded/i);
     expect(within(screen.getByRole("region", { name: "Held runs" })).getByRole("link", { name: "Kila Trading" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Failed emails, last 30 days" }).textContent).toContain("bad@x.example");
+    window.history.pushState({}, "", "/");
+  });
+});
+
+describe("Billing and Metrics (PLAN-SUBSCRIBERS S5)", () => {
+  test("Billing lists payments this month and downloads them as CSV", async () => {
+    window.history.pushState({}, "", "/billing");
+    show({ status: "ready", email: "op@sasimem.example" });
+    const month = await screen.findByRole("region", { name: "Payments this month" });
+    expect(month.textContent).toContain("Payments this month: K400.00");
+    expect(month.textContent).toContain("BSP 123");
+    window.history.pushState({}, "", "/");
+  });
+
+  test("Metrics shows the revenue and the subscribers by plan", async () => {
+    window.history.pushState({}, "", "/metrics");
+    show({ status: "ready", email: "op@sasimem.example" });
+    expect((await screen.findByRole("region", { name: "Revenue" })).textContent).toContain("K0.00"); // both are trials
+    expect(screen.getByRole("region", { name: "Subscribers by plan" }).textContent).toContain("Standard");
     window.history.pushState({}, "", "/");
   });
 });
