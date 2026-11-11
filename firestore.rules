@@ -232,6 +232,11 @@ service cloud.firestore {
     match /operatorEvents/{eventId} {
       allow read: if isOperator();
     }
+    // Invitations to sign up: written only by Functions (ops/invite.ts, the invite
+    // callable); operators read them for the console's Invites page (S3).
+    match /signupInvites/{email} {
+      allow read: if isOperator();
+    }
     // The tick's heartbeat, for the console's Health page; written only by the tick.
     match /system/{docId} {
       allow read: if isOperator();

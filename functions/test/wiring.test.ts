@@ -11,7 +11,7 @@ test("the tick runs every hour, and a failed run is retried (plan §6.4)", () =>
   expect(endpoint("tick").scheduleTrigger).toMatchObject({ schedule: "every 60 minutes", retryConfig: { retryCount: 3 } });
 });
 
-const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice"] as const;
+const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite"] as const;
 
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
@@ -34,6 +34,11 @@ test("the secrets declared do not depend on MAIL_PROVIDER, which the deploy does
 
 test("the template preview is capped at 5 instances: it renders a PDF on every call", () => {
   expect(endpoint("previewInvoicePdf")).toMatchObject({ maxInstances: 5 });
+});
+
+test("the operator's callables are capped at 2 instances: one person uses them (PLAN-SUBSCRIBERS S3)", () => {
+  expect(endpoint("operatorAction")).toMatchObject({ maxInstances: 2 });
+  expect(endpoint("invite")).toMatchObject({ maxInstances: 2 });
 });
 
 test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {

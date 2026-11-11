@@ -4,7 +4,7 @@
  * Tenants' emails wear the invoice's frozen template; landlords' the house style.
  */
 import {
-  CLASSIC, type CalendarDate, type InvoiceSnapshot, type Period, type Toea,
+  CLASSIC, type CalendarDate, defaultPlan, localDate, type PlanId, SUBSCRIPTION_TIMEZONE, type InvoiceSnapshot, type Period, type Toea,
   dateLabel, digestSubject, dispatchSubject, formatKina, heldSubject, periodLabel, reminderSubject, tenantInvoiceSubject,
 } from "@sasimem/core";
 import { fitInside } from "../png.js";
@@ -167,4 +167,21 @@ export function tenantReminder(i: TenantInvoiceFacts): Mail {
     `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. The PDF is attached again.`,
     "If you have already paid, thank you, and please ignore this email.",
   ]);
+}
+
+/** An operator's invitation to sign up (PLAN-SUBSCRIBERS S3): the plan, the trial and the link. */
+export function invitation(req: { to: string; planId: PlanId; trialDays: number; link: string; expiresAt: Date }): Mail {
+  const plan = defaultPlan(req.planId).name;
+  const offer = req.planId === "free"
+    ? `Your account will be on the ${plan} plan, at no charge.`
+    : `Your account starts with a ${req.trialDays}-day trial of ${plan}. Nothing to pay until it ends.`;
+  return toLandlord(req.to, "You are invited to Sasimem", {
+    greeting: "Hello,",
+    blocks: [
+      { p: "You are invited to Sasimem, which prepares your tenants' rent invoices each month, waits for your approval, sends them and reminds tenants who have not paid." },
+      { p: offer },
+      { p: "Sign up with this email address here:", link: req.link },
+      { p: `This invitation works until ${dateLabel(localDate(req.expiresAt, SUBSCRIPTION_TIMEZONE))}.` },
+    ],
+  });
 }

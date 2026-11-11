@@ -1,16 +1,16 @@
 /**
  * The console's reads (PLAN-SUBSCRIBERS §7), loaded after sign-in. Read-only: every
- * change an operator makes goes through an audited callable (S3), and the rules refuse
- * any direct write. Firestore Lite: nothing here needs live updates.
+ * change an operator makes goes through an audited callable (callables.ts), and the
+ * rules refuse any direct write. Firestore Lite: nothing here needs live updates.
  */
-import type { SubscriptionFields } from "@sasimem/core";
+import type { PlanId, SubscriptionFields } from "@sasimem/core";
 import {
   collection, type DocumentData, doc, getDoc, getDocs, getFirestore, query, Timestamp, where,
 } from "firebase/firestore/lite";
 import { startAppCheck } from "./appcheck.js";
 import { app } from "./firebase.js";
 import type {
-  EmailSummary, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
+  EmailSummary, Invite, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
 } from "./types.js";
 
 startAppCheck(app, import.meta.env["VITE_RECAPTCHA_SITE_KEY"]);
@@ -44,8 +44,25 @@ async function recentEmails(orgId: string): Promise<EmailSummary[]> {
   return snap.docs.map((d) => email(d.id, d.data())).sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
 }
 
+const event = (id: string, d: DocumentData): OperatorEvent => {
+  const before = (d["before"] ?? {}) as Record<string, unknown>;
+  const after = (d["after"] ?? {}) as Record<string, unknown>;
+  return {
+    id, kind: str(d["kind"]), actor: str(d["actor"]), actorEmail: str(d["actorEmail"]), at: dateOf(d["at"]) ?? new Date(0),
+    changes: Object.keys(after).sort().map((field) => ({ field, before: before[field] ?? null, after: after[field] })),
+  };
+};
+
+const invite = (email: string, d: DocumentData): Invite => ({
+  email, planId: typeof d["planId"] === "string" ? (d["planId"] as PlanId) : null,
+  trialDays: typeof d["trialDays"] === "number" ? d["trialDays"] : null,
+  expiresAt: dateOf(d["expiresAt"]), invitedAt: dateOf(d["invitedAt"]),
+  used: d["usedBy"] != null, sendCount: num(d["sendCount"]), lastError: typeof d["lastError"] === "string" ? d["lastError"] : null,
+});
+
 export interface ConsoleData {
   subscribers(): Promise<SubscriberInput[]>;
+  invites(): Promise<Invite[]>;
   subscriber(orgId: string): Promise<SubscriberDetail | null>;
   tick(): Promise<TickBeat | null>;
 }
@@ -81,7 +98,7 @@ export const consoleData: ConsoleData = {
         .sort((a, b) => b.receivedOn.localeCompare(a.receivedOn)),
       notes: notes.docs.map((d): Note => ({ id: d.id, text: str(d.get("text")), by: str(d.get("by")), at: dateOf(d.get("at")) ?? new Date(0) }))
         .sort((a, b) => b.at.getTime() - a.at.getTime()),
-      events: events.docs.map((d): OperatorEvent => ({ id: d.id, kind: str(d.get("kind")), actor: str(d.get("actor")), at: dateOf(d.get("at")) ?? new Date(0) }))
+      events: events.docs.map((d) => event(d.id, d.data()))
         .sort((a, b) => b.at.getTime() - a.at.getTime()),
       runs, emails,
       invoices: invoices.map((d): InvoiceSummary => ({
@@ -89,6 +106,11 @@ export const consoleData: ConsoleData = {
         tenantName: str(d.get("snapshot.tenantName")) || str(d.get("tenantName")), status: str(d.get("status")), totalToea: num(d.get("totalToea")),
       })).sort((a, b) => a.tenantName.localeCompare(b.tenantName)),
     };
+  },
+
+  async invites() {
+    const snap = await getDocs(collection(db, "signupInvites"));
+    return snap.docs.map((d) => invite(d.id, d.data())).sort((a, b) => (b.invitedAt?.getTime() ?? 0) - (a.invitedAt?.getTime() ?? 0));
   },
 
   async tick() {

@@ -1,11 +1,19 @@
+import { useSignal } from "@preact/signals";
 import type { ConsoleData } from "../data.js";
 import { day, kina, STATUS_WORDS, when } from "../format.js";
 import { subscriberRow } from "../rows.js";
+import { SubscriberActions } from "./SubscriberActions.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
 
-/** One subscriber, read-only ("view as", D11): every change goes through an audited action (S3). */
-export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleData>; now: () => Date }) {
-  const loaded = useLoad(props.data, (d) => d.subscriber(props.orgId), props.orgId);
+const shown = (v: unknown): string => (v === null || v === undefined ? "-" : String(v));
+
+/**
+ * One subscriber: what they see is read-only ("view as", D11); the operator's changes
+ * are the Actions forms, each an audited callable (S3). A change reloads the page.
+ */
+export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleData>; operate: (orgId: string, action: unknown) => Promise<string | null>; now: () => Date }) {
+  const version = useSignal(0);
+  const loaded = useLoad(props.data, (d) => d.subscriber(props.orgId), `${props.orgId}:${version.value}`);
   if (loaded.state === "loading") return <main><p>Loading…</p></main>;
   if (loaded.state === "failed") return <main><p role="alert">{LOAD_FAILED}</p></main>;
   const d = loaded.value;
@@ -44,6 +52,11 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
         )}
       </section>
 
+      {sub !== null && (
+        <SubscriberActions key={version.value} sub={sub} status={row.status === "none" ? sub.status : row.status} now={props.now}
+          operate={(action) => props.operate(org.id, action)} onDone={() => (version.value += 1)} />
+      )}
+
       <section aria-label="Payments" class="card">
         <h2>Payments</h2>
         {d.payments.length === 0 ? <p>None recorded.</p> : (
@@ -58,7 +71,14 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
 
       <section aria-label="Audit trail" class="card">
         <h2>Audit trail</h2>
-        {d.events.length === 0 ? <p>No operator changes yet.</p> : <ul>{d.events.map((e) => <li key={e.id}>{when(e.at)}: {e.kind} by {e.actor}</li>)}</ul>}
+        {d.events.length === 0 ? <p>No operator changes yet.</p> : (
+          <ul>{d.events.map((e) => (
+            <li key={e.id}>
+              {when(e.at)}: {e.kind} by {e.actorEmail || e.actor}
+              {e.changes.length > 0 && <ul>{e.changes.map((c) => <li key={c.field}>{c.field}: {shown(c.before)} → {shown(c.after)}</li>)}</ul>}
+            </li>
+          ))}</ul>
+        )}
       </section>
 
       <section aria-label="Runs" class="card">
