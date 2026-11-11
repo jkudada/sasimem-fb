@@ -26,7 +26,7 @@ export const validOrgProfile = {
   reminderMode: "auto",
 };
 
-/** An org as createOrg leaves it, plus one property and one tenant, written with rules off. */
+/** An org (and its subscription) as createOrg leaves it, plus one property and one tenant, written with rules off. */
 export async function seedOrg(env: RulesTestEnvironment): Promise<Seeded> {
   const s: Seeded = { orgId: randomOrgId(), ownerUid: `owner-${crypto.randomUUID()}`, propertyId: "p1", unitId: "u1", tenantId: "t1" };
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -35,6 +35,7 @@ export async function seedOrg(env: RulesTestEnvironment): Promise<Seeded> {
     await setDoc(doc(db, org), { ...validOrgProfile, createdAt: new Date("2026-01-01T00:00:00Z") });
     await setDoc(doc(db, `${org}/members/${s.ownerUid}`), { role: "owner", addedAt: new Date("2026-01-01T00:00:00Z") });
     await setDoc(doc(db, `${org}/private/counter`), { nextInvoiceNumber: 1 });
+    await setDoc(doc(db, `subscriptions/${s.orgId}`), subscriptionDoc());
     await setDoc(doc(db, `${org}/properties/${s.propertyId}`), { address: "Section 12, Lot 4, Boroko", useType: "residential", units: [{ id: s.unitId, label: "Flat 1" }] });
     await setDoc(doc(db, `${org}/tenants/${s.tenantId}`), { name: "Peter Kila", email: "peter@kila.example", phone: "" });
   });
@@ -58,5 +59,14 @@ export const validTenancy = (s: Seeded, overrides: Record<string, unknown> = {})
   referenceCode: "KILA",
   invoiced: false,
   extras: [],
+  ...overrides,
+});
+
+/** A subscription as createOrg leaves it: a Standard trial with nothing counted yet. */
+export const subscriptionDoc = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+  planId: "standard", status: "trial", interval: "annual", priceToea: 40_000, tenancyLimit: 10, limitOverride: null,
+  trialEndsOn: "2027-01-06", paidThrough: null, graceDays: 14, cancelledOn: null, purgeAfter: null,
+  paymentReference: "SUB-0001", activeTenancyCount: 0,
+  createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z"),
   ...overrides,
 });

@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
-const PROJECTS = ["--project", "core-unit", "--project", "web-unit", "--project", "ops-unit"];
+const PROJECTS = ["--project", "core-unit", "--project", "web-unit", "--project", "console-unit", "--project", "ops-unit"];
 const dir = mkdtempSync(join(tmpdir(), "unit-gate-"));
 
 /** workers: 2 for the whole run, as `pnpm test:unit`; 1 to re-time, so a test does not compete with its neighbours. */

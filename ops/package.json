@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Scripts that set up and check a Firebase project: App Check, alerts, the budget, the restore drill, mail DNS. Run with node (type stripping), always with --project.",
+  "description": "Scripts that set up and check a Firebase project: App Check, alerts, the budget, the restore drill, mail DNS, subscription plans, the subscription backfill, the operator claim. Run with node (type stripping), always with --project.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },

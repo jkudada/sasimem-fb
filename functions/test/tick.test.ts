@@ -11,7 +11,7 @@ import { approveRun } from "../src/store/approval.js";
 import { renderMissingPdfs } from "../src/store/pdfs.js";
 import { draftRun } from "../src/store/runs.js";
 import { lookupToken } from "../src/store/tokens.js";
-import { runTick, tickAndLog, type TickDeps } from "../src/tick.js";
+import { recordTickDone, runTick, tickAndLog, type TickDeps } from "../src/tick.js";
 import { request } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer, tokens } from "./harness/mailer.js";
@@ -297,5 +297,16 @@ describe("the tick as a whole", () => {
     const bad = await world([{ id: "k1" }], { refuse: LANDLORD }); // the digest is refused at LEAD
     await expect(tickAndLog(bad.deps, { orgIds: [bad.orgId] }, log)).rejects.toThrow();
     expect(lines).toEqual([]);
+  });
+
+  test("a successful full tick records when it ran, for the console's Health page; a tick scoped to some orgs does not", async () => {
+    const at = new Date("2026-11-08T03:00:00Z");
+    await recordTickDone(at, { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0 });
+    expect((await adminDb().doc("system/tick").get()).data()).toEqual({
+      lastSuccessAt: Timestamp.fromDate(at), tally: { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0 },
+    });
+    const scoped = await world([{ id: "k1" }]);
+    await tickAndLog(scoped.deps, { orgIds: [scoped.orgId] }, () => undefined);
+    expect((await adminDb().doc("system/tick").get()).get("lastSuccessAt")).toEqual(Timestamp.fromDate(at));
   });
 });

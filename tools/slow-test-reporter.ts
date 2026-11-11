@@ -11,7 +11,7 @@ import type { Reporter, TestCase } from "vitest/node";
 // 100 ms now and then on a shared machine, so the pre-push hook runs tools/unit-gate.mjs:
 // with SLOW_TESTS_OUT set, this reporter writes what was slow (and whether anything
 // failed) there, and the gate re-times only those tests once before failing.
-const T1_PROJECTS = new Set(["core-unit", "web-unit", "ops-unit"]);
+const T1_PROJECTS = new Set(["core-unit", "web-unit", "console-unit", "ops-unit"]);
 const T1_HARD_LIMIT_MS = 100;
 
 export default class SlowTestReporter implements Reporter {

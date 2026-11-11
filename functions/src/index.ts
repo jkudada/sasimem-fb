@@ -14,6 +14,7 @@ import { makeTemplateCallables } from "./callables/templates.js";
 
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
+export { onTenancyWritten } from "./triggers/countTenancies.js";
 export { getNumbering, setNextInvoiceNumber } from "./callables/numbering.js";
 export { approveRunCallable as approveRun, exclude, include, rebuildRun, setRent } from "./callables/edits.js";
 
