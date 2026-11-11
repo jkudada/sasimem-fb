@@ -12,6 +12,8 @@ import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
 import { makeTemplateCallables } from "./callables/templates.js";
 import { makeOperatorCallables } from "./callables/operator.js";
+import { makeBillingCallables } from "./callables/billing.js";
+import { makeSubscriptionTick } from "./subscriptionTick.js";
 
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
@@ -48,3 +50,8 @@ export const previewInvoicePdf = makeTemplateCallables(deps).previewInvoicePdf;
 const operator = makeOperatorCallables(deps);
 export const operatorAction = operator.operatorAction;
 export const invite = operator.invite;
+
+// Enforcement (PLAN-SUBSCRIBERS S4): the daily subscription tick, and the landlord's
+// "Ask to change plan", which emails Sasimem.
+export const subscriptionTick = makeSubscriptionTick(deps);
+export const requestPlanChange = makeBillingCallables({ ...deps, fallbackContact: () => MAIL_FROM.value() }).requestPlanChange;

@@ -5,7 +5,7 @@
  * small documents. Storage loads only when Settings shows or changes the logo.
  */
 import {
-  type InvoiceDocument, type InvoiceTemplate, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
+  type BankDetails, type InvoiceDocument, type SubscriptionFields, type InvoiceTemplate, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
   arrears, logoExtension,
 } from "@sasimem/core";
 import {
@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { EmailEntry, Month, MonthSummary, Numbering, Org, Outcome, OwedInvoice, Setup, SetupStore, TenancyEdit, WithId } from "./setup.js";
+import type { EmailEntry, Month, MonthSummary, Numbering, Org, Outcome, OwedInvoice, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 const COULD_NOT_SAVE = "That could not be saved. Please try again.";
@@ -81,12 +81,17 @@ export function setupStore(orgId: string): SetupStore {
 
   return {
     async load(): Promise<Setup> {
-      const [o, properties, tenants, tenancies, templates] = await Promise.all([
+      // The subscription and Sasimem's bank details only add a banner and a limit message:
+      // if either cannot be read, the app still opens without them.
+      const optional = <T,>(path: string) => getDoc(doc(db, path)).then((d) => (d.exists() ? (d.data() as T) : null), () => null);
+      const [o, properties, tenants, tenancies, templates, subscription, bank] = await Promise.all([
         getDoc(doc(db, org)),
         getDocs(collection(db, `${org}/properties`)),
         getDocs(collection(db, `${org}/tenants`)),
         getDocs(collection(db, `${org}/tenancies`)),
         getDocs(collection(db, `${org}/templates`)),
+        optional<SubscriptionFields>(`subscriptions/${orgId}`),
+        optional<BankDetails>("sasimem/billing"),
       ]);
       const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
       return {
@@ -95,6 +100,7 @@ export function setupStore(orgId: string): SetupStore {
         tenants: withIds<TenantInput>(tenants).sort(byName),
         tenancies: withIds<TenancyDocument>(tenancies),
         templates: withIds<InvoiceTemplate>(templates).sort(byName),
+        subscription, bank,
       };
     },
 
@@ -249,6 +255,19 @@ export function setupStore(orgId: string): SetupStore {
       if (file !== undefined) save(file.filename, new Blob([file.csv], { type: "text/csv;charset=utf-8" }));
       return outcome;
     },
+
+    async subscriptionPayments() {
+      try {
+        const snap = await getDocs(collection(db, `subscriptions/${orgId}/payments`));
+        return snap.docs
+          .map((d): SubscriptionPayment => ({ ...(d.data() as Omit<SubscriptionPayment, "id">), id: d.id }))
+          .sort((a, b) => b.receivedOn.localeCompare(a.receivedOn));
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    askToChangePlan: (planId, interval, message) => call("requestPlanChange", { orgId, planId, interval, message }, (r) => r.message ?? "Sent."),
 
     async setNextNumber(next) {
       try {

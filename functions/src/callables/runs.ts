@@ -8,6 +8,7 @@ import { type CallableRequest, HttpsError, onCall } from "firebase-functions/v2/
 import { type NotifyDeps, orRefused, sendDigest, sendFreshLink } from "../notify.js";
 import { draftRun, type OrgDoc, refs } from "../store/runs.js";
 import { replaceToken, requestApproval } from "../store/tokens.js";
+import { draftBlock } from "../store/subscriptions.js";
 import { MAIL_SECRETS } from "../params.js";
 import { ownerOrg } from "./auth.js";
 
@@ -46,6 +47,9 @@ export function makeDraftNow(deps: RunDeps) {
     const now = deps.now();
     const { orgId, org, period } = await orgAndPeriod(request, now);
     const label = periodLabel(period);
+    // A month already drafted is not new: asking for it again only re-sends its approval link.
+    const block = (await refs(orgId).run(period).get()).exists ? null : await draftBlock(orgId, now);
+    if (block !== null) throw new HttpsError("failed-precondition", block.problem);
     if ((await draftRun(orgId, period, now)) === "nothingToDraft") {
       throw new HttpsError("failed-precondition", `There is nothing to invoice for ${label}: no tenancy is active that month.`);
     }

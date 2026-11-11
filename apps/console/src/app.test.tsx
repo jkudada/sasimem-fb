@@ -45,6 +45,7 @@ const data = (): ConsoleData => ({
   subscribers: vi.fn(async () => [wari, kila]),
   subscriber: vi.fn(async (id: string) => (id === "o1" ? detail : null)),
   tick: vi.fn(async () => ({ lastSuccessAt: new Date("2027-02-28T23:30:00Z"), tally: {} })),
+  subscriptionTick: vi.fn(async () => ({ lastSuccessAt: new Date("2027-02-28T20:00:00Z"), tally: {} })),
   invites: vi.fn(async () => [
     { email: "ann@kila.example", planId: "plus" as const, trialDays: 30, expiresAt: new Date("2027-03-20T00:00:00Z"), invitedAt: new Date("2027-02-20T00:00:00Z"), used: false, sendCount: 1, lastError: null },
     { email: "mary@wari.example", planId: null, trialDays: null, expiresAt: null, invitedAt: new Date("2026-06-01T00:00:00Z"), used: true, sendCount: 0, lastError: null },
@@ -328,6 +329,7 @@ describe("Health", () => {
     show({ status: "ready", email: "op@sasimem.example" });
     const tick = await screen.findByRole("region", { name: "The hourly tick" });
     expect(tick.textContent).toMatch(/last succeeded/i);
+    expect((await screen.findByRole("region", { name: "The daily subscription tick" })).textContent).toMatch(/last succeeded/i);
     expect(within(screen.getByRole("region", { name: "Held runs" })).getByRole("link", { name: "Kila Trading" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Failed emails, last 30 days" }).textContent).toContain("bad@x.example");
     window.history.pushState({}, "", "/");

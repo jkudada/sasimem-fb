@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import * as functions from "../src/index.js";
 
-type Endpoint = { maxInstances?: number; httpsTrigger?: { invoker?: string[] }; scheduleTrigger?: { schedule?: string; retryConfig?: { retryCount?: number } }; secretEnvironmentVariables?: { key: string }[] };
+type Endpoint = { maxInstances?: number; httpsTrigger?: { invoker?: string[] }; scheduleTrigger?: { schedule?: string; timeZone?: string; retryConfig?: { retryCount?: number } }; secretEnvironmentVariables?: { key: string }[] };
 const endpoint = (name: keyof typeof functions) => (functions[name] as unknown as { __endpoint: Endpoint }).__endpoint;
 const secrets = (name: keyof typeof functions) => (endpoint(name).secretEnvironmentVariables ?? []).map((s) => s.key).sort();
 
@@ -11,7 +11,11 @@ test("the tick runs every hour, and a failed run is retried (plan §6.4)", () =>
   expect(endpoint("tick").scheduleTrigger).toMatchObject({ schedule: "every 60 minutes", retryConfig: { retryCount: 3 } });
 });
 
-const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite"] as const;
+test("the subscription tick runs daily at 06:00 Port Moresby time, retried (PLAN-SUBSCRIBERS §10)", () => {
+  expect(endpoint("subscriptionTick").scheduleTrigger).toMatchObject({ schedule: "0 6 * * *", timeZone: "Pacific/Port_Moresby", retryConfig: { retryCount: 3 } });
+});
+
+const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange"] as const;
 
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
@@ -39,6 +43,10 @@ test("the template preview is capped at 5 instances: it renders a PDF on every c
 test("the operator's callables are capped at 2 instances: one person uses them (PLAN-SUBSCRIBERS S3)", () => {
   expect(endpoint("operatorAction")).toMatchObject({ maxInstances: 2 });
   expect(endpoint("invite")).toMatchObject({ maxInstances: 2 });
+});
+
+test("asking to change plan is capped at 2 instances: it emails Sasimem (PLAN-SUBSCRIBERS S4)", () => {
+  expect(endpoint("requestPlanChange")).toMatchObject({ maxInstances: 2 });
 });
 
 test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {

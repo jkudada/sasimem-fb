@@ -49,3 +49,23 @@ export const tickSilentPolicy = (project: string, channels: readonly string[]): 
   notificationChannels: [...channels],
   documentation: { content: `No tick has succeeded for 3 hours: no invoices are drafted, sent or reminded. ${RUNBOOK}`, mimeType: "text/markdown" },
 });
+
+/**
+ * The daily subscription tick (PLAN-SUBSCRIBERS §10) gets the error policy. A silence
+ * policy would need an absence window longer than a day, which Monitoring does not allow;
+ * the console shows when it last succeeded (system/subscriptionTick).
+ */
+export const SUBSCRIPTION_TICK_SERVICE = "subscriptiontick"; // Cloud Run service names are lower case
+const SUBSCRIPTION_TICK = `resource.type="cloud_run_revision" AND resource.labels.service_name="${SUBSCRIPTION_TICK_SERVICE}"`;
+
+export const subscriptionTickFailedPolicy = (project: string, channels: readonly string[]): AlertPolicy => ({
+  displayName: `Sasimem subscription tick failed (${project})`,
+  combiner: "OR",
+  conditions: [{ displayName: "The subscription tick logged an error", conditionMatchedLog: { filter: `${SUBSCRIPTION_TICK} AND severity>=ERROR` } }],
+  alertStrategy: { notificationRateLimit: { period: "3600s" }, autoClose: "86400s" },
+  notificationChannels: [...channels],
+  documentation: {
+    content: `The daily subscription tick failed: some statuses or tenancy counts may be a day behind. Drafting is not affected (the hourly tick works restriction out from the dates). Cloud Scheduler retries it 3 times; it is safe to rerun. ${RUNBOOK}`,
+    mimeType: "text/markdown",
+  },
+});

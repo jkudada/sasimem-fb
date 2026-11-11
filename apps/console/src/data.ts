@@ -65,6 +65,8 @@ export interface ConsoleData {
   invites(): Promise<Invite[]>;
   subscriber(orgId: string): Promise<SubscriberDetail | null>;
   tick(): Promise<TickBeat | null>;
+  /** The daily subscription tick's last success (S4). */
+  subscriptionTick(): Promise<TickBeat | null>;
 }
 
 export const consoleData: ConsoleData = {
@@ -113,9 +115,12 @@ export const consoleData: ConsoleData = {
     return snap.docs.map((d) => invite(d.id, d.data())).sort((a, b) => (b.invitedAt?.getTime() ?? 0) - (a.invitedAt?.getTime() ?? 0));
   },
 
-  async tick() {
-    const beat = await getDoc(doc(db, "system/tick"));
-    const at = dateOf(beat.get("lastSuccessAt"));
-    return at === null ? null : { lastSuccessAt: at, tally: (beat.get("tally") ?? {}) as Record<string, number> };
-  },
+  tick: () => heartbeat("system/tick"),
+  subscriptionTick: () => heartbeat("system/subscriptionTick"),
 };
+
+async function heartbeat(path: string): Promise<TickBeat | null> {
+  const beat = await getDoc(doc(db, path));
+  const at = dateOf(beat.get("lastSuccessAt"));
+  return at === null ? null : { lastSuccessAt: at, tally: (beat.get("tally") ?? {}) as Record<string, number> };
+}

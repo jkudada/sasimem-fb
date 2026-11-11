@@ -1,6 +1,6 @@
 # Subscribers test list (docs/PLAN-SUBSCRIBERS.md)
 
-S1 done (2026-11-08), S2 done (2026-11-09), S3 done (2026-11-11); S4-S6 to come.
+S1 done (2026-11-08), S2 done (2026-11-09), S3 done (2026-11-11), S4 done (2026-11-11); S5-S6 to come.
 
 Written before the code (plan §9.1 of PLAN-SASIMEM-FB). Ticked as each goes red → green.
 Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
@@ -123,17 +123,46 @@ Each action is a pure function in core (subscription-actions.ts); one callable,
 - [x] the audit trail shows each change's fields, before → after
 - [x] Invites lists invitations (email, plan, trial, expiry, used or not), sends, re-sends and revokes
 
-## S4 - enforcement (T3, T4)
-- [ ] the banner text for each status names the amount, the reference and what changes (restricted: "invoices already approved are sent as normal") (moved from S1)
-- [ ] the hourly tick does not draft for a restricted org, and logs that it skipped it
-- [ ] the hourly tick still requests approval for, sends, and reminds on a restricted org's runs drafted before restriction
-- [ ] `draftNow` on a restricted org is refused with a plain message
-- [ ] payment lifts restriction; the next tick drafts the current period, held at once if its send time has passed
-- [ ] `subscriptionTick` applies `nextSubscriptionStatus` to every subscription, audited as `subscription-tick`
-- [ ] `subscriptionTick` recounts `activeTenancyCount` and corrects a drifted count
-- [ ] `subscriptionTick` run twice in a day changes nothing the second time
-- [ ] T4: a landlord at the limit sees the explanation and "Ask to change plan", not a save error
-- [ ] T4: Plan & billing shows plan, usage, dates, bank details and reference; it is a lazy route
+## S4 - enforcement (T1, T2, T3, T4)
+### core (T1)
+- [x] the banner text for each status names the amount, the reference and what changes (restricted: "invoices already approved are sent as normal") (moved from S1)
+- [x] a trial's banner shows only in its last 14 days, counting down to "today"; active and free show none
+- [x] restricted by hand asks the landlord to contact Sasimem rather than to pay
+- [x] the banner follows the dates, not a stored status the daily tick has not yet caught up with
+- [x] annual pays a year; monthly pays three months in advance (D3)
+- [x] drafting is refused, in plain words, for restricted (by hand or not), cancelled and purged; allowed otherwise
+- [x] the limit message says the plan, its limit and the count, also when over it after a downgrade
+
+### rules (T2)
+- [x] any signed-in landlord reads `sasimem/billing` (Sasimem's bank details); nobody writes it; signed-out visitors cannot read it
+
+### functions (T3)
+- [x] the hourly tick does not draft for a restricted org, and counts it as skipped (tally `skipped`, with a log line)
+- [x] it works restriction out from the dates the same hour, before the daily tick has stored it
+- [x] a cancelled org is skipped too; a past-due one still drafts
+- [x] the hourly tick still requests approval for, sends, holds and reminds on a restricted org's runs drafted before restriction
+- [x] `draftNow` on a restricted org is refused with a plain message and drafts nothing; a month already drafted answers as before
+- [x] payment lifts restriction; the next tick drafts the current period, held at once if its send time has passed
+- [x] `subscriptionTick` applies `subscriptionStatus` to every subscription, audited as `subscription-tick` (kind `statusChange`)
+- [x] `subscriptionTick` recounts `activeTenancyCount` and corrects a drifted count
+- [x] `subscriptionTick` run twice in a day changes nothing the second time
+- [x] `subscriptionTick` leaves a hand restriction and a free plan alone, and logs one "subscription tick done" line
+- [x] "Ask to change plan" emails Sasimem (the `sasimem/billing` contact, else the sending address), replying to the landlord, and audits it
+- [x] one ask per org per day; a failed email frees the day's ask; the plan already held, a made-up plan and a non-owner are refused
+- [x] wiring: `subscriptionTick` daily at 06:00 Port Moresby, retried; `requestPlanChange` has both mail secrets and at most 2 instances
+
+### landlord app (T1) and console (T1)
+- [x] home shows the banner when there is something to say, and none when the subscription cannot be read
+- [x] Plan & billing shows plan, usage, status, dates, how to pay with the reference, and the payments; asking shows the answer or the refusal
+- [x] the console's Health page shows the daily subscription tick, overdue after 26 hours
+
+### journeys (T4)
+- [x] a landlord at the limit sees the explanation and "Ask to change plan", not a save error
+- [x] Plan & billing shows plan, usage, status and reference, and sends the ask; it is a lazy route
+
+### ops (T1)
+- [x] `ops/billing-details.ts` replaces `sasimem/billing`, refusing missing details and a contact that is not an email address
+- [x] the subscription tick's error alert watches its own Cloud Run service
 
 ## S5 - emails and metrics (T1, T3)
 - [ ] each lifecycle email (plan §9) is sent at most once per trigger, claimed with `create()`

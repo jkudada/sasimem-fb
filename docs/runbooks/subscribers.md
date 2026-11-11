@@ -1,4 +1,4 @@
-# Subscribers (PLAN-SUBSCRIBERS S1-S3)
+# Subscribers (PLAN-SUBSCRIBERS S1-S4)
 
 Run from the repository root with Node 22. Each script needs `--project`; `sasimem-prod`
 also needs `--i-am-the-owner`. Every write is create-only or merges claims, so each script
@@ -100,3 +100,44 @@ redeploy the console (step 4 above).
   60-day trial.
 - **Cancel** keeps the org read-only for 90 days, and it can be reinstated until then. Purging
   comes in S6, so until then nothing is ever deleted.
+
+## Enforcement and the landlord's Plan & billing (S4)
+
+S4 adds the daily `subscriptionTick` (06:00 Port Moresby) and the `requestPlanChange`
+callable, changes the hourly tick and `draftNow`, and opens `sasimem/billing` to signed-in
+landlords. In this order:
+
+1. **Sasimem's bank details**, which every landlord sees on their banner and Plan & billing
+   page. Until they are set, both say "Ask Sasimem for the bank details". Rerun it whenever the
+   details change (it replaces them):
+   ```sh
+   node ops/billing-details.ts --project sasimem-dev --account-name "Sasimem Ltd" --bank BSP \
+     --account-number "1001 2345 678" --branch Waigani --contact-email you@example.com --dry-run
+   ```
+   `--contact-email` is where "Ask to change plan" goes; without it, the sending address
+   (`MAIL_FROM`) gets it.
+2. **Deploy** Functions, rules and the landlord app:
+   ```sh
+   firebase deploy --only functions,firestore:rules,hosting --project sasimem-dev
+   ```
+3. **The alert** for the subscription tick: rerun `node ops/alerts.ts --project sasimem-dev
+   --email you@example.com`; it adds "Sasimem subscription tick failed" beside the tick's two.
+4. If the console is set up, rebuild and redeploy it: its Health page now shows the
+   subscription tick.
+
+What changes for landlords:
+
+- **Restricted** (14 days after the last day paid for, or by hand): the hourly tick drafts
+  no new month for the org, and `draftNow` refuses with a plain message. A month already
+  drafted is still asked for, sent, held and reminded on. The tick works this out from the
+  dates every hour, so it does not wait for the daily tick.
+- **Payment lifts it at once.** Record the payment in the console. The next hourly tick drafts
+  the month; if its send time has passed, it is drafted held, and the landlord gets the held
+  notice and can approve late.
+- **The banner** on home shows in a trial's last 14 days, and while past due, restricted or
+  cancelled, with the amount, the bank details and the `SUB-` reference.
+- **At the limit**, "Add a tenancy" explains the limit and offers "Ask to change plan".
+  The landlord's ask is emailed to Sasimem (reply goes to the landlord) and appears in the
+  subscriber's audit trail as `planChangeRequested`. One ask per org per day.
+- **The daily subscription tick** stores each status the dates give (audited as
+  `statusChange` by `subscription-tick`) and recounts tenancies. Running it twice is harmless.
