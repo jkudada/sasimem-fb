@@ -201,3 +201,82 @@ export function planChangeRequest(req: {
   });
   return { ...mail, replyTo: req.ownerEmail };
 }
+
+// ---------------------------------------------------------------- the subscriber's lifecycle (PLAN-SUBSCRIBERS §9, S5)
+
+/** Signed up: welcome, and the three steps to a first month. */
+export function welcome(req: { to: string; orgName: string; appUrl: string; trialEndsOn: CalendarDate | null }): Mail {
+  return toLandlord(req.to, "Welcome to Sasimem", {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: "Welcome to Sasimem. Three steps and your tenants' invoices take care of themselves:" },
+      { lines: [
+        "1. Add each property and its units.",
+        "2. Add your tenants, and a tenancy for each: the rent, the day of the month, the payment reference.",
+        "3. Each month, check the invoices Sasimem drafts and approve them with one tap. Nothing goes out until you do.",
+      ] },
+      { p: "Start here:", link: req.appUrl },
+      ...(req.trialEndsOn === null ? [] : [{ p: `Your free trial runs until ${dateLabel(req.trialEndsOn)}.` }]),
+    ],
+  });
+}
+
+/** Three days in, still no tenancy: one nudge. */
+export function setupNudge(req: { to: string; orgName: string; appUrl: string }): Mail {
+  return toLandlord(req.to, "Add your first tenancy to start invoicing", {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: "Your Sasimem account is ready, but it has no tenancy yet, so there is nothing to invoice." },
+      { p: "Adding one takes a couple of minutes: the property, the tenant, and the rent." },
+      { p: "Add your first tenancy:", link: `${req.appUrl}/tenancies/new` },
+      { p: "If something is in the way, reply to this email and tell us." },
+    ],
+  });
+}
+
+/** Trial ending, past due, restricted: the banner's words (core subscriptionNotice), by email. */
+export function subscriptionLetter(req: { to: string; orgName: string; appUrl: string; title: string; body: string }): Mail {
+  return toLandlord(req.to, req.title, {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: req.body },
+      { p: "Your plan, payments and how to pay:", link: `${req.appUrl}/settings/billing` },
+    ],
+  });
+}
+
+export interface DigestLine {
+  readonly orgId: string;
+  readonly name: string;
+  readonly detail: string;
+}
+
+export interface OperatorDigest {
+  readonly signups: readonly DigestLine[];
+  readonly trialsEnding: readonly DigestLine[];
+  readonly pastDue: readonly DigestLine[];
+  readonly restricted: readonly DigestLine[];
+  readonly held: readonly DigestLine[];
+  readonly bounces: readonly DigestLine[];
+}
+
+const DIGEST_SECTIONS: readonly (readonly [keyof OperatorDigest, string])[] = [
+  ["signups", "New sign-ups"], ["trialsEnding", "Trials ending within 7 days"], ["pastDue", "Past due"],
+  ["restricted", "Restricted"], ["held", "Held runs"], ["bounces", "Emails that failed yesterday"],
+];
+
+export const digestIsEmpty = (d: OperatorDigest): boolean => DIGEST_SECTIONS.every(([k]) => d[k].length === 0);
+
+/** To Sasimem, each morning there is something to say. */
+export function operatorDigest(req: { to: string; date: CalendarDate; digest: OperatorDigest }): Mail {
+  const sections = DIGEST_SECTIONS.filter(([k]) => req.digest[k].length > 0);
+  return toLandlord(req.to, `Sasimem today, ${dateLabel(req.date)}`, {
+    greeting: "Good morning,",
+    blocks: [
+      ...sections.flatMap(([k, label]) => [
+        { p: `${label} (${req.digest[k].length}):` },
+        { lines: req.digest[k].map((l) => `${l.name}: ${l.detail}`) },
+      ]),
+    ],
+  });
+}

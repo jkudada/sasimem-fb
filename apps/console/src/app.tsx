@@ -14,6 +14,8 @@ const Enrol = lazyScreen(() => import("./screens/Enrol.js").then((m) => m.Enrol)
 const Subscribers = lazyScreen(() => import("./screens/Subscribers.js").then((m) => m.Subscribers));
 const Subscriber = lazyScreen(() => import("./screens/Subscriber.js").then((m) => m.Subscriber));
 const Health = lazyScreen(() => import("./screens/Health.js").then((m) => m.Health));
+const Billing = lazyScreen(() => import("./screens/Billing.js").then((m) => m.Billing));
+const Metrics = lazyScreen(() => import("./screens/Metrics.js").then((m) => m.Metrics));
 const Invites = lazyScreen(() => import("./screens/Invites.js").then((m) => m.Invites));
 
 export type SignInResult = { readonly kind: "in" } | { readonly kind: "code" } | { readonly kind: "problem"; readonly message: string };
@@ -63,7 +65,7 @@ export function App(props: { session: ReadonlySignal<ConsoleSession>; actions: A
       return (
         <LocationProvider>
           <header class="top">
-            <nav><a href="/">Subscribers</a><a href="/invites">Invites</a><a href="/health">Health</a></nav>
+            <nav><a href="/">Subscribers</a><a href="/invites">Invites</a><a href="/billing">Billing</a><a href="/metrics">Metrics</a><a href="/health">Health</a></nav>
             <span class="note">{s.email}</span>
             <button type="button" class="small quiet" onClick={signOut}>Sign out</button>
           </header>
@@ -71,6 +73,8 @@ export function App(props: { session: ReadonlySignal<ConsoleSession>; actions: A
             <Route path="/s/:orgId" component={({ orgId }: { orgId: string }) => <Subscriber orgId={orgId} data={actions.data} operate={actions.operate} now={now} />} />
             <Route path="/invites" component={() => <Invites data={actions.data} invite={actions.invite} now={now} />} />
             <Route path="/health" component={() => <Health data={actions.data} now={now} />} />
+            <Route path="/billing" component={() => <Billing data={actions.data} now={now} />} />
+            <Route path="/metrics" component={() => <Metrics data={actions.data} now={now} />} />
             <Route default component={() => <Subscribers data={actions.data} now={now} />} />
           </Router>
         </LocationProvider>

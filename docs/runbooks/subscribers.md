@@ -1,4 +1,4 @@
-# Subscribers (PLAN-SUBSCRIBERS S1-S4)
+# Subscribers (PLAN-SUBSCRIBERS S1-S5)
 
 Run from the repository root with Node 22. Each script needs `--project`; `sasimem-prod`
 also needs `--i-am-the-owner`. Every write is create-only or merges claims, so each script
@@ -141,3 +141,26 @@ What changes for landlords:
   subscriber's audit trail as `planChangeRequested`. One ask per org per day.
 - **The daily subscription tick** stores each status the dates give (audited as
   `statusChange` by `subscription-tick`) and recounts tenancies. Running it twice is harmless.
+
+## Lifecycle emails, the digest, Metrics and Billing (S5)
+
+S5 adds a trigger, `onSubscriptionCreated` (the welcome email), and extends the daily
+`subscriptionTick` with the lifecycle emails and the operator digest. Deploy Functions, then
+rebuild and redeploy the console for its Billing and Metrics pages:
+```sh
+firebase deploy --only functions --project sasimem-dev
+```
+No existing landlord is emailed by the deploy: the welcome goes only within 2 days of an
+org's sign-up, and the setup nudge only within 10.
+
+- **Landlords get** a welcome at sign-up, a nudge 3 days in if they have no tenancy, trial
+  reminders 14 and 3 days before the trial ends, and one email each when they go past due and
+  when they are restricted for non-payment. Each is in the org's email log in the console.
+- **You get** a digest each morning at 06:00 Port Moresby, only when there is something to
+  say: new sign-ups, trials ending within 7 days, past due, restricted, held runs and failed
+  emails. It goes to the `--contact-email` from `ops/billing-details.ts`, else to `MAIL_FROM`.
+- **Billing** in the console: renewals due within 30 days, who is overdue, payments this
+  month, and a CSV of payments for the months you choose, to tick off against the bank
+  statement. **Metrics**: subscribers by plan and status, annual recurring revenue (active
+  and past-due subscriptions at their locked price), trial conversion, cancellations and
+  invoices sent by month.
