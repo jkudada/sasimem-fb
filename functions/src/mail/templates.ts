@@ -185,3 +185,19 @@ export function invitation(req: { to: string; planId: PlanId; trialDays: number;
     ],
   });
 }
+
+/** To Sasimem: a landlord asks to change plan (PLAN-SUBSCRIBERS §8). Replying reaches the landlord. */
+export function planChangeRequest(req: {
+  to: string; orgName: string; orgId: string; ownerEmail: string; current: string; wanted: string; usage: string; message: string;
+}): Mail {
+  const subject = `Plan change asked for: ${req.orgName}`;
+  const mail = toLandlord(req.to, subject, {
+    greeting: "Hello,",
+    blocks: [
+      { p: `${req.orgName} (${req.ownerEmail}) asks to change from ${req.current} to ${req.wanted}. They use ${req.usage}.` },
+      ...(req.message === "" ? [] : [{ p: `Their message: "${req.message}"` }]),
+      { p: `Their organisation ID is ${req.orgId}. Change the plan in the operator console, then reply to tell them.` },
+    ],
+  });
+  return { ...mail, replyTo: req.ownerEmail };
+}

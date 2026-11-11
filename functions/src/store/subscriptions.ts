@@ -3,7 +3,7 @@
  * The rules make the whole collection server-write-only (I9).
  */
 import {
-  applyOperatorAction, type CalendarDate, countsTowardLimit, type InviteTerms, localDate, newFreeSubscription, newTrialSubscription, type OperatorAction, planFrom, type PlanId,
+  applyOperatorAction, type CalendarDate, countsTowardLimit, draftRefusal, subscriptionStatus, type InviteTerms, localDate, newFreeSubscription, newTrialSubscription, type OperatorAction, planFrom, type PlanId,
   SUBSCRIPTION_TIMEZONE, type SubscriptionFields, type SubscriptionStatus, subscriptionDiff, TRIAL_DAYS, TRIAL_PLAN,
 } from "@sasimem/core";
 import type { DocumentReference, Transaction } from "firebase-admin/firestore";
@@ -43,16 +43,68 @@ export async function prepareSubscription(tx: Transaction, orgId: string, now: D
  * tenancy create rule reads. A recount rather than +1/-1, so a lost or repeated event
  * cannot leave it wrong. Writes only when the number changed; no subscription, no write.
  */
-export async function recountTenancies(orgId: string, now: Date): Promise<number | null> {
+export async function recountTenancies(orgId: string, now: Date): Promise<{ count: number; changed: boolean } | null> {
   const today = subscriptionToday(now);
   const tenancies = db().collection(`orgs/${orgId}/tenancies`);
   return db().runTransaction(async (tx) => {
     const [sub, all] = await Promise.all([tx.get(subscriptionRef(orgId)), tx.get(tenancies.select("endDate"))]);
     if (!sub.exists) return null;
     const count = all.docs.filter((t) => countsTowardLimit({ endDate: (t.get("endDate") as CalendarDate | null) ?? null }, today)).length;
-    if (sub.get("activeTenancyCount") !== count) tx.update(sub.ref, { activeTenancyCount: count, updatedAt: now });
-    return count;
+    const changed = sub.get("activeTenancyCount") !== count;
+    if (changed) tx.update(sub.ref, { activeTenancyCount: count, updatedAt: now });
+    return { count, changed };
   });
+}
+
+// ---------------------------------------------------------------- enforcement (S4)
+
+/** The subscription's fields, or null when the org has none (an org from before S1's backfill). */
+export async function subscriptionOf(orgId: string): Promise<SubscriptionFields | null> {
+  const snap = await subscriptionRef(orgId).get();
+  return snap.exists ? fieldsOf(snap.data() ?? {}) : null;
+}
+
+/**
+ * Why no new month may be drafted for this org now (D5), or null when it may. Worked out
+ * from the dates today, so drafting stops on the day restriction begins, not when the
+ * daily tick next writes the status. No subscription: drafting goes on (the tick logs it),
+ * because a billing gap must never stop a landlord's invoices by accident.
+ */
+export async function draftBlock(orgId: string, now: Date): Promise<{ status: SubscriptionStatus; problem: string } | null> {
+  const sub = await subscriptionOf(orgId);
+  if (sub === null) return null;
+  const status = subscriptionStatus(sub, subscriptionToday(now));
+  const problem = draftRefusal(sub, status);
+  return problem === null ? null : { status, problem };
+}
+
+export const SUBSCRIPTION_TICK = "subscription-tick";
+
+/**
+ * Bring one subscription's stored status up to what its dates say today, auditing the
+ * change as the subscription tick's. A compare-and-set in a transaction: run twice, the
+ * second finds nothing to change and writes nothing.
+ */
+export async function settleStatus(orgId: string, now: Date): Promise<{ from: SubscriptionStatus; to: SubscriptionStatus } | null> {
+  const ref = subscriptionRef(orgId);
+  return db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const sub = fieldsOf(snap.data() ?? {});
+    const to = subscriptionStatus(sub, subscriptionToday(now));
+    if (to === sub.status) return null;
+    tx.update(ref, { status: to, updatedAt: now });
+    tx.create(db().collection("operatorEvents").doc(), {
+      kind: "statusChange", orgId, actor: SUBSCRIPTION_TICK, actorEmail: null, at: now, before: { status: sub.status }, after: { status: to },
+    });
+    return { from: sub.status, to };
+  });
+}
+
+/** Every subscription's org ID, or just the given ones (tests). */
+export async function subscriptionIds(only?: readonly string[]): Promise<string[]> {
+  if (only !== undefined) return [...only];
+  return (await db().collection("subscriptions").select().get()).docs.map((d) => d.id);
 }
 
 // ---------------------------------------------------------------- operator actions (S3)

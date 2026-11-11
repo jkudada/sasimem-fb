@@ -107,6 +107,13 @@ describe("health across all subscribers", () => {
     expect(healthView(inputs, null, now).tick).toBeNull();
   });
 
+  test("the daily subscription tick is overdue after 26 hours (S4)", () => {
+    const at = (iso: string) => ({ lastSuccessAt: new Date(iso), tally: {} });
+    expect(healthView(inputs, null, now, at("2027-02-28T20:00:00Z")).subscriptionTick).toMatchObject({ overdue: false });
+    expect(healthView(inputs, null, now, at("2027-02-27T20:00:00Z")).subscriptionTick).toMatchObject({ overdue: true });
+    expect(healthView(inputs, null, now).subscriptionTick).toBeNull();
+  });
+
   test("held runs, failed emails and quiet subscribers, each naming the org", () => {
     const h = healthView(inputs, null, now);
     expect(h.held).toEqual([{ orgId: "a", name: "A", period: "2027-03" }]);

@@ -16,6 +16,8 @@ import "./screens/Templates.js";
 import "./screens/TemplateForm.js";
 import "./screens/MonthCard.js";
 import "./screens/Review.js";
+import "./screens/PlanBilling.js";
+import { type CalendarDate, type SubscriptionFields, toea } from "@sasimem/core";
 import type { Setup, SetupStore } from "./setup.js";
 
 const setup: Setup = {
@@ -25,6 +27,12 @@ const setup: Setup = {
     approvalLeadDays: 3, sendHour: 8, reminderAfterDays: 7, reminderMode: "auto",
   },
   properties: [], tenants: [{ id: "t1", name: "Kila Trading", email: "a@kila.example", phone: "" }], tenancies: [], templates: [],
+};
+/** Paid through 31 July, so restricted from 15 August. */
+const RESTRICTED: SubscriptionFields = {
+  planId: "standard", status: "active", interval: "annual", priceToea: toea(40_000), tenancyLimit: 10, limitOverride: null,
+  trialEndsOn: null, paidThrough: "2026-07-31" as CalendarDate, graceDays: 14, cancelledOn: null, purgeAfter: null,
+  paymentReference: "SUB-0042", activeTenancyCount: 3,
 };
 const fakeStore = (): SetupStore => ({
   load: vi.fn(async () => ({ ...setup })), // a fresh object each time, as a real read gives
@@ -37,6 +45,7 @@ const fakeStore = (): SetupStore => ({
   draftNow: vi.fn(), setRent: vi.fn(), exclude: vi.fn(), include: vi.fn(), rebuildRun: vi.fn(), approveRun: vi.fn(),
   months: vi.fn().mockResolvedValue([]), owed: vi.fn().mockResolvedValue([]),
   markPaid: vi.fn(), markUnpaid: vi.fn(), pauseReminders: vi.fn(), voidInvoice: vi.fn(), resendInvoice: vi.fn(), openPdf: vi.fn(), exportCsv: vi.fn(),
+  subscriptionPayments: vi.fn().mockResolvedValue([]), askToChangePlan: vi.fn(),
 });
 
 const noActions = (): Actions => ({
@@ -166,6 +175,26 @@ describe("signed-in routes", () => {
     expect(review.getAttribute("href")).toBe("/month/2026-09");
     fireEvent.click(review);
     expect(await screen.findByRole("heading", { name: "September 2026 invoices" })).toBeTruthy();
+  });
+
+  test("Plan & billing has its own address, under Settings (PLAN-SUBSCRIBERS §8)", async () => {
+    const actions = noActions();
+    const store = fakeStore();
+    store.load = vi.fn(async () => ({ ...setup, subscription: RESTRICTED, bank: null }));
+    actions.setupStore = vi.fn(async () => store);
+    history.replaceState(null, "", "/settings/billing");
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    expect(await screen.findByRole("heading", { name: "Plan & billing" })).toBeTruthy();
+    await vi.waitFor(() => expect(store.subscriptionPayments).toHaveBeenCalled(), { interval: 5 });
+  });
+
+  test("home shows the subscription banner when there is something to say", async () => {
+    const actions = noActions();
+    const store = fakeStore();
+    store.load = vi.fn(async () => ({ ...setup, subscription: RESTRICTED, bank: null }));
+    actions.setupStore = vi.fn(async () => store);
+    render(<App session={signal<Session>({ status: "signedIn", email: "m@w.example", emailVerified: true, orgId: "org1" })} actions={actions} today={() => "2026-09-20"} />);
+    expect(await screen.findByRole("heading", { name: "Your Sasimem subscription is restricted" })).toBeTruthy();
   });
 
   test("an unknown address goes home", async () => {

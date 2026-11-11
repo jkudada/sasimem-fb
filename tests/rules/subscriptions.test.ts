@@ -150,3 +150,11 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
     await assertFails(getDocs(collection(owner, "orgs")));
   });
 });
+
+test("any signed-in landlord reads Sasimem's bank details, for the banner and Plan & billing; nobody writes them (PLAN-SUBSCRIBERS S4)", async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "sasimem/billing"), { accountName: "Sasimem Ltd" }));
+  const landlord = env.authenticatedContext("anyone", { email: "a@b.example" }).firestore();
+  await assertSucceeds(getDoc(doc(landlord, "sasimem/billing")));
+  await assertFails(setDoc(doc(landlord, "sasimem/billing"), { accountName: "Me" }));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "sasimem/billing")));
+});

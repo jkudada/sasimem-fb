@@ -70,3 +70,20 @@ describe("ops/grant-operator.ts", () => {
     expect(JSON.parse(s.operatorClaims(JSON.stringify({ orgIds: ["o1"], operator: true }), false))).toEqual({ orgIds: ["o1"] });
   });
 });
+
+describe("ops/billing-details.ts (S4)", () => {
+  test("replaces sasimem/billing with the details given, optional ones null when left out", () => {
+    const w = s.billingDetailsWrite("sasimem-dev", { accountName: " Sasimem Ltd ", bankName: "BSP", accountNumber: "1001 2345 678" });
+    expect(w.update.name).toBe(`${P}/sasimem/billing`);
+    expect(w.currentDocument).toBeUndefined();
+    expect(w.update.fields).toEqual({
+      accountName: { stringValue: "Sasimem Ltd" }, bankName: { stringValue: "BSP" }, accountNumber: { stringValue: "1001 2345 678" },
+      branch: { nullValue: null }, contactEmail: { nullValue: null },
+    });
+  });
+
+  test("refuses missing details and a contact that is not an email address", () => {
+    expect(() => s.billingDetailsWrite("sasimem-dev", { bankName: "BSP", accountNumber: "1" })).toThrow("--account-name is required");
+    expect(() => s.billingDetailsWrite("sasimem-dev", { accountName: "S", bankName: "BSP", accountNumber: "1", contactEmail: "help" })).toThrow("--contact-email");
+  });
+});

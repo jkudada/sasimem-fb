@@ -1,7 +1,7 @@
 import { type Signal, signal, useSignal } from "@preact/signals";
 import {
   type CalendarDate, type Charge, type GstTreatment, type Period, type Recurrence, type TenancyInput, type Toea,
-  chargeProblems, chargesProblem, formatKina, newTenancyDocument, sameAsRentLabel, tenancyProblems,
+  canAddTenancy, chargeProblems, chargesProblem, formatKina, limitText, newTenancyDocument, sameAsRentLabel, tenancyProblems,
   type TenancyDocument,
 } from "@sasimem/core";
 import { newId, type Setup, type TenancyEdit } from "../setup.js";
@@ -88,6 +88,19 @@ export function TenancyForm(props: {
         <Back href="/" label="Home" />
         <h1>Add a tenancy</h1>
         <p>A tenancy joins a tenant to a unit. Add {properties.length === 0 ? <a href="/properties/new">a property</a> : <a href="/tenants/new">a tenant</a>} first.</p>
+      </main>
+    );
+  }
+
+  // At the plan's limit the create rule would refuse the save; say so first (PLAN-SUBSCRIBERS §8).
+  const sub = props.setup.subscription;
+  if (before === undefined && sub !== undefined && sub !== null && !canAddTenancy(sub)) {
+    return (
+      <main class="narrow">
+        <Back href="/" label="Home" />
+        <h1>Add a tenancy</h1>
+        <p>{limitText(sub)}</p>
+        <a class="button" href="/settings/billing#change">Ask to change plan</a>
       </main>
     );
   }

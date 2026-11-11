@@ -273,7 +273,7 @@ describe("tick step 5: remind (I8)", () => {
 describe("the tick as a whole", () => {
   test("reports what it did", async () => {
     const w = await world();
-    expect(await w.tick(LEAD)).toEqual({ drafted: 1, requested: 1, sent: 0, held: 0, reminded: 0 });
+    expect(await w.tick(LEAD)).toEqual({ drafted: 1, requested: 1, sent: 0, held: 0, reminded: 0, skipped: 0 });
   });
 
   test("after a crash between approval and rendering, the PDF is rendered at release and the invoice still goes with it (I5, I6)", async () => {
@@ -291,7 +291,7 @@ describe("the tick as a whole", () => {
     const log = (msg: string, data: object) => void lines.push([msg, data]);
     const ok = await world([{ id: "k1" }]);
     await tickAndLog(ok.deps, { orgIds: [ok.orgId] }, log);
-    expect(lines).toEqual([["tick done", { event: "tick_done", drafted: 1, requested: 1, sent: 0, held: 0, reminded: 0 }]]);
+    expect(lines).toEqual([["tick done", { event: "tick_done", drafted: 1, requested: 1, sent: 0, held: 0, reminded: 0, skipped: 0 }]]);
 
     lines.length = 0;
     const bad = await world([{ id: "k1" }], { refuse: LANDLORD }); // the digest is refused at LEAD
@@ -301,9 +301,9 @@ describe("the tick as a whole", () => {
 
   test("a successful full tick records when it ran, for the console's Health page; a tick scoped to some orgs does not", async () => {
     const at = new Date("2026-11-08T03:00:00Z");
-    await recordTickDone(at, { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0 });
+    await recordTickDone(at, { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0, skipped: 0 });
     expect((await adminDb().doc("system/tick").get()).data()).toEqual({
-      lastSuccessAt: Timestamp.fromDate(at), tally: { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0 },
+      lastSuccessAt: Timestamp.fromDate(at), tally: { drafted: 1, requested: 0, sent: 0, held: 0, reminded: 0, skipped: 0 },
     });
     const scoped = await world([{ id: "k1" }]);
     await tickAndLog(scoped.deps, { orgIds: [scoped.orgId] }, () => undefined);
