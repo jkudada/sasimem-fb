@@ -46,6 +46,8 @@ let resolver: MultiFactorResolver | null = null;
 let secret: TotpSecret | null = null;
 
 export const actions: Actions = {
+  operate: (orgId, action) => import("./callables.js").then((c) => c.operate(orgId, action)),
+  invite: (request) => import("./callables.js").then((c) => c.invite(request)),
   async signIn(email, password): Promise<SignInResult> {
     try {
       await signInWithEmailAndPassword(auth, email, password);

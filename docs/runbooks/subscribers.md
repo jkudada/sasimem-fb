@@ -1,4 +1,4 @@
-# Subscribers (PLAN-SUBSCRIBERS S1)
+# Subscribers (PLAN-SUBSCRIBERS S1-S3)
 
 Run from the repository root with Node 22. Each script needs `--project`; `sasimem-prod`
 also needs `--i-am-the-owner`. Every write is create-only or merges claims, so each script
@@ -76,3 +76,27 @@ Once per project, in this order:
 
 The tick writes `system/tick` after each successful hourly run; Health shows it. The
 3-hour alert still comes from the log line (`docs/runbooks/alerts.md`).
+
+## Operator actions and invitations (S3)
+
+S3 adds two callables, `operatorAction` and `invite`. They go out with a normal
+Functions deploy, and `invite` sends mail, so it reads the same mail secrets as the tick:
+```sh
+firebase deploy --only functions,firestore:rules --project sasimem-dev
+```
+The rules change lets operators read `signupInvites` for the Invites page. Then rebuild and
+redeploy the console (step 4 above).
+
+- **Record a payment** on the subscriber's page when the transfer shows on the bank statement:
+  the amount, the day it arrived, the bank's reference and the months it pays for (12 for
+  annual, 3 for monthly billed quarterly). The same bank reference twice is one payment, so
+  recording it again by mistake does nothing.
+- **Every change is in the audit trail** (`operatorEvents`), with who made it and each field
+  before and after. A refused change writes nothing.
+- **Invite** from the Invites page with a plan, a trial length and how long the invitation
+  lasts. It emails the sign-up link. "Send again" re-sends it with the same terms and a fresh
+  expiry. "Revoke" deletes an unused one. A used invitation is never changed.
+  `ops/invite.ts` still works: its invitations have no plan or expiry and give the standard
+  60-day trial.
+- **Cancel** keeps the org read-only for 90 days, and it can be reinstated until then. Purging
+  comes in S6, so until then nothing is ever deleted.

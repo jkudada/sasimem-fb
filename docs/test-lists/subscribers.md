@@ -1,6 +1,6 @@
 # Subscribers test list (docs/PLAN-SUBSCRIBERS.md)
 
-S1 done (2026-11-08), S2 done (2026-11-09); S3-S6 to come.
+S1 done (2026-11-08), S2 done (2026-11-09), S3 done (2026-11-11); S4-S6 to come.
 
 Written before the code (plan §9.1 of PLAN-SASIMEM-FB). Ticked as each goes red → green.
 Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
@@ -74,14 +74,54 @@ rules (T2), and a real sign-in is tried on sasimem-dev once TOTP is on there.
 - [x] operators read `system/tick` and list `orgs`, `subscriptions` and an org's runs; owners cannot read `system/tick` or list `orgs` (T2; `system/tick` added to I9)
 - [x] the console is its own package and Hosting site (`firebase.console.json`); the landlord app's sources and budgets are untouched
 
-## S3 - operator actions (T3)
-- [ ] every action refuses a caller without `operator` and a second factor
-- [ ] `recordPayment` writes the payment, moves `paidThrough`, re-evaluates status, and writes one `operatorEvents` entry with before and after - in one transaction
-- [ ] `recordPayment` twice with the same bank reference records it once
-- [ ] `changePlan` downgrade below current use keeps every tenancy and blocks new ones
-- [ ] `extendTrial`, `setLimitOverride`, `restrict`, `unrestrict`, `cancelSubscription`, `reinstate`, `addNote` each change only what they name and are audited
-- [ ] invites carry a plan and trial length; `createOrg` uses them; a used or expired invite is refused
-- [ ] `createOrg` with an invite's plan `free` makes a free subscription with no trial and no reference (moved from S1)
+## S3 - operator actions (T1 core, T2 rules, T3 callables, T1 console)
+Each action is a pure function in core (subscription-actions.ts); one callable,
+`operatorAction`, guards, loads, applies and stores them, so no action can skip the check.
+
+### core (T1)
+- [x] an action reads only what it is sent: an unknown kind or a malformed field is refused in plain words (the console and the server agree)
+- [x] every action that changes the subscription re-evaluates its status as of today
+- [x] a purged subscription takes no action; a cancelled one takes only `reinstate` and `addNote`
+- [x] an action that would change nothing is refused ("nothing to change"), so the audit trail holds only changes
+- [x] `recordPayment`: whole toea above zero, a real date not after today, a bank reference, 1-36 months; free is refused
+- [x] … moves `paidThrough` by the months paid, as `extendPaidThrough` on the day the money arrived (late recording costs the landlord nothing)
+- [x] … says which days it covers (`coversFrom`, `coversTo`)
+- [x] … lifts past_due and restricted to active
+- [x] `changePlan`: locks the new plan's price for the interval; the limit follows the plan unless overridden
+- [x] … to free: status free, price 0; from free to a paid plan: given a `SUB-` reference if it has none, and past due until paid or given a trial
+- [x] … a downgrade below current use changes no count: over the limit means no new tenancies, nothing ended
+- [x] `extendTrial`: 1-365 days after the later of the trial's end and yesterday; past due becomes trial again; free is refused
+- [x] `setLimitOverride`: a whole number 1-1000 sets the limit; clearing it returns the plan's limit
+- [x] `restrict` (by hand) holds the status at restricted whatever the dates, free included; the daily recompute keeps it; `unrestrict` clears only that, and says so when the restriction is for non-payment
+- [x] … a payment while restricted by hand still counts from the covered day, not today
+- [x] `cancelSubscription`: cancelled today, purge 90 days on; `reinstate` before then gives back the status the dates say (free stays free), after it is refused
+- [x] `addNote`: 1-2000 characters, the subscription untouched
+- [x] the audit diff lists only the fields that changed, before and after
+
+### rules (T2)
+- [x] operators read `signupInvites`; owners and strangers still cannot
+
+### callables (T3)
+- [x] every action refuses a caller without `operator`, and one with it but no second factor; it writes nothing
+- [x] an unknown org, or an org with no subscription, is refused plainly
+- [x] `recordPayment` writes the payment, moves `paidThrough`, re-evaluates status, and writes one `operatorEvents` entry with before and after - in one transaction
+- [x] `recordPayment` twice with the same bank reference records it once (the second says it was already recorded)
+- [x] `changePlan` downgrade below current use keeps every tenancy and blocks new ones
+- [x] `changePlan` from free uses the next `SUB-` reference from the shared counter
+- [x] `extendTrial`, `setLimitOverride`, `restrict`, `unrestrict`, `cancelSubscription`, `reinstate`, `addNote` each change only what they name and are audited (actor, email, kind, org, before, after)
+- [x] a refused action writes nothing, not even an audit entry
+- [x] invites carry a plan, a trial length and an expiry; `createOrg` uses them; a used or expired invite is refused
+- [x] `createOrg` with an invite's plan `free` makes a free subscription with no trial and no reference (moved from S1)
+- [x] an old invite with no plan (from `ops/invite.ts`) still gives the standard 60-day trial
+- [x] `invite` (operator only) creates the invitation and emails the sign-up link; sending again re-sends it; a used invitation cannot be changed; `revoke` deletes an unused one
+- [x] a failed invitation email leaves the invitation in place and says the email failed
+
+### console (T1)
+- [x] the Subscriber page offers each action as a small form; a refusal shows the server's words; success reloads the page
+- [x] cancelling asks to confirm first
+- [x] amounts are typed in kina and sent in toea
+- [x] the audit trail shows each change's fields, before → after
+- [x] Invites lists invitations (email, plan, trial, expiry, used or not), sends, re-sends and revokes
 
 ## S4 - enforcement (T3, T4)
 - [ ] the banner text for each status names the amount, the reference and what changes (restricted: "invoices already approved are sent as normal") (moved from S1)
