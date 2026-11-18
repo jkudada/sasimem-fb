@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineProject } from "vitest/config";
 import preact from "@preact/preset-vite";
 
@@ -9,6 +10,6 @@ export default defineProject({
     include: ["src/**/*.test.tsx", "src/**/*.test.ts"],
     environment: "happy-dom",
     pool: "vmThreads",
-    setupFiles: ["./test-setup.tsx"],
+    setupFiles: [fileURLToPath(new URL("../../tools/cpu-clock.ts", import.meta.url)), "./test-setup.tsx"],
   },
 });

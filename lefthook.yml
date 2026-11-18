@@ -1,7 +1,7 @@
 # Pre-push: fast checks only, never emulators (plan §9.4). Target < 30 s.
-# T1 runs first and alone: its 100 ms per-test alarm measures wall time, and a test over
-# it is timed again, up to three times, before the push fails (tools/unit-gate.mjs); also,
-# running it beside typecheck and lint inflated a 60 ms test to 118 ms.
+# T1 runs first and alone, through tools/unit-gate.mjs: a failing test fails the push; a
+# test over the 100 ms alarm is listed but does not, because on this shared machine the
+# alarm fired at random whenever other sessions ran tests. CI's T1 job enforces it.
 pre-push:
   piped: true
   commands:
