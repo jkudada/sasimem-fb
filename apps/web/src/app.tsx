@@ -6,6 +6,7 @@ import { type ReadonlySignal, useSignal } from "@preact/signals";
 import type { CalendarDate, OrgSetupInput } from "@sasimem/core";
 import { LocationProvider, Route, Router } from "preact-iso";
 import { lazyScreen } from "./lazy.js";
+import { Welcome } from "./welcome.js";
 import { screenFor, type Session } from "./route.js";
 import type { SetupStore } from "./setup.js";
 import type { SignInAction } from "./screens/SignIn.js";
@@ -54,23 +55,25 @@ export function App(props: { session: ReadonlySignal<Session>; actions: Actions;
     return problem;
   };
 
-  if (screen === "loading") return <main class="narrow"><h1>Sasimem</h1><p>Loading…</p></main>;
+  if (screen === "loading") return <Welcome><main class="narrow"><p>Loading…</p></main></Welcome>;
   if (screen === "signIn") {
     return (
-      <LocationProvider>
-        <Router>
-          <Route path="/sign-up" component={() => <SignUp onSignUp={actions.signUp} open={signUpOpen} />} />
-          <Route path="/reset" component={() => <ResetPassword onReset={actions.reset} />} />
-          <Route default component={() => <SignIn onSignIn={actions.signIn} signUpOpen={signUpOpen} />} />
-        </Router>
-      </LocationProvider>
+      <Welcome>
+        <LocationProvider>
+          <Router>
+            <Route path="/sign-up" component={() => <SignUp onSignUp={actions.signUp} open={signUpOpen} />} />
+            <Route path="/reset" component={() => <ResetPassword onReset={actions.reset} />} />
+            <Route default component={() => <SignIn onSignIn={actions.signIn} signUpOpen={signUpOpen} />} />
+          </Router>
+        </LocationProvider>
+      </Welcome>
     );
   }
   if (screen === "verify" && session.status === "signedIn") {
-    return <VerifyEmail email={session.email} onCheck={actions.checkVerified} onResend={actions.resendVerification} onSignOut={actions.signOut} />;
+    return <Welcome><VerifyEmail email={session.email} onCheck={actions.checkVerified} onResend={actions.resendVerification} onSignOut={actions.signOut} /></Welcome>;
   }
-  if (screen === "onboarding" && session.status === "signedIn") return <OrgStep defaultEmail={session.email} onSubmit={createOrg} />;
-  if (addingTenant.value) return <TenancyStep today={props.today() as CalendarDate} onSubmit={saveFirstTenancy} />;
+  if (screen === "onboarding" && session.status === "signedIn") return <Welcome><OrgStep defaultEmail={session.email} onSubmit={createOrg} /></Welcome>;
+  if (addingTenant.value) return <Welcome><TenancyStep today={props.today() as CalendarDate} onSubmit={saveFirstTenancy} /></Welcome>;
   if (session.status !== "signedIn" || session.orgId === null) return null;
   return <SignedIn orgId={session.orgId} actions={actions} today={props.today() as CalendarDate} />;
 }

@@ -10,6 +10,7 @@ import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
+import { Mark } from "./screens/icons.js";
 import type { Month, Numbering, Outcome, Setup, SetupStore } from "./setup.js";
 import { invoiceTemplateName } from "./template-choice.js";
 
@@ -79,6 +80,7 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
   return (
     <Ctx.Provider value={context.value}>
       <LocationProvider>
+        <TopBar />
         <Router>
           <Route path="/properties" component={PropertiesRoute} />
           <Route path="/properties/:id" component={PropertyRoute} />
@@ -97,6 +99,19 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
         </Router>
       </LocationProvider>
     </Ctx.Provider>
+  );
+}
+
+/** The bar across the top of every signed-in screen: the way home, and whose rentals these are. */
+function TopBar() {
+  const { setup } = useSignedIn();
+  return (
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/"><Mark />Sasimem</a>
+        <span class="topbar-org">{setup.value.org.name}</span>
+      </div>
+    </header>
   );
 }
 
