@@ -117,6 +117,17 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
     await assertSucceeds(getDocs(collection(op, `orgs/${s.orgId}/runs`)));
   });
 
+  test("export links are server-only: not the owner, not an operator (S6)", async () => {
+    const s = await seedOrg(env);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "exportLinks/abc"), { orgId: s.orgId, path: `exports/${s.orgId}/x.zip` });
+    });
+    const owner = env.authenticatedContext(s.ownerUid).firestore();
+    await assertFails(getDoc(doc(owner, "exportLinks/abc")));
+    await assertFails(setDoc(doc(owner, "exportLinks/mine"), { orgId: s.orgId, path: "exports/other/x.zip" }));
+    await assertFails(getDoc(doc(operator(), "exportLinks/abc")));
+  });
+
   test("not even an operator reads the invoice counter", async () => {
     const s = await seedOrg(env);
     await assertFails(getDoc(doc(operator(), `orgs/${s.orgId}/private/counter`)));

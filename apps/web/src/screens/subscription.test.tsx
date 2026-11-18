@@ -63,9 +63,11 @@ describe("at the tenancy limit", () => {
 });
 
 describe("Plan & billing", () => {
-  const page = (s: SubscriptionFields | null, opts: { payments?: unknown; onAsk?: ReturnType<typeof vi.fn> } = {}) => {
+  const page = (s: SubscriptionFields | null, opts: { payments?: unknown; onAsk?: ReturnType<typeof vi.fn>; onExport?: ReturnType<typeof vi.fn>; onCancel?: ReturnType<typeof vi.fn> } = {}) => {
     const onAsk = opts.onAsk ?? vi.fn().mockResolvedValue({ ok: true, message: "Sasimem has your request and will reply to mary@wari.example." });
-    render(<PlanBilling setup={setup(s)} today={TODAY} loadPayments={vi.fn().mockResolvedValue(opts.payments ?? [])} onAsk={onAsk as never} />);
+    const onExport = opts.onExport ?? vi.fn().mockResolvedValue({ ok: true, message: "Your export is downloading.", url: "https://sasimem.example/x/tok" });
+    const onCancel = opts.onCancel ?? vi.fn().mockResolvedValue({ ok: true, message: "Cancelled." });
+    render(<PlanBilling setup={setup(s)} today={TODAY} loadPayments={vi.fn().mockResolvedValue(opts.payments ?? [])} onAsk={onAsk as never} onExport={onExport as never} onCancel={onCancel as never} />);
     return onAsk;
   };
 
@@ -98,6 +100,53 @@ describe("Plan & billing", () => {
     page(sub(), { onAsk: vi.fn().mockResolvedValue({ ok: false, message: "You have already asked today. Sasimem will reply by email." }) });
     fireEvent.click(screen.getByRole("button", { name: "Ask to change plan" }));
     expect((await screen.findByRole("alert")).textContent).toBe("You have already asked today. Sasimem will reply by email.");
+  });
+
+  test("export everything: downloads, and offers the link again for the hour it lasts (S6)", async () => {
+    const onExport = vi.fn().mockResolvedValue({ ok: true, message: "Your export is downloading.", url: "https://sasimem.example/x/tok" });
+    page(sub(), { onExport });
+    const section = screen.getByRole("region", { name: "Export everything" });
+    expect(section.id).toBe("export");
+    expect(section.textContent).toContain("every invoice PDF");
+    fireEvent.click(screen.getByRole("button", { name: "Export everything" }));
+    expect((await screen.findByText("Your export is downloading.")).getAttribute("role")).toBe("status");
+    expect(screen.getByRole("link", { name: "Download it again" }).getAttribute("href")).toBe("https://sasimem.example/x/tok");
+    expect(onExport).toHaveBeenCalledOnce();
+  });
+
+  test("an export that fails says why", async () => {
+    page(sub(), { onExport: vi.fn().mockResolvedValue({ ok: false, message: "Your details could not be loaded." }) });
+    fireEvent.click(screen.getByRole("button", { name: "Export everything" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Your details could not be loaded.");
+  });
+
+  test("cancel asks first, says what happens, and can be backed out of (S6)", async () => {
+    const onCancel = vi.fn().mockResolvedValue({ ok: true, message: "Cancelled." });
+    page(sub(), { onCancel });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel subscription" }));
+    const ask = screen.getByRole("region", { name: "Cancel subscription" }).textContent ?? "";
+    expect(ask).toContain("No new month will be drafted. Months already approved still go out.");
+    expect(ask).toContain("kept, read-only, for 90 days, then deleted");
+    fireEvent.click(screen.getByRole("button", { name: "Keep my subscription" }));
+    expect(onCancel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel subscription" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel my subscription" }));
+    await vi.waitFor(() => expect(onCancel).toHaveBeenCalledOnce(), { interval: 5 });
+  });
+
+  test("a refused cancel shows the server's words", async () => {
+    page(sub(), { onCancel: vi.fn().mockResolvedValue({ ok: false, message: "Already cancelled." }) });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel subscription" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel my subscription" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Already cancelled.");
+  });
+
+  test("cancelled: says when the records go, still offers the export, and no cancel or plan change", () => {
+    page(sub({ status: "cancelled", cancelledOn: d("2026-09-15"), purgeAfter: d("2026-12-14") }));
+    expect(document.querySelector("dl.facts")?.textContent).toContain("Records deleted on14 December 2026");
+    expect(screen.getByRole("button", { name: "Export everything" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel subscription" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask to change plan" })).toBeNull();
   });
 
   test("with no subscription it says so plainly", () => {

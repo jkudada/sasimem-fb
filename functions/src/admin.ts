@@ -18,3 +18,13 @@ export function bucket() {
   const name = a.options.storageBucket ?? `${a.options.projectId ?? process.env["GCLOUD_PROJECT"] ?? ""}.appspot.com`;
   return getStorage(a).bucket(name);
 }
+
+/**
+ * The retention bucket (PLAN-SUBSCRIBERS §11, S6): issued invoices and their PDFs, kept
+ * 7 years after a purge by the bucket's lifecycle rule; no client can reach it. Made by
+ * ops/retention-bucket.ts; named by RETENTION_BUCKET, else "<project>-retention".
+ */
+export function retentionBucket(name: string) {
+  const a = app();
+  return getStorage(a).bucket(name !== "" ? name : `${a.options.projectId ?? process.env["GCLOUD_PROJECT"] ?? ""}-retention`);
+}

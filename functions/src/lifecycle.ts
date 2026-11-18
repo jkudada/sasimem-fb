@@ -43,7 +43,7 @@ function mailFor(notice: LifecycleNotice, to: { email: string; name: string }, s
     case "setupNudge": return setupNudge(base);
     default: {
       const said = subscriptionNotice(sub, today, bank);
-      return said === null ? null : subscriptionLetter({ ...base, title: said.title, body: said.body });
+      return said === null ? null : subscriptionLetter({ ...base, title: said.title, body: said.body, cancelled: notice.kind === "cancelled" });
     }
   }
 }

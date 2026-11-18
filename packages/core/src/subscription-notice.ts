@@ -53,6 +53,8 @@ export function howToPay(s: Pick<SubscriptionFields, "interval" | "priceToea" | 
 const contact = (bank: BankDetails | null): string =>
   typeof bank?.contactEmail === "string" && bank.contactEmail !== "" ? `Contact Sasimem at ${bank.contactEmail}.` : "Contact Sasimem.";
 
+const lower = (s: string): string => s.charAt(0).toLowerCase() + s.slice(1);
+
 const ALREADY_APPROVED = "Invoices already approved are sent as normal.";
 
 /** The banner for `s` on `today`, or null when there is nothing to say. Follows the status the dates give, not the stored one. */
@@ -92,7 +94,7 @@ export function subscriptionNotice(s: SubscriptionFields, today: CalendarDate, b
     case "cancelled":
       return {
         kind: "cancelled", tone: "problem", title: "Your Sasimem subscription is cancelled",
-        body: `No new month will be drafted.${s.purgeAfter === null ? "" : ` Your records are kept, read-only, until ${dateLabel(s.purgeAfter)}.`} ${contact(bank)}`,
+        body: `No new month will be drafted. ${ALREADY_APPROVED}${s.purgeAfter === null ? "" : ` Your records are kept, read-only, until ${dateLabel(s.purgeAfter)}, and then deleted: use Export everything in Settings, Plan & billing to keep a copy.`} To carry on, ${lower(contact(bank))}`,
       };
     default:
       return null;

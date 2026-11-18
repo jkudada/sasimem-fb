@@ -9,6 +9,7 @@
 import { parsePeriod } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, test } from "vitest";
+import { retentionBucket } from "../src/admin.js";
 import { makeBillingCallables } from "../src/callables/billing.js";
 import { makeDraftNow } from "../src/callables/runs.js";
 import type { Mail } from "../src/mail/mailer.js";
@@ -122,7 +123,7 @@ describe("draftNow and a restricted org", () => {
 });
 
 describe("the daily subscription tick (PLAN-SUBSCRIBERS §10, steps 1-2)", () => {
-  const at = (t: Date) => ({ now: () => t, mailer: new FakeMailer(), appUrl: () => "https://sasimem.example", fallbackContact: () => "invoices@sasimem.example" });
+  const at = (t: Date) => ({ now: () => t, mailer: new FakeMailer(), appUrl: () => "https://sasimem.example", fallbackContact: () => "invoices@sasimem.example", retention: () => retentionBucket("sasimem-test-retention") });
 
   test("brings each stored status up to its dates, audited as subscription-tick", async () => {
     const { orgId } = await anOrgWith();
@@ -183,7 +184,7 @@ describe("asking to change plan (PLAN-SUBSCRIBERS §8)", () => {
   }
   const setUp = () => {
     const mailer = new Box();
-    const { requestPlanChange } = makeBillingCallables({ now: () => now, mailer, fallbackContact: () => "invoices@sasimem.example" });
+    const { requestPlanChange } = makeBillingCallables({ now: () => now, mailer, fallbackContact: () => "invoices@sasimem.example", appUrl: () => "https://sasimem.example", newToken: () => crypto.randomUUID() });
     return { mailer, ask: (uid: string, data: Record<string, unknown>) => requestPlanChange.run(request(uid, data, { email: "mary@wari.example" })) };
   };
 

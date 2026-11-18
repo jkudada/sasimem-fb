@@ -1,14 +1,15 @@
 /**
  * Settings → Plan & billing (PLAN-SUBSCRIBERS §8, S4), a lazy route: the plan, how many
  * tenancies it allows, the status and its dates, how to pay Sasimem, the payments Sasimem
- * has recorded, and "Ask to change plan". Export and cancel arrive with S6.
+ * has recorded, and "Ask to change plan". S6: "Export everything" (#export, which the
+ * cancellation email links to) and "Cancel subscription", asked twice.
  */
 import { useSignal } from "@preact/signals";
 import {
   type CalendarDate, dateLabel, defaultPlan, formatKina, howToPay, type Interval, type PlanId, STATUS_LABELS, subscriptionStatus, usageText,
 } from "@sasimem/core";
 import { useEffect } from "preact/hooks";
-import type { Outcome, Setup, SubscriptionPayment } from "../setup.js";
+import type { ExportOutcome, Outcome, Setup, SubscriptionPayment } from "../setup.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { SubscriptionBanner } from "./SubscriptionBanner.js";
@@ -18,6 +19,8 @@ export function PlanBilling(props: {
   today: CalendarDate;
   loadPayments: () => Promise<readonly SubscriptionPayment[] | string>;
   onAsk: (planId: PlanId, interval: Interval, message: string) => Promise<Outcome>;
+  onExport: () => Promise<ExportOutcome>;
+  onCancel: () => Promise<Outcome>;
 }) {
   const sub = props.setup.subscription ?? null;
   const payments = useSignal<readonly SubscriptionPayment[] | string | null>(null);
@@ -36,6 +39,7 @@ export function PlanBilling(props: {
   const plan = defaultPlan(sub.planId);
   const free = sub.planId === "free";
   const p = payments.value;
+  const ended = status === "cancelled" || status === "purged";
 
   return (
     <main class="narrow">
@@ -50,9 +54,10 @@ export function PlanBilling(props: {
         {sub.trialEndsOn !== null && status === "trial" && <><dt>Trial ends</dt><dd>{dateLabel(sub.trialEndsOn)}</dd></>}
         {sub.paidThrough !== null && <><dt>Paid through</dt><dd>{dateLabel(sub.paidThrough)}</dd></>}
         {sub.paymentReference !== null && <><dt>Your payment reference</dt><dd>{sub.paymentReference}</dd></>}
+        {ended && sub.purgeAfter !== null && <><dt>Records deleted on</dt><dd>{dateLabel(sub.purgeAfter)}</dd></>}
       </dl>
 
-      {!free && (
+      {!free && !ended && (
         <>
           <h2>How to pay</h2>
           <p>{howToPay(sub, props.setup.bank ?? null)}</p>
@@ -71,7 +76,9 @@ export function PlanBilling(props: {
         </ul>
       ))}
 
-      <AskToChange current={sub.planId} interval={sub.interval} onAsk={props.onAsk} />
+      {!ended && <AskToChange current={sub.planId} interval={sub.interval} onAsk={props.onAsk} />}
+      <ExportEverything onExport={props.onExport} />
+      {!ended && <CancelSubscription onCancel={props.onCancel} />}
     </main>
   );
 }
@@ -114,5 +121,49 @@ function AskToChange(props: { current: PlanId; interval: Interval; onAsk: (planI
       {outcome.value !== null && <p role={outcome.value.ok ? "status" : "alert"}>{outcome.value.message}</p>}
       <button type="submit" disabled={busy.value || outcome.value?.ok === true}>{busy.value ? "Sending…" : "Ask to change plan"}</button>
     </form>
+  );
+}
+
+function ExportEverything(props: { onExport: () => Promise<ExportOutcome> }) {
+  const outcome = useSignal<ExportOutcome | null>(null);
+  const busy = useSignal(false);
+  const run = async () => {
+    busy.value = true;
+    outcome.value = await props.onExport();
+    busy.value = false;
+  };
+  const o = outcome.value;
+  return (
+    <section id="export" class="card" aria-labelledby="export-h">
+      <h2 id="export-h">Export everything</h2>
+      <p class="note">A zip of your properties, tenants, tenancies, invoices and payments as spreadsheets (CSV), with every invoice PDF.</p>
+      {o !== null && <p role={o.ok ? "status" : "alert"}>{o.message}</p>}
+      {o?.ok === true && o.url !== undefined && <p class="note"><a href={o.url}>Download it again</a> (the link works for an hour).</p>}
+      <button type="button" disabled={busy.value} onClick={() => void run()}>{busy.value ? "Preparing…" : "Export everything"}</button>
+    </section>
+  );
+}
+
+function CancelSubscription(props: { onCancel: () => Promise<Outcome> }) {
+  const asking = useSignal(false);
+  const busy = useSignal(false);
+  const problem = useSignal<string | null>(null);
+  const cancel = async () => {
+    busy.value = true;
+    const o = await props.onCancel();
+    busy.value = false;
+    problem.value = o.ok ? null : o.message;
+  };
+  if (!asking.value) {
+    return <button type="button" class="danger" onClick={() => (asking.value = true)}>Cancel subscription</button>;
+  }
+  return (
+    <section class="card" aria-labelledby="cancel-h">
+      <h2 id="cancel-h">Cancel subscription</h2>
+      <p>No new month will be drafted. Months already approved still go out. Your records are kept, read-only, for 90 days, then deleted: export them first if you want a copy.</p>
+      {problem.value !== null && <p role="alert">{problem.value}</p>}
+      <button type="button" class="danger" disabled={busy.value} onClick={() => void cancel()}>{busy.value ? "Cancelling…" : "Yes, cancel my subscription"}</button>
+      <button type="button" class="quiet" disabled={busy.value} onClick={() => (asking.value = false)}>Keep my subscription</button>
+    </section>
   );
 }

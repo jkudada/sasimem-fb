@@ -7,7 +7,7 @@
 import type { CalendarDate } from "./period.js";
 import { type SubscriptionFields, pastDueSince, subscriptionStatus } from "./subscriptions.js";
 
-export type LifecycleKind = "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted";
+export type LifecycleKind = "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted" | "cancelled";
 
 export interface LifecycleNotice {
   readonly kind: LifecycleKind;
@@ -54,6 +54,9 @@ export function lifecycleNoticesDue(f: LifecycleFacts, today: CalendarDate): Lif
   if (status === "past_due") due.push({ kind: "pastDue", key: `pastDue_${since ?? "never"}` });
   // A hand restriction is the operator's to explain; this is for non-payment.
   if (status === "restricted" && f.sub.manuallyRestricted !== true) due.push({ kind: "restricted", key: `restricted_${since ?? "never"}` });
+  // Once per cancellation (S6): what still happens, the export, and the day the records go.
+  // Purged from purgeAfter on, so there is nobody left to tell.
+  if (status === "cancelled") due.push({ kind: "cancelled", key: `cancelled_${f.sub.cancelledOn ?? "never"}` });
   return due;
 }
 
