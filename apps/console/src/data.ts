@@ -1,16 +1,16 @@
 /**
  * The console's reads (PLAN-SUBSCRIBERS §7), loaded after sign-in. Read-only: every
- * change an operator makes goes through an audited callable (S3), and the rules refuse
- * any direct write. Firestore Lite: nothing here needs live updates.
+ * change an operator makes goes through an audited callable (callables.ts), and the
+ * rules refuse any direct write. Firestore Lite: nothing here needs live updates.
  */
-import type { SubscriptionFields } from "@sasimem/core";
+import type { PlanId, SubscriptionFields } from "@sasimem/core";
 import {
   collection, type DocumentData, doc, getDoc, getDocs, getFirestore, query, Timestamp, where,
 } from "firebase/firestore/lite";
 import { startAppCheck } from "./appcheck.js";
 import { app } from "./firebase.js";
 import type {
-  EmailSummary, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
+  EmailSummary, Invite, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, PaymentRow, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
 } from "./types.js";
 
 startAppCheck(app, import.meta.env["VITE_RECAPTCHA_SITE_KEY"]);
@@ -44,10 +44,31 @@ async function recentEmails(orgId: string): Promise<EmailSummary[]> {
   return snap.docs.map((d) => email(d.id, d.data())).sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
 }
 
+const event = (id: string, d: DocumentData): OperatorEvent => {
+  const before = (d["before"] ?? {}) as Record<string, unknown>;
+  const after = (d["after"] ?? {}) as Record<string, unknown>;
+  return {
+    id, kind: str(d["kind"]), actor: str(d["actor"]), actorEmail: str(d["actorEmail"]), at: dateOf(d["at"]) ?? new Date(0),
+    changes: Object.keys(after).sort().map((field) => ({ field, before: before[field] ?? null, after: after[field] })),
+  };
+};
+
+const invite = (email: string, d: DocumentData): Invite => ({
+  email, planId: typeof d["planId"] === "string" ? (d["planId"] as PlanId) : null,
+  trialDays: typeof d["trialDays"] === "number" ? d["trialDays"] : null,
+  expiresAt: dateOf(d["expiresAt"]), invitedAt: dateOf(d["invitedAt"]),
+  used: d["usedBy"] != null, sendCount: num(d["sendCount"]), lastError: typeof d["lastError"] === "string" ? d["lastError"] : null,
+});
+
 export interface ConsoleData {
   subscribers(): Promise<SubscriberInput[]>;
+  invites(): Promise<Invite[]>;
   subscriber(orgId: string): Promise<SubscriberDetail | null>;
   tick(): Promise<TickBeat | null>;
+  /** The daily subscription tick's last success (S4). */
+  subscriptionTick(): Promise<TickBeat | null>;
+  /** Every payment recorded, with its org (S5, the Billing page). */
+  payments(): Promise<PaymentRow[]>;
 }
 
 export const consoleData: ConsoleData = {
@@ -81,7 +102,7 @@ export const consoleData: ConsoleData = {
         .sort((a, b) => b.receivedOn.localeCompare(a.receivedOn)),
       notes: notes.docs.map((d): Note => ({ id: d.id, text: str(d.get("text")), by: str(d.get("by")), at: dateOf(d.get("at")) ?? new Date(0) }))
         .sort((a, b) => b.at.getTime() - a.at.getTime()),
-      events: events.docs.map((d): OperatorEvent => ({ id: d.id, kind: str(d.get("kind")), actor: str(d.get("actor")), at: dateOf(d.get("at")) ?? new Date(0) }))
+      events: events.docs.map((d) => event(d.id, d.data()))
         .sort((a, b) => b.at.getTime() - a.at.getTime()),
       runs, emails,
       invoices: invoices.map((d): InvoiceSummary => ({
@@ -91,9 +112,29 @@ export const consoleData: ConsoleData = {
     };
   },
 
-  async tick() {
-    const beat = await getDoc(doc(db, "system/tick"));
-    const at = dateOf(beat.get("lastSuccessAt"));
-    return at === null ? null : { lastSuccessAt: at, tally: (beat.get("tally") ?? {}) as Record<string, number> };
+  async invites() {
+    const snap = await getDocs(collection(db, "signupInvites"));
+    return snap.docs.map((d) => invite(d.id, d.data())).sort((a, b) => (b.invitedAt?.getTime() ?? 0) - (a.invitedAt?.getTime() ?? 0));
   },
+
+  async payments() {
+    const [orgs, subs] = await Promise.all([getDocs(collection(db, "orgs")), getDocs(collection(db, "subscriptions"))]);
+    const nameOf = new Map(orgs.docs.map((o) => [o.id, str(o.get("name"))]));
+    // One small read per subscriber, as the Subscribers list does.
+    const each = await Promise.all(subs.docs.map(async (sub) => (await getDocs(collection(db, `subscriptions/${sub.id}/payments`))).docs.map((d): PaymentRow => ({
+      id: d.id, orgId: sub.id, orgName: nameOf.get(sub.id) ?? sub.id, subscriptionReference: typeof sub.get("paymentReference") === "string" ? sub.get("paymentReference") : null,
+      amountToea: num(d.get("amountToea")), receivedOn: d.get("receivedOn"), bankReference: str(d.get("bankReference")),
+      coversFrom: d.get("coversFrom") ?? null, coversTo: d.get("coversTo") ?? null,
+    }))));
+    return each.flat();
+  },
+
+  tick: () => heartbeat("system/tick"),
+  subscriptionTick: () => heartbeat("system/subscriptionTick"),
 };
+
+async function heartbeat(path: string): Promise<TickBeat | null> {
+  const beat = await getDoc(doc(db, path));
+  const at = dateOf(beat.get("lastSuccessAt"));
+  return at === null ? null : { lastSuccessAt: at, tally: (beat.get("tally") ?? {}) as Record<string, number> };
+}

@@ -45,11 +45,13 @@ export const priceFor = (p: Plan, interval: Interval): Toea => (interval === "an
 export const TRIAL_PLAN: PlanId = "standard";
 export const TRIAL_DAYS = 60;
 export const GRACE_DAYS = 14;
+/** Cancelled subscriptions are kept, read-only, this long before purging (D12). */
+export const CANCEL_DAYS = 90;
 /** Sasimem's own day: subscription dates are kept in it, whatever the landlord's timezone. */
 export const SUBSCRIPTION_TIMEZONE = "Pacific/Port_Moresby";
 
 /** The last day of a trial that starts on `today`, counting today as day one. */
-export const trialEndsOn = (today: CalendarDate): CalendarDate => addDays(today, TRIAL_DAYS - 1);
+export const trialEndsOn = (today: CalendarDate, days: number = TRIAL_DAYS): CalendarDate => addDays(today, days - 1);
 
 // ---------------------------------------------------------------- the limit
 
@@ -72,6 +74,8 @@ export interface SubscriptionTerms {
   readonly paidThrough: CalendarDate | null;
   readonly graceDays: number;
   readonly purgeAfter: CalendarDate | null;
+  /** Restricted by an operator, whatever the dates say (S3). Absent on older documents: false. */
+  readonly manuallyRestricted?: boolean;
 }
 
 const later = (a: CalendarDate | null, b: CalendarDate | null): CalendarDate | null =>
@@ -95,7 +99,9 @@ export function pastDueSince(s: SubscriptionTerms, today: CalendarDate): Calenda
 export function subscriptionStatus(s: SubscriptionTerms, today: CalendarDate): SubscriptionStatus {
   if (s.status === "purged") return "purged";
   if (s.status === "cancelled") return s.purgeAfter !== null && today >= s.purgeAfter ? "purged" : "cancelled";
-  if (s.status === "free") return "free";
+  if (s.manuallyRestricted === true) return "restricted";
+  // Free follows the plan, not the stored status, so lifting a hand restriction gives it back.
+  if (s.planId === "free") return "free";
   if (s.trialEndsOn !== null && today <= s.trialEndsOn) return "trial";
   if (s.paidThrough !== null && today <= s.paidThrough) return "active";
   const since = pastDueSince(s, today);
@@ -120,11 +126,20 @@ function addMonths(date: CalendarDate, months: number): CalendarDate {
  * served and the new term starts today.
  */
 export function extendPaidThrough(s: SubscriptionTerms, months: number, today: CalendarDate): CalendarDate {
+  return paymentCovers(s, months, today).coversTo;
+}
+
+/**
+ * The days a payment for `months`, arriving on `today`, pays for: from the day after
+ * the last covered day (or from today when restricted for non-payment) to the new
+ * paid-through day. A restriction by hand does not cost the landlord days.
+ */
+export function paymentCovers(s: SubscriptionTerms, months: number, today: CalendarDate): { coversFrom: CalendarDate; coversTo: CalendarDate } {
   if (!Number.isInteger(months) || months < 1) throw new RangeError(`a payment covers whole months, got ${months}`);
-  const status = subscriptionStatus(s, today);
+  const status = subscriptionStatus({ ...s, manuallyRestricted: false }, today);
   const covered = coveredThrough(s);
-  const from = status === "restricted" || covered === null ? addDays(today, -1) : covered;
-  return addMonths(from, months);
+  const last = status === "restricted" || covered === null ? addDays(today, -1) : covered;
+  return { coversFrom: addDays(last, 1), coversTo: addMonths(last, months) };
 }
 
 /** "SUB-0042": the reference a subscriber writes on their bank transfer. */
@@ -136,7 +151,7 @@ export function subscriptionReference(n: number): string {
 // ---------------------------------------------------------------- documents
 
 /** The fields of `subscriptions/{orgId}` that are not timestamps (PLAN-SUBSCRIBERS §6). */
-export interface SubscriptionFields {
+export interface SubscriptionFields extends SubscriptionTerms {
   readonly planId: PlanId;
   readonly status: SubscriptionStatus;
   readonly interval: Interval;
@@ -153,11 +168,11 @@ export interface SubscriptionFields {
 }
 
 /** A sign-up's subscription: a trial (D4), priced annually by default (D3), the price locked now. */
-export function newTrialSubscription(req: { plan: Plan; today: CalendarDate; referenceNumber: number }): SubscriptionFields {
+export function newTrialSubscription(req: { plan: Plan; today: CalendarDate; referenceNumber: number; trialDays?: number }): SubscriptionFields {
   return {
     planId: req.plan.id, status: "trial", interval: "annual", priceToea: priceFor(req.plan, "annual"),
     tenancyLimit: tenancyLimit(req.plan, null), limitOverride: null,
-    trialEndsOn: trialEndsOn(req.today), paidThrough: null, graceDays: GRACE_DAYS, cancelledOn: null, purgeAfter: null,
+    trialEndsOn: trialEndsOn(req.today, req.trialDays ?? TRIAL_DAYS), paidThrough: null, graceDays: GRACE_DAYS, cancelledOn: null, purgeAfter: null,
     paymentReference: subscriptionReference(req.referenceNumber), activeTenancyCount: 0,
   };
 }

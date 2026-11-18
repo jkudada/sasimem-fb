@@ -1,5 +1,5 @@
 /** What the console reads, as plain data. data.ts turns Firestore documents into these. */
-import type { CalendarDate, RunStatus, SubscriptionFields } from "@sasimem/core";
+import type { CalendarDate, PlanId, RunStatus, SubscriptionFields } from "@sasimem/core";
 
 export interface OrgSummary {
   readonly id: string;
@@ -49,6 +49,15 @@ export interface Payment {
   readonly bankReference: string;
 }
 
+/** One payment with its org, for the Billing page and its CSV (S5). */
+export interface PaymentRow extends Payment {
+  readonly orgId: string;
+  readonly orgName: string;
+  readonly subscriptionReference: string | null;
+  readonly coversFrom: CalendarDate | null;
+  readonly coversTo: CalendarDate | null;
+}
+
 export interface Note {
   readonly id: string;
   readonly text: string;
@@ -60,7 +69,24 @@ export interface OperatorEvent {
   readonly id: string;
   readonly kind: string;
   readonly actor: string;
+  /** The operator's email when the event recorded it. */
+  readonly actorEmail: string;
   readonly at: Date;
+  /** What changed: each field, before and after. */
+  readonly changes: readonly { readonly field: string; readonly before: unknown; readonly after: unknown }[];
+}
+
+/** An invitation to sign up (signupInvites), as the Invites page shows it. */
+export interface Invite {
+  readonly email: string;
+  /** Null for an invitation from before plans: the standard trial. */
+  readonly planId: PlanId | null;
+  readonly trialDays: number | null;
+  readonly expiresAt: Date | null;
+  readonly invitedAt: Date | null;
+  readonly used: boolean;
+  readonly sendCount: number;
+  readonly lastError: string | null;
 }
 
 export interface InvoiceSummary {

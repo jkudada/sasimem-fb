@@ -7,7 +7,7 @@
  *
  * With --email, the alerts go to that address (an email notification channel).
  */
-import { tickDoneMetric, tickFailedPolicy, tickSilentPolicy } from "./src/alerts.ts";
+import { subscriptionTickFailedPolicy, tickDoneMetric, tickFailedPolicy, tickSilentPolicy } from "./src/alerts.ts";
 import { ApiError, call, fail, get } from "./src/gcp.ts";
 import { flag, projectFrom } from "./src/guard.ts";
 
@@ -40,7 +40,7 @@ async function main() {
   }
 
   const existing = await get<{ alertPolicies?: { name: string; displayName: string }[] }>(`${MONITORING}/projects/${project}/alertPolicies`);
-  for (const policy of [tickFailedPolicy(project, channels), tickSilentPolicy(project, channels)]) {
+  for (const policy of [tickFailedPolicy(project, channels), tickSilentPolicy(project, channels), subscriptionTickFailedPolicy(project, channels)]) {
     const found = existing.alertPolicies?.find((p) => p.displayName === policy.displayName);
     if (found === undefined) await call({ method: "POST", url: `${MONITORING}/projects/${project}/alertPolicies`, body: policy });
     else await call({ method: "PATCH", url: `${MONITORING}/${found.name}`, body: policy });

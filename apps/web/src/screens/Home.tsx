@@ -1,13 +1,16 @@
-import { formatKina, type Toea } from "@sasimem/core";
+import { type CalendarDate, formatKina, type Toea } from "@sasimem/core";
 import type { ComponentChildren } from "preact";
 import type { Setup } from "../setup.js";
+import { SubscriptionBanner } from "./SubscriptionBanner.js";
 
 /** Home (plan §7, screen 3): this month's one action (the card, as children), the amount owed, then setup. */
-export function Home(props: { setup: Setup; owedToea?: number; onSignOut: () => void; children?: ComponentChildren }) {
+/** today: shows the subscription banner (PLAN-SUBSCRIBERS §8) when there is one. */
+export function Home(props: { setup: Setup; today?: CalendarDate; owedToea?: number; onSignOut: () => void; children?: ComponentChildren }) {
   const { org, tenancies } = props.setup;
   return (
     <main class="narrow">
       <h1>{org.name}</h1>
+      {props.today !== undefined && <SubscriptionBanner setup={props.setup} today={props.today} />}
       <p>
         {tenancies.length === 0 ? "Add your first tenancy to start invoicing." : `${tenancies.length} ${tenancies.length === 1 ? "tenancy" : "tenancies"}.`}{" "}
         Each month Sasimem drafts your invoices and emails you one link to approve them. Nothing goes to a tenant until you approve.

@@ -11,6 +11,10 @@ import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_AP
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
 import { makeTemplateCallables } from "./callables/templates.js";
+import { makeOperatorCallables } from "./callables/operator.js";
+import { makeBillingCallables } from "./callables/billing.js";
+import { makeSubscriptionTick } from "./subscriptionTick.js";
+import { makeOnSubscriptionCreated } from "./triggers/welcome.js";
 
 export { createOrg } from "./callables/createOrg.js";
 export { onPropertyUpdated, onTenantUpdated } from "./triggers/syncTenancyCopies.js";
@@ -41,3 +45,17 @@ export const invoicePdf = payments.invoicePdf;
 export const resendInvoice = payments.resendInvoice;
 export const exportCsv = payments.exportCsv;
 export const previewInvoicePdf = makeTemplateCallables(deps).previewInvoicePdf;
+
+// The operator console's changes (PLAN-SUBSCRIBERS S3): one guarded callable for every
+// subscription action, and invitations, which email the sign-up link.
+const operator = makeOperatorCallables(deps);
+export const operatorAction = operator.operatorAction;
+export const invite = operator.invite;
+
+// Enforcement (PLAN-SUBSCRIBERS S4): the daily subscription tick, and the landlord's
+// "Ask to change plan", which emails Sasimem.
+const fallbackContact = () => MAIL_FROM.value();
+export const subscriptionTick = makeSubscriptionTick({ ...deps, fallbackContact });
+export const requestPlanChange = makeBillingCallables({ ...deps, fallbackContact }).requestPlanChange;
+// The subscriber's lifecycle emails (S5): the welcome as soon as the subscription is made.
+export const onSubscriptionCreated = makeOnSubscriptionCreated(deps);

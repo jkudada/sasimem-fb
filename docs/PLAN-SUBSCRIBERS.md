@@ -1,6 +1,6 @@
 # Subscribers: plans, billing, the operator console
 
-Status: **S1 and S2 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console); S3-S6 to come. Agreed with the user on 2026-11-08 ("go with
+Status: **S1-S4 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console; S3: operator actions, the audit trail, invitations with a plan; S4: enforcement, the daily subscription tick, the landlord's banner, limit message and Plan & billing; S5: lifecycle emails, the operator digest, Metrics and Billing); S6 to come. Agreed with the user on 2026-11-08 ("go with
 your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 `docs/product.md` §9 (business model), and on `docs/PLAN-TEMPLATES.md` §7
 (sign-up by invitation, phase P5).
@@ -131,17 +131,24 @@ subscriptions/{orgId}              planId, status, interval ("annual"|"monthly")
                                    trialEndsOn, paidThrough, graceDays (14),        # calendar dates or null
                                    cancelledOn, purgeAfter,                          # calendar dates or null
                                    paymentReference ("SUB-0042", null for free), activeTenancyCount,
-                                   createdAt, updatedAt         (+ termsVersion, termsAcceptedAt in S4/P5)
+                                   manuallyRestricted? (S3), createdAt, updatedAt
+                                   (+ termsVersion, termsAcceptedAt in S4/P5)
                                                                             server-write; owner read
   payments/{autoId}                amountToea, receivedOn ("YYYY-MM-DD"), method ("bank"),
                                    bankReference, coversFrom, coversTo, recordedBy, at
                                                                             server-write; owner read
   notes/{autoId}                   text, by, at                             operator only
-signupInvites/{emailLower}         (from Templates P5) + planId, trialDays, invitedBy, expiresAt, usedAt
-                                                                            server only
+signupInvites/{emailLower}         (from Templates P5) + planId, trialDays, expiresAt, invitedBy,
+                                   invitedByEmail, lastSentAt, sendCount, lastError; usedBy, usedAt
+                                                                            server-write; operator read
 operatorEvents/{autoId}            actor (uid), kind, orgId?, before, after, at
                                                                             server-write; operator read
 private/subscriptionCounter        { nextReference }                        server only
+  notices/{kind_period}            (S4: planRequest_{date}, one "Ask to change plan" a day; S5 adds the emails)
+                                                                            server only
+sasimem/billing                    accountName, bankName, accountNumber, branch?, contactEmail?
+                                   (S4, set by ops/billing-details.ts)      signed-in read
+system/subscriptionTick            lastSuccessAt, tally (S4)                operator read
 ```
 
 - **Why a top-level `subscriptions` and not fields on `orgs/{orgId}`:** owners can
@@ -185,12 +192,29 @@ The Health page reads `system/tick`, which the tick writes after each successful
 | **Health** | Last successful tick, held runs across all orgs, failed and bounced emails, orgs with no approval in 2 months |
 | **Metrics** | Subscribers by plan and status, annual recurring revenue (kina), trial → paid conversion, churn by month, invoices sent per month |
 
-Every action is one callable that checks `isOperator`, applies `core`'s rules,
-writes the subscription and an `operatorEvents` document in one transaction, and
-returns the new state. `recordPayment` moves `paidThrough` forward by the term
+Every action goes through **one callable, `operatorAction`** (`{ orgId, action }`), so no
+action can skip the guard: it checks the `operator` claim and the second factor (as
+`isOperator()` does), reads the action with core's `operatorActionFrom`, applies core's
+`applyOperatorAction`, and writes the subscription, any payment or note, and one
+`operatorEvents` document (`actor`, `actorEmail`, `kind`, `orgId`, `before`/`after` of the
+fields that changed, `detail`) in one transaction. A refusal, or an action that would change
+nothing, writes nothing. Invitations go through a second callable, `invite` (send or revoke),
+which emails the sign-up link and is audited the same way. `recordPayment` moves `paidThrough` forward by the term
 paid for and re-evaluates the status. The term continues from the last day covered
 (a trial's end, or the old `paidThrough` while in grace, so grace is not free time),
-except when restricted, when it starts today (core's `extendPaidThrough`).
+except when restricted for non-payment, when it starts the day the money arrived (core's
+`paymentCovers`). It is worked out as of the day the money **arrived**, so recording it late
+costs the landlord nothing. The payment's ID comes from the bank reference (trimmed,
+upper-case), so the same transfer recorded twice is one payment.
+
+- **Restricted by hand** is a flag, `manuallyRestricted`, not a status: `subscriptionStatus`
+  returns `restricted` while it is set, so the daily recompute keeps it, and `unrestrict`
+  clears only that. Free follows the plan (`planId == "free"`), not the stored status, so
+  lifting a hand restriction on a free org gives free back.
+- **Cancel** sets `cancelledOn` today and `purgeAfter` 90 days on (`CANCEL_DAYS`); **reinstate**
+  before then gives back the status the plan and dates say. Purging itself is S6.
+- **Changing plan** locks the new plan's price (from `plans/{id}`); leaving free gives the
+  org the next `SUB-` reference. A downgrade below use changes no tenancy (§4).
 
 ## 8. What the landlord sees
 
@@ -204,6 +228,15 @@ except when restricted, when it starts today (core's `extendPaidThrough`).
   already approved are sent as normal."
 - **At the limit**, the add-tenancy button explains the limit and offers "Ask to
   change plan" instead of failing on save.
+- **How S4 built it.** Sasimem's bank details live in `sasimem/billing`, which every
+  signed-in landlord can read; the banner and Plan & billing say "ask Sasimem" until it is
+  set. Status for the banner and for drafting is worked out from the dates each time
+  (`subscriptionStatus`), so the hourly tick stops drafting on the day restriction begins
+  and never waits for the daily tick. An org with no subscription keeps drafting (logged),
+  so a billing gap never stops invoices by accident. "Ask to change plan" is a callable,
+  `requestPlanChange`, which emails the `sasimem/billing` contact (else the sending address)
+  with the landlord as reply-to, at most once a day per org, and writes a `planChangeRequested`
+  entry to `operatorEvents`. "Export everything" and "Cancel subscription" wait for S6.
 - **Sign-up** (with P5): accept the terms of service and privacy notice (version and
   time stored); the "a tool, not an accountant" disclaimer.
 
@@ -224,6 +257,16 @@ except when restricted, when it starts today (core's `extendPaidThrough`).
 Each is sent at most once per trigger (`subscriptions/{orgId}/notices/{kind_period}`
 written with `create()`, as I8 does for reminders) and logged in the email log.
 
+How S5 built it: core's `lifecycleNoticesDue` decides; the daily tick (step 3) claims and
+sends each, giving the claim back if the send fails so the next day retries. The welcome
+also goes from a trigger on `subscriptions/{orgId}` being created, so it arrives at sign-up;
+it is due only within 2 days of the org's `createdAt` (and the nudge only within 10), so
+deploying S5 or running the backfill emails no existing landlord. Trial reminders are keyed
+by `trialEndsOn`, past due and restricted by the first unpaid day. The renewal reminders and
+receipt stay with the Sasimem org (Phase A); the cancellation email comes with S6's export.
+The operator digest goes at the end of the 06:00 tick, not 07:00, to the `sasimem/billing`
+contact (else `MAIL_FROM`), claimed once a day in `operatorDigests/{date}`.
+
 ## 10. The daily subscription tick
 
 `subscriptionTick`, scheduled daily at 06:00 Pacific/Port_Moresby, retried, safe
@@ -237,8 +280,10 @@ to run twice:
    bucket (7-year lifecycle rule), then delete the org's tree and the user's account.
 5. The operator digest.
 
-It logs one "subscription tick done" line; the existing alert pattern (step 7)
-gets a second policy for it.
+It logs one "subscription tick done" line and records `system/subscriptionTick`, which the
+console's Health page shows (overdue after 26 hours). `ops/alerts.ts` adds an error policy for
+it; a silence policy would need an absence window over a day, which Monitoring does not allow.
+S4 built steps 1-2; the status change is audited as kind `statusChange`, actor `subscription-tick`.
 
 ## 11. Export, cancellation, deletion
 
@@ -257,9 +302,9 @@ gets a second policy for it.
 |---|---|---|
 | S1 ✓ | `core`: plans, `subscriptionStatus`, limit check, `paidThrough` arithmetic, payment references. `plans`, `subscriptions`, `operatorEvents` + rules + rules tests; tenancy-count trigger and the create rule; `createOrg` makes a trial (or free, by flag) subscription; `ops/plans.ts`, `ops/grant-operator.ts`, `ops/backfill-subscriptions.ts` (existing orgs → free, D6) | ~3 days |
 | S2 ✓ | `apps/console`: TOTP sign-in and set-up, Subscribers, Subscriber (read-only), Health; `system/tick`; hosting config for dev (deploy waits for TOTP on dev) | ~4 days |
-| S3 | Operator callables and the audit trail; Invites (after Templates P5) | ~3 days |
-| S4 | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
-| S5 | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
+| S3 ✓ | Operator actions (one guarded callable) and the audit trail; the console's Actions forms; Invites with a plan, trial and expiry, emailed (after Templates P5) | ~3 days |
+| S4 ✓ | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
+| S5 ✓ | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
 | S6 | Export, cancel, reinstate, purge and the retention bucket | ~3 days |
 | B | Phase B billing module (D8), when wanted | ~4 days |
 

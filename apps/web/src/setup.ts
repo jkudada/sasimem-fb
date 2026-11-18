@@ -4,7 +4,7 @@
  * save. Screens get plain data and functions that resolve to a plain-English
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
-import type { Arrears, CalendarDate, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, Interval, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -24,6 +24,20 @@ export interface Setup {
   readonly tenancies: readonly WithId<TenancyDocument>[];
   /** Invoice templates, by name (docs/PLAN-TEMPLATES.md). */
   readonly templates: readonly WithId<InvoiceTemplate>[];
+  /** The org's Sasimem subscription (PLAN-SUBSCRIBERS S4); null if it has none or it could not be read. Absent in older fixtures. */
+  readonly subscription?: SubscriptionFields | null;
+  /** Where subscribers pay Sasimem; null until ops/billing-details.ts has set it. */
+  readonly bank?: BankDetails | null;
+}
+
+/** A payment Sasimem recorded for this subscription. */
+export interface SubscriptionPayment {
+  readonly id: string;
+  readonly amountToea: Toea;
+  readonly receivedOn: CalendarDate;
+  readonly bankReference: string;
+  readonly coversFrom: CalendarDate;
+  readonly coversTo: CalendarDate;
 }
 
 export interface Numbering {
@@ -84,6 +98,10 @@ export interface SetupStore {
   openPdf(invoiceId: string): Promise<Outcome>;
   /** Fetch the CSV and hand it to the browser as a download. */
   exportCsv(from: Period, to: Period): Promise<Outcome>;
+  /** The subscription's payments, newest first. A string is a problem. */
+  subscriptionPayments(): Promise<readonly SubscriptionPayment[] | string>;
+  /** Email Sasimem asking for another plan (the requestPlanChange callable). */
+  askToChangePlan(planId: PlanId, interval: Interval, message: string): Promise<Outcome>;
 }
 
 export interface MonthSummary {

@@ -110,14 +110,20 @@ export function subscriberRows(inputs: readonly SubscriberInput[], now: Date): S
 
 export interface HealthView {
   readonly tick: { readonly lastSuccessAt: Date; readonly overdue: boolean } | null;
+  /** The daily subscription tick (S4): overdue after 26 hours, a missed day plus some slack. */
+  readonly subscriptionTick: { readonly lastSuccessAt: Date; readonly overdue: boolean } | null;
   readonly held: readonly { readonly orgId: string; readonly name: string; readonly period: string }[];
   readonly failedEmails: readonly { readonly orgId: string; readonly name: string; readonly to: string; readonly kind: string; readonly error: string | null; readonly sentAt: Date }[];
   readonly quiet: readonly { readonly orgId: string; readonly name: string; readonly lastApproval: Date | null }[];
 }
 
-export function healthView(inputs: readonly SubscriberInput[], tick: TickBeat | null, now: Date): HealthView {
+export const SUBSCRIPTION_TICK_OVERDUE_MS = 26 * 3_600_000;
+
+export function healthView(inputs: readonly SubscriberInput[], tick: TickBeat | null, now: Date, subscriptionTick: TickBeat | null = null): HealthView {
+  const beat = (b: TickBeat | null, overdueMs: number) => (b === null ? null : { lastSuccessAt: b.lastSuccessAt, overdue: now.getTime() - b.lastSuccessAt.getTime() > overdueMs });
   return {
-    tick: tick === null ? null : { lastSuccessAt: tick.lastSuccessAt, overdue: now.getTime() - tick.lastSuccessAt.getTime() > TICK_OVERDUE_MS },
+    tick: beat(tick, TICK_OVERDUE_MS),
+    subscriptionTick: beat(subscriptionTick, SUBSCRIPTION_TICK_OVERDUE_MS),
     held: inputs.flatMap((i) => i.runs.filter((r) => r.status === "held").map((r) => ({ orgId: i.org.id, name: i.org.name, period: r.period }))),
     failedEmails: inputs.flatMap((i) => i.emails.filter((e) => e.status === "failed")
       .map((e) => ({ orgId: i.org.id, name: i.org.name, to: e.to, kind: e.kind, error: e.error, sentAt: e.sentAt }))),

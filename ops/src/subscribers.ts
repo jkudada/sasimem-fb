@@ -11,7 +11,8 @@ type Plain = string | number | boolean | null | Date;
 
 export interface Write {
   readonly update: { readonly name: string; readonly fields: Record<string, Value> };
-  readonly currentDocument: { readonly exists: false };
+  /** Create-only when present; absent, the write replaces the document (billing details). */
+  readonly currentDocument?: { readonly exists: false };
 }
 
 export const documentsRoot = (project: string): string => `projects/${project}/databases/(default)/documents`;
@@ -87,4 +88,39 @@ export function operatorClaims(existing: string | undefined, grant: boolean): st
   const claims = existing === undefined || existing === "" ? {} : (JSON.parse(existing) as Record<string, unknown>);
   const { operator: _old, ...rest } = claims;
   return JSON.stringify(grant ? { ...rest, operator: true } : rest);
+}
+
+// ---------------------------------------------------------------- Sasimem's bank details (S4)
+
+export interface BillingDetailsInput {
+  readonly accountName?: string | undefined;
+  readonly bankName?: string | undefined;
+  readonly accountNumber?: string | undefined;
+  readonly branch?: string | undefined;
+  readonly contactEmail?: string | undefined;
+}
+
+/**
+ * sasimem/billing: where subscribers pay, shown on every landlord's banner and Plan & billing
+ * page. Replaced whole on each run, since the details are meant to change when the bank does.
+ */
+export function billingDetailsWrite(project: string, input: BillingDetailsInput): Write {
+  const need = (k: "accountName" | "bankName" | "accountNumber", flagName: string): string => {
+    const v = input[k]?.trim() ?? "";
+    if (v === "") throw new Error(`--${flagName} is required`);
+    if (v.length > 80) throw new Error(`--${flagName} is too long (80 characters at most)`);
+    return v;
+  };
+  const optional = (v: string | undefined): string | null => (v === undefined || v.trim() === "" ? null : v.trim());
+  const contactEmail = optional(input.contactEmail);
+  if (contactEmail !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) throw new Error(`--contact-email is not an email address: ${contactEmail}`);
+  return {
+    update: {
+      name: `${documentsRoot(project)}/sasimem/billing`,
+      fields: encodeFields({
+        accountName: need("accountName", "account-name"), bankName: need("bankName", "bank"), accountNumber: need("accountNumber", "account-number"),
+        branch: optional(input.branch), contactEmail,
+      }),
+    },
+  };
 }

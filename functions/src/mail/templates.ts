@@ -4,7 +4,7 @@
  * Tenants' emails wear the invoice's frozen template; landlords' the house style.
  */
 import {
-  CLASSIC, type CalendarDate, type InvoiceSnapshot, type Period, type Toea,
+  CLASSIC, type CalendarDate, defaultPlan, localDate, type PlanId, SUBSCRIPTION_TIMEZONE, type InvoiceSnapshot, type Period, type Toea,
   dateLabel, digestSubject, dispatchSubject, formatKina, heldSubject, periodLabel, reminderSubject, tenantInvoiceSubject,
 } from "@sasimem/core";
 import { fitInside } from "../png.js";
@@ -167,4 +167,116 @@ export function tenantReminder(i: TenantInvoiceFacts): Mail {
     `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. The PDF is attached again.`,
     "If you have already paid, thank you, and please ignore this email.",
   ]);
+}
+
+/** An operator's invitation to sign up (PLAN-SUBSCRIBERS S3): the plan, the trial and the link. */
+export function invitation(req: { to: string; planId: PlanId; trialDays: number; link: string; expiresAt: Date }): Mail {
+  const plan = defaultPlan(req.planId).name;
+  const offer = req.planId === "free"
+    ? `Your account will be on the ${plan} plan, at no charge.`
+    : `Your account starts with a ${req.trialDays}-day trial of ${plan}. Nothing to pay until it ends.`;
+  return toLandlord(req.to, "You are invited to Sasimem", {
+    greeting: "Hello,",
+    blocks: [
+      { p: "You are invited to Sasimem, which prepares your tenants' rent invoices each month, waits for your approval, sends them and reminds tenants who have not paid." },
+      { p: offer },
+      { p: "Sign up with this email address here:", link: req.link },
+      { p: `This invitation works until ${dateLabel(localDate(req.expiresAt, SUBSCRIPTION_TIMEZONE))}.` },
+    ],
+  });
+}
+
+/** To Sasimem: a landlord asks to change plan (PLAN-SUBSCRIBERS §8). Replying reaches the landlord. */
+export function planChangeRequest(req: {
+  to: string; orgName: string; orgId: string; ownerEmail: string; current: string; wanted: string; usage: string; message: string;
+}): Mail {
+  const subject = `Plan change asked for: ${req.orgName}`;
+  const mail = toLandlord(req.to, subject, {
+    greeting: "Hello,",
+    blocks: [
+      { p: `${req.orgName} (${req.ownerEmail}) asks to change from ${req.current} to ${req.wanted}. They use ${req.usage}.` },
+      ...(req.message === "" ? [] : [{ p: `Their message: "${req.message}"` }]),
+      { p: `Their organisation ID is ${req.orgId}. Change the plan in the operator console, then reply to tell them.` },
+    ],
+  });
+  return { ...mail, replyTo: req.ownerEmail };
+}
+
+// ---------------------------------------------------------------- the subscriber's lifecycle (PLAN-SUBSCRIBERS §9, S5)
+
+/** Signed up: welcome, and the three steps to a first month. */
+export function welcome(req: { to: string; orgName: string; appUrl: string; trialEndsOn: CalendarDate | null }): Mail {
+  return toLandlord(req.to, "Welcome to Sasimem", {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: "Welcome to Sasimem. Three steps and your tenants' invoices take care of themselves:" },
+      { lines: [
+        "1. Add each property and its units.",
+        "2. Add your tenants, and a tenancy for each: the rent, the day of the month, the payment reference.",
+        "3. Each month, check the invoices Sasimem drafts and approve them with one tap. Nothing goes out until you do.",
+      ] },
+      { p: "Start here:", link: req.appUrl },
+      ...(req.trialEndsOn === null ? [] : [{ p: `Your free trial runs until ${dateLabel(req.trialEndsOn)}.` }]),
+    ],
+  });
+}
+
+/** Three days in, still no tenancy: one nudge. */
+export function setupNudge(req: { to: string; orgName: string; appUrl: string }): Mail {
+  return toLandlord(req.to, "Add your first tenancy to start invoicing", {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: "Your Sasimem account is ready, but it has no tenancy yet, so there is nothing to invoice." },
+      { p: "Adding one takes a couple of minutes: the property, the tenant, and the rent." },
+      { p: "Add your first tenancy:", link: `${req.appUrl}/tenancies/new` },
+      { p: "If something is in the way, reply to this email and tell us." },
+    ],
+  });
+}
+
+/** Trial ending, past due, restricted: the banner's words (core subscriptionNotice), by email. */
+export function subscriptionLetter(req: { to: string; orgName: string; appUrl: string; title: string; body: string }): Mail {
+  return toLandlord(req.to, req.title, {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: req.body },
+      { p: "Your plan, payments and how to pay:", link: `${req.appUrl}/settings/billing` },
+    ],
+  });
+}
+
+export interface DigestLine {
+  readonly orgId: string;
+  readonly name: string;
+  readonly detail: string;
+}
+
+export interface OperatorDigest {
+  readonly signups: readonly DigestLine[];
+  readonly trialsEnding: readonly DigestLine[];
+  readonly pastDue: readonly DigestLine[];
+  readonly restricted: readonly DigestLine[];
+  readonly held: readonly DigestLine[];
+  readonly bounces: readonly DigestLine[];
+}
+
+const DIGEST_SECTIONS: readonly (readonly [keyof OperatorDigest, string])[] = [
+  ["signups", "New sign-ups"], ["trialsEnding", "Trials ending within 7 days"], ["pastDue", "Past due"],
+  ["restricted", "Restricted"], ["held", "Held runs"], ["bounces", "Emails that failed yesterday"],
+];
+
+export const digestIsEmpty = (d: OperatorDigest): boolean => DIGEST_SECTIONS.every(([k]) => d[k].length === 0);
+
+/** To Sasimem, each morning there is something to say. */
+export function operatorDigest(req: { to: string; date: CalendarDate; digest: OperatorDigest }): Mail {
+  const sections = DIGEST_SECTIONS.filter(([k]) => req.digest[k].length > 0);
+  return toLandlord(req.to, `Sasimem today, ${dateLabel(req.date)}`, {
+    greeting: "Good morning,",
+    blocks: [
+      ...sections.flatMap(([k, label]) => [
+        { p: `${label} (${req.digest[k].length}):` },
+        { lines: req.digest[k].map((l) => `${l.name}: ${l.detail}`) },
+      ]),
+    ],
+  });
 }
