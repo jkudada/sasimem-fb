@@ -15,6 +15,7 @@ import { makeOnSubscriptionCreated } from "../src/triggers/welcome.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer } from "./harness/mailer.js";
 import { anOrgWith } from "./harness/seed.js";
+import { RACE_TIMEOUT_MS } from "./harness/race.js";
 
 const LANDLORD = "mary@wari.example";
 const SIGN_UP_DAY = new Date("2026-09-01T00:00:00Z"); // 10 am, 1 September, Port Moresby
@@ -76,7 +77,7 @@ describe("lifecycle emails (PLAN-SUBSCRIBERS §9)", () => {
     expect(s.mailer.sent.map((m) => m.subject)).toEqual(["Add your first tenancy to start invoicing"]);
   });
 
-  test("two ticks at once send a trial reminder once, and it names the amount, reference and how to pay", async () => {
+  test("two ticks at once send a trial reminder once, and it names the amount, reference and how to pay", { timeout: RACE_TIMEOUT_MS }, async () => {
     const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
     const s = setUp();
     await Promise.all([s.send(orgId, at6("2026-10-16")), s.send(orgId, at6("2026-10-16"))]);

@@ -8,6 +8,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { claimReminder } from "../../src/store/reminders.js";
 import { adminDb } from "../harness/index.js";
 import { anOrgWith } from "../harness/seed.js";
+import { RACE_TIMEOUT_MS } from "../harness/race.js";
 
 const org = { timezone: "Pacific/Port_Moresby", reminderMode: "auto" as const, reminderAfterDays: 7 };
 const REMIND = new Date("2026-10-14T14:00:00Z");
@@ -20,7 +21,7 @@ async function sentInvoice() {
 }
 
 describe("I8: one reminder, ever", () => {
-  test("two concurrent claims: exactly one wins, and remindedAt is set", async () => {
+  test("two concurrent claims: exactly one wins, and remindedAt is set", { timeout: RACE_TIMEOUT_MS }, async () => {
     const ref = await sentInvoice();
     const claims = await Promise.all([claimReminder(ref, org, REMIND), claimReminder(ref, org, REMIND)]);
     expect(claims.filter((c) => c !== null)).toHaveLength(1);

@@ -16,6 +16,7 @@ import { request } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer, tokens } from "./harness/mailer.js";
 import { anOrgWith, type TenancySeed } from "./harness/seed.js";
+import { RACE_TIMEOUT_MS } from "./harness/race.js";
 
 const OCT = parsePeriod("2026-10");
 // Billing day 1, send hour 8, lead 3 days, Port Moresby (UTC+10):
@@ -102,7 +103,7 @@ describe("tick step 2: request approval", () => {
     expect(w.mailer.sent[0]?.text).toContain("they go out within the hour");
   });
 
-  test("two overlapping ticks send one digest", async () => {
+  test("two overlapping ticks send one digest", { timeout: RACE_TIMEOUT_MS }, async () => {
     const w = await world();
     await Promise.all([w.tick(LEAD), w.tick(LEAD)]);
     expect(w.mailer.to(LANDLORD)).toHaveLength(1);
@@ -160,7 +161,7 @@ describe("tick step 3: release (I6)", () => {
     expect(silent.mailer.sent.filter((m) => m.to.endsWith("@tenant.example"))).toEqual([]);
   });
 
-  test("two overlapping ticks send each tenant one email", async () => {
+  test("two overlapping ticks send each tenant one email", { timeout: RACE_TIMEOUT_MS }, async () => {
     const w = await world();
     await w.tick(LEAD);
     await w.approve();
@@ -253,7 +254,7 @@ describe("tick step 5: remind (I8)", () => {
     expect(await w.log()).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "reminder", invoiceId: "k1_2026-10" })]));
   });
 
-  test("two overlapping ticks send one reminder, and no later tick sends another (I8)", async () => {
+  test("two overlapping ticks send one reminder, and no later tick sends another (I8)", { timeout: RACE_TIMEOUT_MS }, async () => {
     const w = await sentMonth();
     await Promise.all([w.tick(REMIND), w.tick(REMIND)]);
     await w.tick(new Date(REMIND.getTime() + 30 * DAY));
