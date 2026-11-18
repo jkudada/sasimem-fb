@@ -5,12 +5,13 @@ import { approveRun } from "../../src/store/approval.js";
 import { draftRun } from "../../src/store/runs.js";
 import { adminDb } from "../harness/index.js";
 import { anOrgWith } from "../harness/seed.js";
+import { RACE_TIMEOUT_MS } from "../harness/race.js";
 
 const OCT = parsePeriod("2026-10");
 const now = new Date("2026-09-28T00:00:00Z");
 
 describe("I4: approve once", () => {
-  test("two concurrent approvals produce one set of numbers", async () => {
+  test("two concurrent approvals produce one set of numbers", { timeout: RACE_TIMEOUT_MS }, async () => {
     const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }, { id: "k2" }, { id: "k3" }] });
     await draftRun(orgId, OCT, now);
     const outcomes = await Promise.all([approveRun(orgId, OCT, { actor: "tab-1", now }), approveRun(orgId, OCT, { actor: "tab-2", now })]);

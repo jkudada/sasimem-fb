@@ -11,6 +11,7 @@ import { releaseRun } from "../../src/store/release.js";
 import { draftRun } from "../../src/store/runs.js";
 import { adminDb } from "../harness/index.js";
 import { anOrgWith } from "../harness/seed.js";
+import { RACE_TIMEOUT_MS } from "../harness/race.js";
 
 const OCT = parsePeriod("2026-10");
 const drafted = new Date("2026-09-28T00:00:00Z");
@@ -35,7 +36,7 @@ describe("I6: only an approved run is released, once, and never without its PDFs
     }
   });
 
-  test("releasing twice releases once: the second finds nothing to send", async () => {
+  test("releasing twice releases once: the second finds nothing to send", { timeout: RACE_TIMEOUT_MS }, async () => {
     const { orgId } = await anOrgWith({ tenancies: [{ id: "k1" }] });
     await draftRun(orgId, OCT, drafted);
     await approveRun(orgId, OCT, { actor: "uid", now: drafted });

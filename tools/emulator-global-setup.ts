@@ -9,6 +9,12 @@ const HOSTS: Record<string, string> = {
 
 export default async function setup(): Promise<void> {
   for (const [key, fallback] of Object.entries(HOSTS)) process.env[key] ??= fallback;
+  // One ID per Vitest run, inherited by its workers, which put it in their project IDs
+  // (functions/test/harness/worker-setup.ts). The emulator keeps data between runs, and
+  // a few documents are project-wide: the operator digest's once-a-day claim, Sasimem's
+  // billing settings. The nightly flake detector runs T3 five times on one emulator, and
+  // a test that passed in run 1 found run 1's digest claim in run 2 and sent nothing.
+  process.env["SASIMEM_T3_RUN"] ??= Date.now().toString(36);
   const firestore = process.env["FIRESTORE_EMULATOR_HOST"];
   try {
     await fetch(`http://${firestore}/`);
