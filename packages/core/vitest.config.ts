@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineProject } from "vitest/config";
 
 // T1 (unit) and T1p (property) share this package; they are split by file name
@@ -8,5 +9,6 @@ export default defineProject({
     include: ["src/**/*.test.ts"],
     exclude: ["src/**/*.prop.test.ts"],
     environment: "node",
+    setupFiles: [fileURLToPath(new URL("../../tools/cpu-clock.ts", import.meta.url))],
   },
 });

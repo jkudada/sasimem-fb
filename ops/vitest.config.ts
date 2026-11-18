@@ -5,5 +5,5 @@ import { defineProject } from "vitest/config";
 export default defineProject({
   // Tests compare the scripts' copies with core; the scripts themselves never import it.
   resolve: { alias: { "@sasimem/core": fileURLToPath(new URL("../packages/core/src/index.ts", import.meta.url)) } },
-  test: { name: "ops-unit", include: ["test/**/*.test.ts"], environment: "node" },
+  test: { name: "ops-unit", include: ["test/**/*.test.ts"], environment: "node", setupFiles: [fileURLToPath(new URL("../tools/cpu-clock.ts", import.meta.url))] },
 });
