@@ -241,5 +241,10 @@ service cloud.firestore {
     match /system/{docId} {
       allow read: if isOperator();
     }
+    // Sasimem's own bank details and contact, shown to every landlord on their banner
+    // and Plan & billing page (S4); written only by ops/billing-details.ts.
+    match /sasimem/{docId} {
+      allow read: if signedIn();
+    }
   }
 }

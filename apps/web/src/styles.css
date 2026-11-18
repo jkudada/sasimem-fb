@@ -1,6 +1,6 @@
 /* Plain CSS with tokens, mobile-first (plan §7). Works at 320 px; tap targets >= 44 px. */
 :root {
-  --ink: #1c2321; --muted: #5b6662; --line: #c9d1ce; --paper: #fbfbf9; --accent: #0d6b4f; --problem: #a3261b;
+  --ink: #1c2321; --muted: #5b6662; --line: #c9d1ce; --paper: #fbfbf9; --accent: #0d6b4f; --problem: #a3261b; --warning: #a35f00;
   --gap: 16px; --radius: 8px; --tap: 44px;
   font: 16px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--paper);
 }
@@ -71,3 +71,12 @@ textarea { padding: 8px 12px; font: inherit; border: 1px solid var(--line); bord
 /* The logo builder (docs/PLAN-TEMPLATES.md §5). */
 svg.logo-preview { display: block; width: 100%; max-width: 12rem; max-height: 12rem; margin: 0 auto var(--gap); }
 svg.logo-icon { width: 28px; height: 28px; vertical-align: middle; margin-right: 8px; }
+
+/* The subscription banner (PLAN-SUBSCRIBERS §8): a warning can wait a little, a problem is stopping something now. */
+.banner { border: 1px solid var(--line); border-left: 6px solid var(--warning); border-radius: var(--radius); padding: 4px var(--gap); margin: 0 0 var(--gap); background: #fff; }
+.banner.problem { border-left-color: var(--problem); }
+.banner h2 { font-size: 1.05rem; margin: 8px 0 4px; }
+.banner p { margin: 4px 0 8px; }
+dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0 0 var(--gap); }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }

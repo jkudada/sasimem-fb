@@ -49,6 +49,15 @@ export interface Payment {
   readonly bankReference: string;
 }
 
+/** One payment with its org, for the Billing page and its CSV (S5). */
+export interface PaymentRow extends Payment {
+  readonly orgId: string;
+  readonly orgName: string;
+  readonly subscriptionReference: string | null;
+  readonly coversFrom: CalendarDate | null;
+  readonly coversTo: CalendarDate | null;
+}
+
 export interface Note {
   readonly id: string;
   readonly text: string;

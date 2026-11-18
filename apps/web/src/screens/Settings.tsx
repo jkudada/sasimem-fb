@@ -135,6 +135,10 @@ export function Settings(props: {
         <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>
       )}
 
+      <h2>Your Sasimem plan</h2>
+      <p><a href="/settings/billing">Plan & billing</a></p>
+      <p class="note">Your plan, how to pay, and your payments.</p>
+
       <h2>How your invoices look</h2>
       <p><a href="/settings/templates">Invoice templates</a></p>
       <p class="note">Choose a layout, colour, font and a note for your invoices.</p>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { TICK_SERVICE, tickDoneMetric, tickFailedPolicy, tickSilentPolicy } from "../src/alerts.ts";
+import { SUBSCRIPTION_TICK_SERVICE, subscriptionTickFailedPolicy, TICK_SERVICE, tickDoneMetric, tickFailedPolicy, tickSilentPolicy } from "../src/alerts.ts";
 
 // A v2 function runs as a Cloud Run service named after it.
 const TICK = `resource.type="cloud_run_revision" AND resource.labels.service_name="${TICK_SERVICE}"`;
@@ -35,5 +35,18 @@ describe("alerts for a tick that fails or stops (plan §12)", () => {
       },
     }]);
     expect(p.notificationChannels).toEqual([]);
+  });
+});
+
+describe("the daily subscription tick (PLAN-SUBSCRIBERS §10)", () => {
+  test("any error from it alerts, at most once an hour, on its own Cloud Run service (named in lower case)", () => {
+    expect(SUBSCRIPTION_TICK_SERVICE).toBe("subscriptiontick");
+    const p = subscriptionTickFailedPolicy("sasimem-dev", []);
+    expect(p.displayName).toBe("Sasimem subscription tick failed (sasimem-dev)");
+    expect(p.conditions).toEqual([{
+      displayName: "The subscription tick logged an error",
+      conditionMatchedLog: { filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="subscriptiontick" AND severity>=ERROR' },
+    }]);
+    expect(p.alertStrategy).toEqual({ notificationRateLimit: { period: "3600s" }, autoClose: "86400s" });
   });
 });

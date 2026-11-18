@@ -20,6 +20,7 @@ const Tenants = lazyScreen(() => import("./screens/Tenants.js").then((m) => m.Te
 const TenantForm = lazyScreen(() => import("./screens/TenantForm.js").then((m) => m.TenantForm));
 const TenancyForm = lazyScreen(() => import("./screens/TenancyForm.js").then((m) => m.TenancyForm));
 const Settings = lazyScreen(() => import("./screens/Settings.js").then((m) => m.Settings));
+const PlanBilling = lazyScreen(() => import("./screens/PlanBilling.js").then((m) => m.PlanBilling));
 const Templates = lazyScreen(() => import("./screens/Templates.js").then((m) => m.Templates));
 const TemplateForm = lazyScreen(() => import("./screens/TemplateForm.js").then((m) => m.TemplateForm));
 const LogoBuilder = lazyScreen(() => import("./logo/LogoBuilder.js").then((m) => m.LogoBuilder));
@@ -86,6 +87,7 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/tenancies/:id" component={TenancyRoute} />
           <Route path="/settings" component={SettingsRoute} />
           <Route path="/settings/logo" component={LogoRoute} />
+          <Route path="/settings/billing" component={PlanBillingRoute} />
           <Route path="/settings/templates" component={TemplatesRoute} />
           <Route path="/settings/templates/:id" component={TemplateRoute} />
           <Route path="/month/:period" component={ReviewRoute} />
@@ -132,7 +134,7 @@ function HomeRoute() {
   const owed = useOwedTotal();
   const m = month.value;
   return (
-    <Home setup={c.setup.value} {...(owed.value === null ? {} : { owedToea: owed.value })} onSignOut={() => void c.signOut()}>
+    <Home setup={c.setup.value} today={c.today} {...(owed.value === null ? {} : { owedToea: owed.value })} onSignOut={() => void c.signOut()}>
       {m === undefined ? <p class="note">Loading this month…</p>
         : typeof m === "string" ? <p role="alert">{m}</p>
         : <MonthCard period={period} month={m} timezone={c.setup.value.org.timezone} onDraftNow={thenReload(c.store.draftNow)} />}
@@ -242,6 +244,11 @@ function TemplateRoute(props: Params) {
     <TemplateForm key={props.params["id"]} id={idOf(props)} setup={c.setup.value}
       onSave={c.store.saveTemplate} onDelete={c.store.deleteTemplate} onPreview={c.store.previewTemplate} onDone={done} />
   );
+}
+
+function PlanBillingRoute() {
+  const c = useSignedIn();
+  return <PlanBilling setup={c.setup.value} today={c.today} loadPayments={c.store.subscriptionPayments} onAsk={c.store.askToChangePlan} />;
 }
 
 function LogoRoute() {

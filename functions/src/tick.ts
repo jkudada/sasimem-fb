@@ -19,6 +19,7 @@ import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } 
 import { MAIL_SECRETS } from "./params.js";
 import { db } from "./admin.js";
 import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
+import { draftBlock } from "./store/subscriptions.js";
 
 export type TickDeps = NotifyDeps;
 
@@ -29,6 +30,8 @@ export interface Tally {
   sent: number;
   held: number;
   reminded: number;
+  /** Orgs whose subscription stops new months (restricted, cancelled): step 1 passed them by. */
+  skipped: number;
 }
 
 export interface TickOptions {
@@ -38,7 +41,7 @@ export interface TickOptions {
 
 export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<Tally> {
   const now = deps.now();
-  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0 };
+  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, skipped: 0 };
   const errors: unknown[] = [];
   const orgs = new Map<string, Promise<OrgDoc & BillingOrg>>();
   const orgOf = (orgId: string) => {
@@ -57,9 +60,16 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
     }
   };
 
-  // 1. Draft the periods that are due, for every org.
+  // 1. Draft the periods that are due, for every org whose subscription allows it
+  //    (PLAN-SUBSCRIBERS D5). Only this step looks at the subscription: a run already
+  //    drafted is approved, sent and reminded on below whatever the subscription says.
   await each(await orgIdsToTick(opts.orgIds), async (orgId) => {
-    const [{ org, tenancies }, runPeriods] = await Promise.all([billingOf(orgId), runPeriodsOf(orgId)]);
+    const [{ org, tenancies }, runPeriods, block] = await Promise.all([billingOf(orgId), runPeriodsOf(orgId), draftBlock(orgId, now)]);
+    if (block !== null) {
+      tally.skipped++;
+      logger.info("tick: not drafting, subscription stops new months", { orgId, status: block.status });
+      return;
+    }
     for (const period of periodsToDraft({ org, tenancies, runPeriods, now })) {
       if ((await draftRun(orgId, period, now)) === "drafted") tally.drafted++;
     }

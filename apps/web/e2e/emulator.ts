@@ -148,3 +148,15 @@ export async function confirmEmail(email: string): Promise<void> {
   const res = await fetch((await find())?.oobLink ?? "");
   if (!res.ok) throw new Error(`the confirmation link did not work: ${res.status}`);
 }
+
+/** Change fields of the landlord's subscription, as an operator action or the passing days would (PLAN-SUBSCRIBERS S4). */
+export async function setSubscription(email: string, fields: Record<string, number | string>): Promise<void> {
+  const orgId = await orgIdOf(email);
+  const mask = Object.keys(fields).map((k) => `updateMask.fieldPaths=${k}`).join("&");
+  const value = (v: number | string) => (typeof v === "number" ? { integerValue: String(v) } : { stringValue: v });
+  const res = await fetch(`${DOCS}/subscriptions/${orgId}?${mask}`, {
+    method: "PATCH", headers: { ...OWNER, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, value(v)])) }),
+  });
+  if (!res.ok) throw new Error(`could not change the subscription: ${res.status}`);
+}
