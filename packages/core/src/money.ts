@@ -25,7 +25,8 @@ export function parseKina(text: string): Toea {
   const fraction = Number((digits + "00").slice(0, 2));
   const roundUp = digits.charAt(2) >= "5" ? 1 : 0;
   // Round the magnitude, then apply the sign: half away from zero, as Decimal does.
-  return toea(sign * (whole * TOEA_PER_KINA + fraction + roundUp));
+  // "+ 0" turns -0 (from "-0.00") into 0: -0 is not an amount, and Object.is tells them apart.
+  return toea(sign * (whole * TOEA_PER_KINA + fraction + roundUp) + 0);
 }
 
 /** K1,200.50 - thousands commas, always two places of toea. */

@@ -21,6 +21,10 @@ test("parseKina reads a plain number of kina", () => {
   expect(parseKina("1200")).toBe(120_000);
 });
 
+test("parseKina reads a negative zero as plain zero, never -0 (found by the nightly property run)", () => {
+  for (const typed of ["-0", "-0.0", "-0.00", "-.001", "-K0.00"]) expect(Object.is(parseKina(typed), 0), typed).toBe(true);
+});
+
 test("parseKina strips the K, thousands commas and whitespace a landlord types", () => {
   expect(parseKina("K1,200")).toBe(120_000);
   expect(parseKina(" 1 200 ")).toBe(120_000);
