@@ -142,9 +142,12 @@ const LOGO_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "
 
 /** A logo the landlord picked (storage.rules enforces the same limits). */
 export function logoProblem(file: { readonly type: string; readonly size: number }): string | null {
-  if (!(file.type in LOGO_TYPES)) return "Choose a picture: PNG, JPEG, WebP or GIF.";
-  if (file.size > MAX_LOGO_BYTES) return "Choose a logo smaller than 200 KB.";
-  return null;
+  return logoTypeProblem(file.type) ?? (file.size > MAX_LOGO_BYTES ? "Choose a logo smaller than 200 KB." : null);
+}
+
+/** Only the kind of file: Settings makes a bigger picture smaller before checking its size. */
+export function logoTypeProblem(type: string): string | null {
+  return type in LOGO_TYPES ? null : "Choose a picture: PNG, JPEG, WebP or GIF.";
 }
 
 /** The file extension for a logo's type; the rules accept only these. */
