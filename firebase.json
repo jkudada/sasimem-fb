@@ -24,6 +24,13 @@
         }
       },
       {
+        "source": "/x/**",
+        "function": {
+          "functionId": "exportDownload",
+          "region": "australia-southeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -31,6 +38,15 @@
     "headers": [
       {
         "source": "/a/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, no-store"
+          }
+        ]
+      },
+      {
+        "source": "/x/**",
         "headers": [
           {
             "key": "Cache-Control",

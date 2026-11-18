@@ -248,7 +248,13 @@ function TemplateRoute(props: Params) {
 
 function PlanBillingRoute() {
   const c = useSignedIn();
-  return <PlanBilling setup={c.setup.value} today={c.today} loadPayments={c.store.subscriptionPayments} onAsk={c.store.askToChangePlan} />;
+  // After a cancel, reload: the status, banner and dates all change.
+  const cancel = async () => {
+    const o = await c.store.cancelSubscription();
+    if (o.ok) await c.reload();
+    return o;
+  };
+  return <PlanBilling setup={c.setup.value} today={c.today} loadPayments={c.store.subscriptionPayments} onAsk={c.store.askToChangePlan} onExport={c.store.exportEverything} onCancel={cancel} />;
 }
 
 function LogoRoute() {

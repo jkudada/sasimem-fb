@@ -3,11 +3,12 @@ import "./options.js"; // must stay first: see options.ts
 import { makeDraftNow, makeReissueApproval } from "./callables/runs.js";
 import { makeApprovalPage } from "./http/index.js";
 import { newToken } from "./links.js";
-import { db } from "./admin.js";
+import { db, retentionBucket } from "./admin.js";
+import { makeExportDownload } from "./http/exportDownload.js";
 import { OutboxMailer } from "./mail/mailer.js";
 import { GmailMailer } from "./mail/gmail.js";
 import { ResendMailer } from "./mail/resend.js";
-import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, usesGmail } from "./params.js";
+import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, RETENTION_BUCKET, usesGmail } from "./params.js";
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
 import { makeTemplateCallables } from "./callables/templates.js";
@@ -55,7 +56,13 @@ export const invite = operator.invite;
 // Enforcement (PLAN-SUBSCRIBERS S4): the daily subscription tick, and the landlord's
 // "Ask to change plan", which emails Sasimem.
 const fallbackContact = () => MAIL_FROM.value();
-export const subscriptionTick = makeSubscriptionTick({ ...deps, fallbackContact });
-export const requestPlanChange = makeBillingCallables({ ...deps, fallbackContact }).requestPlanChange;
+export const subscriptionTick = makeSubscriptionTick({ ...deps, fallbackContact, retention: () => retentionBucket(RETENTION_BUCKET.value()) });
+const billing = makeBillingCallables({ ...deps, fallbackContact });
+export const requestPlanChange = billing.requestPlanChange;
+// Export, cancel and purge (S6): the landlord's export and cancel, and the export's
+// download behind Hosting's /x/** rewrite. The purge is step 4 of subscriptionTick.
+export const exportEverything = billing.exportEverything;
+export const cancelSubscription = billing.cancelSubscription;
+export const exportDownload = makeExportDownload(deps);
 // The subscriber's lifecycle emails (S5): the welcome as soon as the subscription is made.
 export const onSubscriptionCreated = makeOnSubscriptionCreated(deps);

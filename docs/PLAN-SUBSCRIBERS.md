@@ -1,6 +1,6 @@
 # Subscribers: plans, billing, the operator console
 
-Status: **S1-S4 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console; S3: operator actions, the audit trail, invitations with a plan; S4: enforcement, the daily subscription tick, the landlord's banner, limit message and Plan & billing; S5: lifecycle emails, the operator digest, Metrics and Billing); S6 to come. Agreed with the user on 2026-11-08 ("go with
+Status: **S1-S6 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console; S3: operator actions, the audit trail, invitations with a plan; S4: enforcement, the daily subscription tick, the landlord's banner, limit message and Plan & billing; S5: lifecycle emails, the operator digest, Metrics and Billing; S6: export, cancel, reinstate, purge and the retention bucket). Agreed with the user on 2026-11-08 ("go with
 your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 `docs/product.md` §9 (business model), and on `docs/PLAN-TEMPLATES.md` §7
 (sign-up by invitation, phase P5).
@@ -296,6 +296,30 @@ S4 built steps 1-2; the status change is audited as kind `statusChange`, actor `
 - **Retention:** issued invoices and PDFs go to a separate bucket with a 7-year
   lifecycle and no client access; the operator can restore one on request.
 
+How S6 built it:
+- **Export** is a callable, `exportEverything`, that zips (no new dependency: Node's own
+  deflate) six CSVs (properties by unit, tenants, tenancies, their extra charges, invoices
+  as the Payments screen exports them, and payments, the invoices marked paid) with every
+  issued invoice's PDF. A whole export can pass a callable's response limit, so it is
+  stored server-only at `exports/{orgId}/` and downloaded through `/x/{token}`, an HTTP
+  function behind Hosting: the token is the credential, as an approval link's is
+  (`exportLinks/{sha256}`), and lasts an hour. The app needs no Storage CORS and the
+  functions no URL-signing role. A new export replaces the last; the daily tick removes
+  any a day after its link ran out.
+- **Cancel** is open to the landlord too (`cancelSubscription`), through the same audited
+  store function as the operator's, with the landlord as the actor. Either way the landlord is
+  emailed at once, as a lifecycle notice (`cancelled_{cancelledOn}`), so a failed send is
+  retried by the next morning's tick. The email links to `/settings/billing#export`.
+- **Purge** is step 4 of the daily tick, on `purgeAfter`: the org's profile, issued invoices
+  (as JSON) and their PDFs go to `<project>-retention/orgs/{orgId}/` first, and any failure
+  stops it before anything is deleted. Then the owner's account and user record, the org's
+  files and links, the org's tree, and the subscription last, so an interrupted purge is
+  finished the next day. `operatorEvents/purge-{orgId}` keeps the record; the digest has a
+  "Purged today" section. `ops/retention-bucket.ts` makes the bucket.
+- Not done: cancelled landlords can still edit setup data in the rules (the plan's "read
+  and export"); drafting, the part that costs, is what stops. Rules that read the
+  subscription on every setup write were not worth it for a 90-day window.
+
 ## 12. Phases (each a PR, test-first, stopping for review)
 
 | Phase | Content | Estimate |
@@ -305,7 +329,7 @@ S4 built steps 1-2; the status change is audited as kind `statusChange`, actor `
 | S3 ✓ | Operator actions (one guarded callable) and the audit trail; the console's Actions forms; Invites with a plan, trial and expiry, emailed (after Templates P5) | ~3 days |
 | S4 ✓ | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
 | S5 ✓ | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
-| S6 | Export, cancel, reinstate, purge and the retention bucket | ~3 days |
+| S6 ✓ | Export, cancel, reinstate, purge and the retention bucket | ~3 days |
 | B | Phase B billing module (D8), when wanted | ~4 days |
 
 About 3½ weeks for S1-S6. Phase A works in prod from the first paying subscriber,

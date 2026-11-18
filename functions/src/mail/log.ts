@@ -11,7 +11,7 @@ import type { Mail, Mailer } from "./mailer.js";
 
 export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "tenantInvoice" | "tenantInvoiceAgain" | "reminder"
   // The subscriber's lifecycle (PLAN-SUBSCRIBERS §9), each sent once per notice key.
-  | "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted";
+  | "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted" | "cancelled";
 
 export interface MailContext {
   readonly orgId: string;

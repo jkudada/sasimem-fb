@@ -3,15 +3,21 @@
  * the operator's (an audited callable); the landlord asks for it, and Sasimem is emailed.
  * One ask per org per day, claimed with create() as I8 claims reminders, so a double
  * tap or a retry sends one email. The ask is in the audit trail for the console.
+ *
+ * S6: "Export everything" zips the org's records behind an hour-long link, in any status
+ * (a cancelled landlord most of all); "Cancel subscription" is the same audited change as
+ * the operator's, and emails the landlord the export link and the day the records go.
  */
-import { defaultPlan, type Interval, type PlanId, usageText } from "@sasimem/core";
+import { type CalendarDate, defaultPlan, type Interval, type PlanId, type SubscriptionStatus, usageText } from "@sasimem/core";
 import { logger } from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { db } from "../admin.js";
 import type { Mailer } from "../mail/mailer.js";
 import { planChangeRequest } from "../mail/templates.js";
 import { MAIL_SECRETS } from "../params.js";
-import { subscriptionOf, subscriptionRef, subscriptionToday } from "../store/subscriptions.js";
+import { sendLifecycleNotices } from "../lifecycle.js";
+import { makeExport } from "../store/exports.js";
+import { storeOperatorAction, subscriptionOf, subscriptionRef, subscriptionToday } from "../store/subscriptions.js";
 import { ownerOrg, uidOf } from "./auth.js";
 
 export const MAX_PLAN_MESSAGE = 1000;
@@ -23,6 +29,8 @@ export interface BillingDeps {
   readonly mailer: Mailer;
   /** Where asks go when `sasimem/billing` names no contactEmail: the sending address. */
   readonly fallbackContact: () => string;
+  readonly appUrl: () => string;
+  readonly newToken: () => string;
 }
 
 const label = (planId: PlanId, interval: Interval): string =>
@@ -69,5 +77,40 @@ export function makeBillingCallables(deps: BillingDeps) {
       });
       return { message: `Sasimem has your request and will reply to ${ownerEmail}.` };
     }),
+
+    /** The org's records as a zip, behind a link that works for an hour (S6). */
+    exportEverything: onCall<unknown, Promise<{ url: string; filename: string; expiresAt: string }>>(
+      { maxInstances: 2, memory: "1GiB", timeoutSeconds: 300 },
+      async (request) => {
+        const orgId = await ownerOrg(request);
+        const token = deps.newToken();
+        const made = await makeExport(orgId, deps.now(), token);
+        logger.info("export made", { orgId, filename: made.filename });
+        return { url: `${deps.appUrl()}/x/${token}`, filename: made.filename, expiresAt: made.expiresAt.toISOString() };
+      },
+    ),
+
+    /** The landlord cancels: audited as the operator's cancel is, then the email (S6). */
+    cancelSubscription: onCall<unknown, Promise<{ status: SubscriptionStatus; purgeAfter: CalendarDate | null }>>({ maxInstances: 2, secrets: MAIL_SECRETS }, async (request) => {
+      const orgId = await ownerOrg(request);
+      const now = deps.now();
+      const done = await storeOperatorAction(orgId, { kind: "cancelSubscription" }, { uid: uidOf(request), email: String(request.auth?.token.email ?? "") }, now);
+      if (done.kind === "noSubscription") throw new HttpsError("failed-precondition", "Your organisation has no subscription. Contact Sasimem.");
+      if (done.kind === "refused") throw new HttpsError("failed-precondition", done.problem);
+      await emailCancellation(deps, orgId, now);
+      return { status: done.status, purgeAfter: (await subscriptionOf(orgId))?.purgeAfter ?? null };
+    }),
   };
+}
+
+/**
+ * Send the cancellation email now (and anything else due). A failure does not undo the
+ * cancel: the claim is given back, and the next morning's subscription tick sends it.
+ */
+export async function emailCancellation(deps: { mailer: Mailer; appUrl: () => string }, orgId: string, now: Date): Promise<void> {
+  try {
+    await sendLifecycleNotices(deps, orgId, now);
+  } catch (e) {
+    logger.error("cancellation email not sent; the subscription tick will retry", { orgId, error: e instanceof Error ? e.message : String(e) });
+  }
 }

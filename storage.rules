@@ -1,7 +1,8 @@
 rules_version = '2';
 // Plan §5. Logos: members read, owners write, images only, at most 200 KB.
-// Everything else, invoice PDFs included, is server only: the SPA gets a PDF
-// through a short-lived signed URL from a callable.
+// Everything else is server only: invoice PDFs (the SPA gets one from a callable) and
+// exports (PLAN-SUBSCRIBERS S6: downloaded through an hour-long link, /x/**). Purged orgs'
+// invoices go to a separate retention bucket, which has no rules and no client access.
 service firebase.storage {
   match /b/{bucket}/o {
     function member(orgId) {

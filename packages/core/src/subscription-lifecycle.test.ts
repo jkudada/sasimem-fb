@@ -49,11 +49,19 @@ describe("lifecycle emails due (PLAN-SUBSCRIBERS §9)", () => {
     expect(due("2026-12-01", { sub: sub({ trialEndsOn: null }) })).toEqual(["pastDue_never"]);
   });
 
-  test("a hand restriction, free, active, cancelled: nothing about payment", () => {
+  test("a hand restriction, free, active: nothing about payment", () => {
     expect(due("2026-11-20", { sub: sub({ manuallyRestricted: true }) })).toEqual([]);
     expect(due("2026-11-20", { sub: sub({ planId: "free", status: "free", trialEndsOn: null }) })).toEqual([]);
     expect(due("2026-11-20", { sub: sub({ status: "active", paidThrough: d("2027-10-31") }) })).toEqual([]);
-    expect(due("2026-11-20", { sub: sub({ status: "cancelled", purgeAfter: d("2027-01-01") }) })).toEqual([]);
+  });
+
+  test("cancelled: one email per cancellation, keyed by its day, and nothing about payment (S6)", () => {
+    const cancelled = sub({ status: "cancelled", cancelledOn: d("2026-11-20"), purgeAfter: d("2027-02-18") });
+    expect(due("2026-11-20", { sub: cancelled })).toEqual(["cancelled_2026-11-20"]);
+    expect(due("2027-01-05", { sub: cancelled })).toEqual(["cancelled_2026-11-20"]);
+    // From the purge date there is nobody left to tell.
+    expect(due("2027-02-18", { sub: cancelled })).toEqual([]);
+    expect(due("2026-11-20", { sub: sub({ status: "cancelled", cancelledOn: null, purgeAfter: null }) })).toEqual(["cancelled_never"]);
   });
 });
 
