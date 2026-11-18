@@ -2,6 +2,7 @@ import { useSignal } from "@preact/signals";
 import { MAX_LOGO_BYTES, type OrgProfile, firstInvoiceNumberProblem, logoProblem, logoTypeProblem, profileProblems } from "@sasimem/core";
 import { shrinkLogo } from "../logo/shrink.js";
 import type { Numbering, Org } from "../setup.js";
+import { Icon, type IconName } from "./icons.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { whole } from "./read.js";
@@ -93,84 +94,105 @@ export function Settings(props: {
     <main class="narrow">
       <Back href="/" label="Home" />
       <h1>Settings</h1>
-      <form onSubmit={save} noValidate>
-        <h2>On your invoices</h2>
-        <Field label="Name on your invoices" problem={p.name}>
-          <input value={name} onInput={(e) => (name.value = value(e))} />
-        </Field>
-        <Field label="Your address" problem={p.address}>
-          <input value={address} onInput={(e) => (address.value = value(e))} />
-        </Field>
-        <Field label="Your email" hint="Approval links come here." problem={p.email}>
-          <input type="email" value={email} onInput={(e) => (email.value = value(e))} />
-        </Field>
-        <Field label="Invoice number prefix" hint="Such as INV-." problem={p.invoicePrefix}>
-          <input value={invoicePrefix} onInput={(e) => (invoicePrefix.value = value(e))} />
-        </Field>
-        <h2>GST and bank</h2>
-        <label class="check">
-          <input type="checkbox" checked={gstRegistered} onChange={(e) => (gstRegistered.value = (e.currentTarget as HTMLInputElement).checked)} />
-          I am registered for GST
-        </label>
-        {gstRegistered.value && (
-          <Field label="GST number" problem={p.gstNumber}>
-            <input value={gstNumber} onInput={(e) => (gstNumber.value = value(e))} />
+      <div class="settings">
+        <form onSubmit={save} noValidate>
+          <h2>On your invoices</h2>
+          <Field label="Name on your invoices" problem={p.name}>
+            <input value={name} onInput={(e) => (name.value = value(e))} />
           </Field>
-        )}
-        <Field label="Bank name" problem={p.bankName}>
-          <input value={bankName} onInput={(e) => (bankName.value = value(e))} />
-        </Field>
-        <Field label="Bank account number" hint="Tenants pay into this account." problem={p.bankAccount}>
-          <input value={bankAccount} onInput={(e) => (bankAccount.value = value(e))} />
-        </Field>
-        <p class="note">Sasimem works out GST for you, but it is a tool, not an accountant.</p>
-        <h2>Timing</h2>
-        <Field label="Days before sending that you are asked to approve" problem={p.approvalLeadDays}>
-          <input inputMode="numeric" value={leadDays} onInput={(e) => (leadDays.value = value(e))} />
-        </Field>
-        <Field label="Hour to send invoices" hint="0 to 23, Port Moresby time. 8 means 8 in the morning." problem={p.sendHour}>
-          <input inputMode="numeric" value={sendHour} onInput={(e) => (sendHour.value = value(e))} />
-        </Field>
-        <label class="check">
-          <input type="checkbox" checked={remind} onChange={(e) => (remind.value = (e.currentTarget as HTMLInputElement).checked)} />
-          Remind tenants who have not paid (once)
-        </label>
-        {remind.value && (
-          <Field label="Days after the due date to send the reminder" problem={p.reminderAfterDays}>
-            <input inputMode="numeric" value={reminderDays} onInput={(e) => (reminderDays.value = value(e))} />
+          <Field label="Your address" problem={p.address}>
+            <input value={address} onInput={(e) => (address.value = value(e))} />
           </Field>
-        )}
-        {message.value !== null && <p role="status">{message.value}</p>}
-        <button type="submit" disabled={busy}>Save settings</button>
-      </form>
+          <Field label="Your email" hint="Approval links come here." problem={p.email}>
+            <input type="email" value={email} onInput={(e) => (email.value = value(e))} />
+          </Field>
+          <Field label="Invoice number prefix" hint="Such as INV-." problem={p.invoicePrefix}>
+            <input value={invoicePrefix} onInput={(e) => (invoicePrefix.value = value(e))} />
+          </Field>
+          <h2>GST and bank</h2>
+          <label class="check">
+            <input type="checkbox" checked={gstRegistered} onChange={(e) => (gstRegistered.value = (e.currentTarget as HTMLInputElement).checked)} />
+            I am registered for GST
+          </label>
+          {gstRegistered.value && (
+            <Field label="GST number" problem={p.gstNumber}>
+              <input value={gstNumber} onInput={(e) => (gstNumber.value = value(e))} />
+            </Field>
+          )}
+          <Field label="Bank name" problem={p.bankName}>
+            <input value={bankName} onInput={(e) => (bankName.value = value(e))} />
+          </Field>
+          <Field label="Bank account number" hint="Tenants pay into this account." problem={p.bankAccount}>
+            <input value={bankAccount} onInput={(e) => (bankAccount.value = value(e))} />
+          </Field>
+          <p class="note">Sasimem works out GST for you, but it is a tool, not an accountant.</p>
+          <h2>Timing</h2>
+          <Field label="Days before sending that you are asked to approve" problem={p.approvalLeadDays}>
+            <input inputMode="numeric" value={leadDays} onInput={(e) => (leadDays.value = value(e))} />
+          </Field>
+          <Field label="Hour to send invoices" hint="0 to 23, Port Moresby time. 8 means 8 in the morning." problem={p.sendHour}>
+            <input inputMode="numeric" value={sendHour} onInput={(e) => (sendHour.value = value(e))} />
+          </Field>
+          <label class="check">
+            <input type="checkbox" checked={remind} onChange={(e) => (remind.value = (e.currentTarget as HTMLInputElement).checked)} />
+            Remind tenants who have not paid (once)
+          </label>
+          {remind.value && (
+            <Field label="Days after the due date to send the reminder" problem={p.reminderAfterDays}>
+              <input inputMode="numeric" value={reminderDays} onInput={(e) => (reminderDays.value = value(e))} />
+            </Field>
+          )}
+          {message.value !== null && <p role="status">{message.value}</p>}
+          <button type="submit" disabled={busy}>Save settings</button>
+        </form>
 
-      <h2>Logo</h2>
-      {props.logoUrl !== null && <img class="logo" src={props.logoUrl} alt="Your logo" />}
-      <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF. A big picture is made smaller for you. It goes on future invoices.">
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => void pickLogo(e)} />
-      </Field>
-      <p><a href="/settings/logo">{o.logoDesign === undefined ? "Design a logo" : "Change your logo design"}</a></p>
-      {o.logoPath === undefined && <p class="note">No logo yet? Make one from your initials or name, a shape and an icon.</p>}
-      {logoMessage.value !== null && <p role="status">{logoMessage.value}</p>}
-      {o.logoPath !== undefined && (
-        <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>
-      )}
+        <div class="settings-side">
+          <section class="card">
+            <h2>Logo</h2>
+            {props.logoUrl !== null && <img class="logo" src={props.logoUrl} alt="Your logo" />}
+            <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF. A big picture is made smaller for you. It goes on future invoices.">
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => void pickLogo(e)} />
+            </Field>
+            <p><a href="/settings/logo">{o.logoDesign === undefined ? "Design a logo" : "Change your logo design"}</a></p>
+            {o.logoPath === undefined && <p class="note">No logo yet? Make one from your initials or name, a shape and an icon.</p>}
+            {logoMessage.value !== null && <p role="status">{logoMessage.value}</p>}
+            {o.logoPath !== undefined && (
+              <button type="button" class="quiet" disabled={busy} onClick={async () => (logoMessage.value = (await props.onRemoveLogo()) ?? "Logo removed.")}>Remove logo</button>
+            )}
+          </section>
 
-      <h2>Your Sasimem plan</h2>
-      <p><a href="/settings/billing">Plan & billing</a></p>
-      <p class="note">Your plan, how to pay, and your payments.</p>
+          <h2 class="section-title">Your Sasimem plan</h2>
+          <LinkTile href="/settings/billing" icon="plan" title="Plan & billing" hint="Your plan, how to pay, and your payments." />
 
-      <h2>How your invoices look</h2>
-      <p><a href="/settings/templates">Invoice templates</a></p>
-      <p class="note">Choose a layout, colour, font and a note for your invoices.</p>
+          <h2 class="section-title">How your invoices look</h2>
+          <LinkTile href="/settings/templates" icon="invoices" title="Invoice templates" hint="Choose a layout, colour, font and a note for your invoices." />
 
-      <h2>Invoice numbers</h2>
-      {numbering === null && <p class="note">Loading… You need a connection to see this.</p>}
-      {numbering?.started === true && (
-        <p>Your next invoice will be {printed(o.invoicePrefix, numbering.next)}. Invoices have already been numbered, so this cannot change: numbers stay in one unbroken sequence.</p>
-      )}
-      {numbering?.started === false && <NextNumber next={numbering.next} prefix={o.invoicePrefix} onSetNext={props.onSetNext} />}
+          <section class="card">
+            <h2>Invoice numbers</h2>
+            {numbering === null && <p class="note">Loading… You need a connection to see this.</p>}
+            {numbering?.started === true && (
+              <p>Your next invoice will be {printed(o.invoicePrefix, numbering.next)}. Invoices have already been numbered, so this cannot change: numbers stay in one unbroken sequence.</p>
+            )}
+            {numbering?.started === false && <NextNumber next={numbering.next} prefix={o.invoicePrefix} onSetNext={props.onSetNext} />}
+          </section>
+        </div>
+      </div>
     </main>
+  );
+}
+
+/** A link to another settings screen, as a tile like home's menu: named by its title, its hint as the description. */
+function LinkTile(props: { href: string; icon: IconName; title: string; hint: string }) {
+  const id = `settings-${props.icon}`;
+  return (
+    <a class="tile" href={props.href} aria-labelledby={id} aria-describedby={`${id}-hint`}>
+      <span class="tile-icon"><Icon name={props.icon} /></span>
+      <span class="tile-text">
+        <span class="tile-title" id={id}>{props.title}</span>
+        <span class="tile-hint" id={`${id}-hint`}>{props.hint}</span>
+      </span>
+      <Icon name="arrow" class="tile-go" />
+    </a>
   );
 }
 

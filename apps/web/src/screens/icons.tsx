@@ -9,6 +9,7 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   signOut: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10",
   owed: "M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6",
+  plan: "M3 6h18v12H3zM3 10h18M7 15h4",
   home: "M3 11l9-8 9 8M5 9v12h14V9",
   arrow: "M5 12h14M13 6l6 6-6 6",
 } as const;

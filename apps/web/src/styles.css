@@ -27,9 +27,9 @@ a:hover { color: var(--accent-strong); }
 
 /* Forms. On a phone a form runs edge to edge; from a tablet up it sits on a panel. */
 form { display: grid; gap: var(--gap); }
-.narrow > form:not(.card) { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); }
-.narrow > form > h2:first-child { margin-top: 0; }
-@media (min-width: 720px) { .narrow > form:not(.card) { padding: 28px; } }
+.narrow > form:not(.card), .settings > form { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); }
+.narrow > form > h2:first-child, .settings > form > h2:first-child { margin-top: 0; }
+@media (min-width: 720px) { .narrow > form:not(.card), .settings > form { padding: 28px; } }
 .field { display: grid; gap: 6px; }
 .field-label { font-weight: 600; font-size: 0.95rem; }
 .field-hint, .note { color: var(--muted); font-size: 0.9rem; }
@@ -136,6 +136,17 @@ a.tile:hover .tile-go { color: var(--accent); transform: translateX(2px); }
   .welcome-panel { align-items: center; }
   .welcome .narrow { padding: 48px 32px; }
 }
+
+/* Settings: the form beside its side panels (logo, plan, templates, numbering) on a wide screen; stacked on a phone. */
+.narrow > .settings { max-width: none; }
+.settings { display: grid; gap: var(--gap); align-items: start; }
+.settings > form > h2 + * { margin-top: -4px; }
+.settings > form > h2:not(:first-child) { border-top: 1px solid var(--line); padding-top: 1.5rem; margin-top: 0.75rem; }
+.settings-side { display: grid; gap: var(--gap); align-content: start; }
+.settings-side .card { margin: 0; }
+.settings-side .section-title { margin: 0.5rem 0 -4px; }
+.settings-side .card > p:has(> a) { margin: -8px 0; }
+@media (min-width: 1000px) { .settings { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
 
 /* Step 3: setup screens. */
 a.back {
