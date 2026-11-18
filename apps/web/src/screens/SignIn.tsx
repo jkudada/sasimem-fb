@@ -20,7 +20,7 @@ export function SignIn({ onSignIn, signUpOpen }: { onSignIn: SignInAction; signU
 
   return (
     <main class="narrow">
-      <h1>Sasimem</h1>
+      <h1>Sign in to Sasimem</h1>
       <form onSubmit={submit}>
         <Field label="Email">
           <input type="email" autocomplete="email" value={email} onInput={(e) => (email.value = value(e))} required />

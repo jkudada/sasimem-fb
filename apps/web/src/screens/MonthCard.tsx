@@ -55,7 +55,7 @@ export function MonthCard(props: { period: Period; month: Month | null; timezone
   }
 
   return (
-    <section aria-labelledby="this-month" class="card">
+    <section aria-labelledby="this-month" class="card month">
       <h2 id="this-month">{label}</h2>
       {body}
       {message.value !== null && <p role={message.value.ok ? "status" : "alert"}>{message.value.message}</p>}
