@@ -6,6 +6,7 @@
  */
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, test } from "vitest";
+import { retentionBucket } from "../src/admin.js";
 import { sendLifecycleNotices } from "../src/lifecycle.js";
 import type { Mail } from "../src/mail/mailer.js";
 import { draftRun } from "../src/store/runs.js";
@@ -29,7 +30,7 @@ class Box extends FakeMailer {
 function setUp() {
   const mailer = new Box();
   let now = SIGN_UP_DAY;
-  const deps: SubscriptionTickDeps = { now: () => now, mailer, appUrl: () => "https://sasimem.example", fallbackContact: () => "ops@sasimem.example" };
+  const deps: SubscriptionTickDeps = { now: () => now, mailer, appUrl: () => "https://sasimem.example", fallbackContact: () => "ops@sasimem.example", retention: () => retentionBucket("sasimem-test-retention") };
   return {
     mailer, deps,
     tick: (t: Date, orgIds: string[]) => { now = t; return runSubscriptionTick(deps, { orgIds }); },

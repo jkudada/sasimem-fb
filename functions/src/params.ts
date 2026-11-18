@@ -32,3 +32,6 @@ export const MAIL_SECRETS = [GMAIL_APP_PASSWORD, RESEND_API_KEY];
 export const SIGNUP_MODE = defineString("SIGNUP_MODE", { default: "invite", description: "invite (only invited emails may create an organisation) or open" });
 export type SignupMode = "invite" | "open";
 export const signupModeOf = (value: string): SignupMode => (value === "open" ? "open" : "invite");
+
+/** Where a purge keeps issued invoices (PLAN-SUBSCRIBERS §11): empty means "<project>-retention". */
+export const RETENTION_BUCKET = defineString("RETENTION_BUCKET", { default: "", description: "The retention bucket for purged orgs' issued invoices; empty means <project>-retention" });

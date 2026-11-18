@@ -192,10 +192,14 @@ Each action is a pure function in core (subscription-actions.ts); one callable,
 
 Not in S5: the renewal emails (Phase A: the Sasimem org's own invoices do this), the payment receipt (Phase B) and the cancellation email (S6, with the export link).
 
-## S6 - export, cancel, purge (T3)
-- [ ] export contains every CSV and every invoice PDF of the org, and nothing of another org
-- [ ] the export link is short-lived and only for that org's owner
-- [ ] cancel sets `purgeAfter` = 90 days; runs already approved still send
-- [ ] `reinstate` before `purgeAfter` restores the previous status
-- [ ] purge copies issued invoices and PDFs to the retention bucket before deleting anything, and stops if the copy fails
-- [ ] purge deletes the org tree, the subscription and the user's account; the retention copy remains
+## S6 - export, cancel, purge (T1, T2, T3)
+- [x] export contains every CSV and every invoice PDF of the org, and nothing of another org
+- [x] the export link is short-lived and only for that org's owner (an hour; a new export replaces it; works while cancelled)
+- [x] cancel sets `purgeAfter` = 90 days; runs already approved still send (the landlord's cancel and the operator's both email the export link once)
+- [x] `reinstate` before `purgeAfter` restores the previous status (and is refused from `purgeAfter` on)
+- [x] purge copies issued invoices and PDFs to the retention bucket before deleting anything, and stops if the copy fails
+- [x] purge deletes the org tree, the subscription and the user's account; the retention copy remains
+- [x] T1 core: the export's CSVs (one line per unit, formulas not run, kina), file names; the cancellation notice and its email key
+- [x] T1 web: Export everything (#export) and the link again; cancel asks first, can be backed out of; cancelled shows the purge date and no cancel
+- [x] T1 ops: the retention bucket's settings (7 years, no public access)
+- [x] T2 rules: export links are server-only

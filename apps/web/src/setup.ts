@@ -102,7 +102,14 @@ export interface SetupStore {
   subscriptionPayments(): Promise<readonly SubscriptionPayment[] | string>;
   /** Email Sasimem asking for another plan (the requestPlanChange callable). */
   askToChangePlan(planId: PlanId, interval: Interval, message: string): Promise<Outcome>;
+  /** Zip everything (the exportEverything callable) and start the download (S6). */
+  exportEverything(): Promise<ExportOutcome>;
+  /** Cancel the subscription (S6). */
+  cancelSubscription(): Promise<Outcome>;
 }
+
+/** An export's outcome: when it worked, the hour-long link to download it again. */
+export type ExportOutcome = Outcome & { readonly url?: string };
 
 export interface MonthSummary {
   readonly period: Period;

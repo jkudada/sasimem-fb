@@ -2,9 +2,10 @@
  * The daily subscription tick (PLAN-SUBSCRIBERS §10). For each subscription:
  *   1. bring the stored status up to what its dates say, audited as "subscription-tick" (S4);
  *   2. recount its tenancies, so an end date that has passed is uncounted (S4);
- *   3. send the lifecycle emails it is due, each claimed once (S5).
- * Then, 5. email Sasimem the operator digest, if there is anything to say (S5).
- * The purge (step 4) arrives with S6.
+ *   3. send the lifecycle emails it is due, each claimed once (S5);
+ *   4. purge it, if it was cancelled and its 90 days are up (S6), instead of 2-3.
+ * Then, 5. email Sasimem the operator digest, if there is anything to say (S5), and
+ * remove export downloads that ran out more than a day ago (S6).
  *
  * Safe to run twice: each change is a compare-and-set or a create(), so the second run
  * writes and sends nothing. One org's failure does not stop the rest; the tick then
@@ -14,10 +15,12 @@ import { type CalendarDate, addDays, dateLabel, formatKina, pastDueSince, SUBSCR
 import { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { db } from "./admin.js";
+import { type bucket, db } from "./admin.js";
 import { createdOnOf, type LifecycleDeps, sendLifecycleNotices } from "./lifecycle.js";
 import { type DigestLine, digestIsEmpty, type OperatorDigest, operatorDigest } from "./mail/templates.js";
 import { MAIL_SECRETS } from "./params.js";
+import { sweepExports } from "./store/exports.js";
+import { purgeOrg } from "./store/purge.js";
 import { runsIn } from "./store/runs.js";
 import { recountTenancies, settleStatus, subscriptionIds, subscriptionOf, subscriptionToday } from "./store/subscriptions.js";
 
@@ -25,6 +28,8 @@ export interface SubscriptionTickDeps extends LifecycleDeps {
   readonly now: () => Date;
   /** Where the digest goes when `sasimem/billing` names no contactEmail: the sending address. */
   readonly fallbackContact: () => string;
+  /** Where a purge keeps issued invoices (S6). */
+  readonly retention: () => ReturnType<typeof bucket>;
 }
 
 export interface SubscriptionTally {
@@ -37,17 +42,19 @@ export interface SubscriptionTally {
   emailed: number;
   /** 1 when the operator digest went today. */
   digest: number;
+  /** Orgs deleted, their issued invoices kept (S6). */
+  purged: number;
 }
 
 const DAY_MS = 86_400_000;
 const daysFrom = (a: CalendarDate, b: CalendarDate): number => Math.round((Date.parse(b) - Date.parse(a)) / DAY_MS);
 const emptyDigest = (): { -readonly [K in keyof OperatorDigest]: DigestLine[] } =>
-  ({ signups: [], trialsEnding: [], pastDue: [], restricted: [], held: [], bounces: [] });
+  ({ signups: [], trialsEnding: [], pastDue: [], restricted: [], held: [], bounces: [], purged: [] });
 
 export async function runSubscriptionTick(deps: SubscriptionTickDeps, opts: { readonly orgIds?: readonly string[] } = {}): Promise<SubscriptionTally> {
   const now = deps.now();
   const today = subscriptionToday(now);
-  const tally: SubscriptionTally = { checked: 0, changed: 0, recounted: 0, emailed: 0, digest: 0 };
+  const tally: SubscriptionTally = { checked: 0, changed: 0, recounted: 0, emailed: 0, digest: 0, purged: 0 };
   const digest = emptyDigest();
   const names = new Map<string, string>();
   const errors: unknown[] = [];
@@ -63,6 +70,18 @@ export async function runSubscriptionTick(deps: SubscriptionTickDeps, opts: { re
       if (change !== null) {
         tally.changed++;
         logger.info("subscription tick: status changed", { orgId, ...change });
+      }
+      const sub = await subscriptionOf(orgId);
+      if (sub === null) continue; // purged on an earlier day
+      if (subscriptionStatus(sub, today) === "purged") {
+        const kept = await purgeOrg(orgId, now, deps.retention());
+        if (kept !== null) {
+          tally.purged++;
+          logger.info("subscription tick: purged", { orgId, ...kept });
+          const retention = deps.retention().name;
+          digest.purged.push({ orgId, name: kept.name, detail: `${kept.invoices} issued ${kept.invoices === 1 ? "invoice" : "invoices"} kept in ${retention}` });
+        }
+        continue;
       }
       if ((await recountTenancies(orgId, now))?.changed === true) tally.recounted++;
     } catch (e) {
@@ -89,6 +108,13 @@ export async function runSubscriptionTick(deps: SubscriptionTickDeps, opts: { re
     if (await sendDigest(deps, digest, now, today)) tally.digest = 1;
   } catch (e) {
     failed("", e);
+  }
+  if (opts.orgIds === undefined) {
+    try {
+      await sweepExports(now);
+    } catch (e) {
+      failed("", e);
+    }
   }
 
   if (errors.length > 0) throw errors.length === 1 ? errors[0] : new AggregateError(errors, `subscription tick: ${errors.length} failures; first: ${String(errors[0])}`);
@@ -159,7 +185,8 @@ export async function subscriptionTickAndLog(deps: SubscriptionTickDeps, opts: {
 
 /** Daily at 06:00 in Port Moresby, before the landlords' day. */
 export function makeSubscriptionTick(deps: SubscriptionTickDeps) {
-  return onSchedule({ schedule: "0 6 * * *", timeZone: SUBSCRIPTION_TIMEZONE, retryCount: 3, timeoutSeconds: 540, secrets: MAIL_SECRETS }, async () => {
+  // 1 GiB: a purge holds one PDF at a time, but the org's invoice list whole.
+  return onSchedule({ schedule: "0 6 * * *", timeZone: SUBSCRIPTION_TIMEZONE, retryCount: 3, timeoutSeconds: 540, memory: "1GiB", secrets: MAIL_SECRETS }, async () => {
     await subscriptionTickAndLog(deps);
   });
 }

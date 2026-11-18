@@ -269,6 +269,24 @@ export function setupStore(orgId: string): SetupStore {
 
     askToChangePlan: (planId, interval, message) => call("requestPlanChange", { orgId, planId, interval, message }, (r) => r.message ?? "Sent."),
 
+    async exportEverything() {
+      try {
+        const { url } = (await httpsCallable<{ orgId: string }, { url: string; filename: string }>(functions, "exportEverything", { timeout: 300_000 })({ orgId })).data;
+        // A plain download from our own origin (/x/**): the page stays where it is.
+        const a = Object.assign(document.createElement("a"), { href: url });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        return { ok: true, message: "Your export is downloading.", url };
+      } catch (e) {
+        const code = typeof e === "object" && e !== null && "code" in e ? String(e.code) : "";
+        const offline = !navigator.onLine || code === "functions/unavailable" || code === "functions/deadline-exceeded";
+        return { ok: false, message: !offline && code.startsWith("functions/") && e instanceof Error ? e.message : OFFLINE };
+      }
+    },
+
+    cancelSubscription: () => call("cancelSubscription", { orgId }, () => "Your subscription is cancelled."),
+
     async setNextNumber(next) {
       try {
         await httpsCallable(functions, "setNextInvoiceNumber")({ orgId, next });

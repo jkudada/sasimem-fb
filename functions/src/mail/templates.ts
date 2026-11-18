@@ -235,12 +235,15 @@ export function setupNudge(req: { to: string; orgName: string; appUrl: string })
 }
 
 /** Trial ending, past due, restricted: the banner's words (core subscriptionNotice), by email. */
-export function subscriptionLetter(req: { to: string; orgName: string; appUrl: string; title: string; body: string }): Mail {
+/** A subscription notice as a letter; a cancellation links straight to Export everything (S6). */
+export function subscriptionLetter(req: { to: string; orgName: string; appUrl: string; title: string; body: string; cancelled?: boolean }): Mail {
   return toLandlord(req.to, req.title, {
     greeting: `Hello ${req.orgName},`,
     blocks: [
       { p: req.body },
-      { p: "Your plan, payments and how to pay:", link: `${req.appUrl}/settings/billing` },
+      req.cancelled === true
+        ? { p: "Export everything:", link: `${req.appUrl}/settings/billing#export` }
+        : { p: "Your plan, payments and how to pay:", link: `${req.appUrl}/settings/billing` },
     ],
   });
 }
@@ -258,11 +261,13 @@ export interface OperatorDigest {
   readonly restricted: readonly DigestLine[];
   readonly held: readonly DigestLine[];
   readonly bounces: readonly DigestLine[];
+  /** Orgs deleted today, their issued invoices kept in the retention bucket (S6). */
+  readonly purged: readonly DigestLine[];
 }
 
 const DIGEST_SECTIONS: readonly (readonly [keyof OperatorDigest, string])[] = [
   ["signups", "New sign-ups"], ["trialsEnding", "Trials ending within 7 days"], ["pastDue", "Past due"],
-  ["restricted", "Restricted"], ["held", "Held runs"], ["bounces", "Emails that failed yesterday"],
+  ["restricted", "Restricted"], ["held", "Held runs"], ["bounces", "Emails that failed yesterday"], ["purged", "Purged today"],
 ];
 
 export const digestIsEmpty = (d: OperatorDigest): boolean => DIGEST_SECTIONS.every(([k]) => d[k].length === 0);

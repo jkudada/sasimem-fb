@@ -1,4 +1,4 @@
-# Subscribers (PLAN-SUBSCRIBERS S1-S5)
+# Subscribers (PLAN-SUBSCRIBERS S1-S6)
 
 Run from the repository root with Node 22. Each script needs `--project`; `sasimem-prod`
 also needs `--i-am-the-owner`. Every write is create-only or merges claims, so each script
@@ -164,3 +164,49 @@ org's sign-up, and the setup nudge only within 10.
   statement. **Metrics**: subscribers by plan and status, annual recurring revenue (active
   and past-due subscriptions at their locked price), trial conversion, cancellations and
   invoices sent by month.
+
+## Export, cancel, reinstate and purge (S6)
+
+S6 adds three functions (`exportEverything`, `cancelSubscription`, and `exportDownload`
+behind Hosting's new `/x/**` rewrite), gives `operatorAction` the mail secrets (a cancel
+emails the landlord), and adds the purge to `subscriptionTick`. In this order:
+
+1. **Make the retention bucket** (`<project>-retention`, Sydney, Archive class, uniform
+   access, public access prevented, each object deleted after 7 years):
+   ```sh
+   node ops/retention-bucket.ts --project sasimem-dev --dry-run
+   node ops/retention-bucket.ts --project sasimem-dev
+   ```
+   The functions write to it as the default compute service account
+   (`<number>-compute@developer.gserviceaccount.com`), which has the project's Editor role
+   unless someone removed it. If they did, grant it `roles/storage.objectAdmin` on this
+   bucket. To use another bucket, set `RETENTION_BUCKET` in `functions/.env.<project>`.
+2. **Deploy Functions, then Hosting** (Hosting needs `exportDownload` to exist for its rewrite):
+   ```sh
+   firebase deploy --only functions --project sasimem-dev
+   firebase deploy --only hosting --project sasimem-dev
+   ```
+
+- **Export everything** (Plan & billing, any status but purged): a zip of `properties.csv`,
+  `tenants.csv`, `tenancies.csv`, `charges.csv`, `invoices.csv`, `payments.csv` and every issued
+  invoice's PDF. It is kept at `exports/{orgId}/` in the default bucket, server-only, behind a
+  link that works for an hour; a new export replaces the last, and the subscription tick
+  removes any a day after their link ran out.
+- **Cancel** (the landlord on Plan & billing, or you in the console): no new month is drafted,
+  months already approved still go out, and the landlord is emailed a link to Export everything
+  and the day their records go: 90 days on. **Reinstate** in the console before then gives
+  back the status the plan and dates say (a trial keeps its end date).
+- **Purge**, on the morning of `purgeAfter`: the subscription tick copies the org's profile
+  (`org.json`), its issued invoices (`invoices/{id}.json`) and their PDFs to
+  `gs://<project>-retention/orgs/{orgId}/`, then deletes the owner's sign-in, their user
+  record, the org's files (invoice PDFs, logo, exports), its links, the org and last the
+  subscription. If a copy fails, nothing is deleted and the next morning tries again. The
+  audit trail keeps one `purged` entry (`operatorEvents/purge-{orgId}`), and the digest lists
+  it that morning.
+- **Restoring an old invoice** on request: find the org ID in the console's audit trail or the
+  digest, then
+  ```sh
+  gcloud storage ls gs://sasimem-dev-retention/orgs/<orgId>/invoices/ --project sasimem-dev
+  gcloud storage cp gs://sasimem-dev-retention/orgs/<orgId>/invoices/<invoiceId>.pdf . --project sasimem-dev
+  ```
+  Archive class charges a small fee per GB read; one PDF costs nothing worth counting.

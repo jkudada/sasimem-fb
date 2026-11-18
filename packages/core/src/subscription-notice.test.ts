@@ -58,10 +58,10 @@ describe("the banner (PLAN-SUBSCRIBERS §8)", () => {
     expect(notice?.body).toBe("Next month's invoices will not be drafted until Sasimem lifts the restriction. Invoices already approved are sent as normal. Contact Sasimem at help@sasimem.example.");
   });
 
-  test("cancelled says when the records go", () => {
+  test("cancelled says approved invoices still go, to export, and when the records go (S6)", () => {
     const notice = n.subscriptionNotice(sub({ status: "cancelled", cancelledOn: d("2026-12-01"), purgeAfter: d("2027-03-01") }), d("2026-12-02"), null);
     expect(notice).toMatchObject({ kind: "cancelled", tone: "problem" });
-    expect(notice?.body).toBe("No new month will be drafted. Your records are kept, read-only, until 1 March 2027. Contact Sasimem.");
+    expect(notice?.body).toBe("No new month will be drafted. Invoices already approved are sent as normal. Your records are kept, read-only, until 1 March 2027, and then deleted: use Export everything in Settings, Plan & billing to keep a copy. To carry on, contact Sasimem.");
   });
 
   test("active and free say nothing", () => {
@@ -117,7 +117,7 @@ describe("the edges", () => {
 
   test("cancelled names the contact address when there is one, and no purge date when there is none", () => {
     const notice = n.subscriptionNotice(sub({ status: "cancelled", cancelledOn: d("2026-12-01"), purgeAfter: null }), d("2026-12-02"), BANK);
-    expect(notice?.body).toBe("No new month will be drafted. Contact Sasimem at help@sasimem.example.");
+    expect(notice?.body).toBe("No new month will be drafted. Invoices already approved are sent as normal. To carry on, contact Sasimem at help@sasimem.example.");
   });
 
   test("a limit of one reads in the singular", () => {

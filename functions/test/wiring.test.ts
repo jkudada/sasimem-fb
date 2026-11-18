@@ -15,7 +15,8 @@ test("the subscription tick runs daily at 06:00 Port Moresby time, retried (PLAN
   expect(endpoint("subscriptionTick").scheduleTrigger).toMatchObject({ schedule: "0 6 * * *", timeZone: "Pacific/Port_Moresby", retryConfig: { retryCount: 3 } });
 });
 
-const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange", "subscriptionTick", "onSubscriptionCreated"] as const;
+const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange", "subscriptionTick", "onSubscriptionCreated",
+  "operatorAction", "cancelSubscription"] as const;
 
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
@@ -51,6 +52,13 @@ test("asking to change plan is capped at 2 instances: it emails Sasimem (PLAN-SU
 
 test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {
   expect(endpoint("approvalPage")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 5 });
+});
+
+test("the export's download is public, as the link is the credential; export and cancel are capped (PLAN-SUBSCRIBERS S6)", () => {
+  expect(endpoint("exportDownload")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 3 });
+  expect(secrets("exportDownload")).toEqual([]);
+  expect(endpoint("exportEverything")).toMatchObject({ maxInstances: 2 });
+  expect(endpoint("cancelSubscription")).toMatchObject({ maxInstances: 2 });
 });
 
 type Handler = ((req: express.Request, res: express.Response) => unknown) & { __endpoint: { callableTrigger?: object } };
