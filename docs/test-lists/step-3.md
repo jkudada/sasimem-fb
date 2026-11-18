@@ -66,7 +66,11 @@ Decisions this list assumes (the user chose the defaults on 2026-11-07):
 - [x] tenancy: ending sets the end date; delete is offered only when it was never invoiced
 - [x] tenancies are listed under their property as upcoming, current or ended
 - [x] settings: edits letterhead, bank, GST and timing with core's problems; saves the profile
-- [x] settings: a logo over 200 KB or not an image is refused before upload
+- [x] settings: a file that is not an image is refused before upload
+- [x] settings: a logo over 200 KB is made smaller in the browser (≤ 400 px, a JPEG stays a JPEG,
+      anything else stays transparent) and then uploaded; one that cannot be made small enough
+      says so (added 2026-11-18: a landlord's 200 KB+ JPEG was refused on dev)
+- [x] settings: a logo that was not saved does not stay in the file box
 - [x] settings: next invoice number shows a plain message once numbering has started
 - [x] routing: signed-in routes for each screen; an unknown path goes home
 - [x] after onboarding's first tenant, the landlord lands on home (replaces step 2's "You're set up" page)

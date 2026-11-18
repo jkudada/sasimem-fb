@@ -233,18 +233,73 @@ describe("settings", () => {
     expect(onSave).toHaveBeenCalledWith({ ...setup().org, gstNumber: "500099999", bankAccount: "2000 1111", sendHour: 9, reminderMode: "off" });
   });
 
-  test("a logo that is not a picture, or is over 200 KB, is refused before upload", async () => {
-    const onUploadLogo = vi.fn().mockResolvedValue(null);
-    render(<Settings org={setup().org} numbering={{ next: 1, started: false }} {...props} onUploadLogo={onUploadLogo} />);
-    const pick = (file: File) => fireEvent.change(screen.getByLabelText(/logo/i), { target: { files: [file] } });
-    pick(new File(["x"], "terms.pdf", { type: "application/pdf" }));
-    expect(await screen.findByText("Choose a picture: PNG, JPEG, WebP or GIF.")).toBeTruthy();
-    pick(new File([new Uint8Array(200 * 1024 + 1)], "big.png", { type: "image/png" }));
-    expect(await screen.findByText("Choose a logo smaller than 200 KB.")).toBeTruthy();
-    expect(onUploadLogo).not.toHaveBeenCalled();
-    const ok = new File(["x"], "logo.png", { type: "image/png" });
-    pick(ok);
-    expect(onUploadLogo).toHaveBeenCalledWith(ok);
+  describe("the logo", () => {
+    const big = new File([new Uint8Array(200 * 1024 + 1)], "photo.jpg", { type: "image/jpeg" });
+    const small = new File(["x"], "photo.jpg", { type: "image/jpeg" });
+    const input = () => screen.getByLabelText(/logo \(optional\)/i) as HTMLInputElement;
+    // jsdom never shows a file name in the box, so watch for the box being emptied instead.
+    const cleared = vi.fn();
+    const pick = (file: File) => {
+      cleared.mockClear();
+      Object.defineProperty(input(), "value", { configurable: true, get: () => "", set: cleared });
+      fireEvent.change(input(), { target: { files: [file] } });
+    };
+    const settings = (over: Partial<Parameters<typeof Settings>[0]>) =>
+      render(<Settings org={setup().org} numbering={{ next: 1, started: false }} {...props} {...over} />);
+
+    test("a picture of 200 KB or less is uploaded as it is", async () => {
+      const onUploadLogo = vi.fn().mockResolvedValue(null);
+      const shrink = vi.fn();
+      settings({ onUploadLogo, shrink });
+      pick(small);
+      expect(await screen.findByText("Logo saved.")).toBeTruthy();
+      expect(onUploadLogo).toHaveBeenCalledWith(small);
+      expect(shrink).not.toHaveBeenCalled();
+      expect(cleared).not.toHaveBeenCalled();
+    });
+
+    test("a picture over 200 KB is made smaller, then uploaded", async () => {
+      const onUploadLogo = vi.fn().mockResolvedValue(null);
+      const shrink = vi.fn().mockResolvedValue(small);
+      settings({ onUploadLogo, shrink });
+      pick(big);
+      expect(await screen.findByText("Logo saved.")).toBeTruthy();
+      expect(shrink).toHaveBeenCalledWith(big);
+      expect(onUploadLogo).toHaveBeenCalledWith(small);
+    });
+
+    test("a file that is not a picture is refused before upload, and leaves the box empty", async () => {
+      const onUploadLogo = vi.fn();
+      settings({ onUploadLogo });
+      pick(new File(["x"], "terms.pdf", { type: "application/pdf" }));
+      expect(await screen.findByText("Choose a picture: PNG, JPEG, WebP or GIF.")).toBeTruthy();
+      expect(onUploadLogo).not.toHaveBeenCalled();
+      expect(cleared).toHaveBeenCalledWith("");
+    });
+
+    test("a picture that cannot be made small enough says why, is not uploaded, and leaves the box empty", async () => {
+      const onUploadLogo = vi.fn();
+      settings({ onUploadLogo, shrink: vi.fn().mockRejectedValue(new Error("That picture is still over 200 KB when made smaller. Try a simpler picture.")) });
+      pick(big);
+      expect(await screen.findByText("That picture is still over 200 KB when made smaller. Try a simpler picture.")).toBeTruthy();
+      expect(onUploadLogo).not.toHaveBeenCalled();
+      expect(cleared).toHaveBeenCalledWith("");
+    });
+
+    test("a picture made smaller is checked again, as Storage would refuse it", async () => {
+      const onUploadLogo = vi.fn();
+      settings({ onUploadLogo, shrink: vi.fn().mockResolvedValue(big) });
+      pick(big);
+      expect(await screen.findByText("Choose a logo smaller than 200 KB.")).toBeTruthy();
+      expect(onUploadLogo).not.toHaveBeenCalled();
+    });
+
+    test("a failed upload says so and leaves the box empty", async () => {
+      settings({ onUploadLogo: vi.fn().mockResolvedValue("The logo could not be uploaded. Please try again.") });
+      pick(small);
+      expect(await screen.findByText("The logo could not be uploaded. Please try again.")).toBeTruthy();
+      expect(cleared).toHaveBeenCalledWith("");
+    });
   });
 
   test("the next invoice number can be changed until numbering starts, then says why not", async () => {
