@@ -10,7 +10,7 @@ import {
 import { startAppCheck } from "./appcheck.js";
 import { app } from "./firebase.js";
 import type {
-  EmailSummary, Invite, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
+  EmailSummary, Invite, InvoiceSummary, Note, OperatorEvent, OrgDetail, OrgSummary, Payment, PaymentRow, RunSummary, SubscriberDetail, SubscriberInput, TickBeat,
 } from "./types.js";
 
 startAppCheck(app, import.meta.env["VITE_RECAPTCHA_SITE_KEY"]);
@@ -67,6 +67,8 @@ export interface ConsoleData {
   tick(): Promise<TickBeat | null>;
   /** The daily subscription tick's last success (S4). */
   subscriptionTick(): Promise<TickBeat | null>;
+  /** Every payment recorded, with its org (S5, the Billing page). */
+  payments(): Promise<PaymentRow[]>;
 }
 
 export const consoleData: ConsoleData = {
@@ -113,6 +115,18 @@ export const consoleData: ConsoleData = {
   async invites() {
     const snap = await getDocs(collection(db, "signupInvites"));
     return snap.docs.map((d) => invite(d.id, d.data())).sort((a, b) => (b.invitedAt?.getTime() ?? 0) - (a.invitedAt?.getTime() ?? 0));
+  },
+
+  async payments() {
+    const [orgs, subs] = await Promise.all([getDocs(collection(db, "orgs")), getDocs(collection(db, "subscriptions"))]);
+    const nameOf = new Map(orgs.docs.map((o) => [o.id, str(o.get("name"))]));
+    // One small read per subscriber, as the Subscribers list does.
+    const each = await Promise.all(subs.docs.map(async (sub) => (await getDocs(collection(db, `subscriptions/${sub.id}/payments`))).docs.map((d): PaymentRow => ({
+      id: d.id, orgId: sub.id, orgName: nameOf.get(sub.id) ?? sub.id, subscriptionReference: typeof sub.get("paymentReference") === "string" ? sub.get("paymentReference") : null,
+      amountToea: num(d.get("amountToea")), receivedOn: d.get("receivedOn"), bankReference: str(d.get("bankReference")),
+      coversFrom: d.get("coversFrom") ?? null, coversTo: d.get("coversTo") ?? null,
+    }))));
+    return each.flat();
   },
 
   tick: () => heartbeat("system/tick"),

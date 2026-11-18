@@ -1,6 +1,6 @@
 # Subscribers test list (docs/PLAN-SUBSCRIBERS.md)
 
-S1 done (2026-11-08), S2 done (2026-11-09), S3 done (2026-11-11), S4 done (2026-11-11); S5-S6 to come.
+S1 done (2026-11-08), S2 done (2026-11-09), S3 done (2026-11-11), S4 done (2026-11-11), S5 done (2026-11-11); S6 to come.
 
 Written before the code (plan §9.1 of PLAN-SASIMEM-FB). Ticked as each goes red → green.
 Phases S1-S6 match PLAN-SUBSCRIBERS §12; each phase's items land in its PR.
@@ -165,11 +165,32 @@ Each action is a pure function in core (subscription-actions.ts); one callable,
 - [x] the subscription tick's error alert watches its own Cloud Run service
 
 ## S5 - emails and metrics (T1, T3)
-- [ ] each lifecycle email (plan §9) is sent at most once per trigger, claimed with `create()`
-- [ ] a failed send leaves the claim unwritten, so the next tick retries it
-- [ ] the operator digest is not sent on a day with nothing to report
-- [ ] metrics: annual recurring revenue counts active and past_due subscriptions at their locked price, annualised; trials and free count zero
-- [ ] the billing CSV lists payments with date, org, amount, bank reference, period covered
+### core (T1)
+- [x] welcome is due on sign-up day and the two after, never later, so a deploy or a backfill emails no old org
+- [x] the setup nudge is due from 3 days after sign-up while there is no tenancy, and not after 10 days
+- [x] the trial reminders are due at 14 and 3 days, keyed by the end date (an extended trial is reminded again); a short trial goes straight to the nearest
+- [x] past due and restricted are due once per lapse, keyed by the first unpaid day; a hand restriction, free, active and cancelled get none
+- [x] the trial banner starts on the day of the 14-day reminder, so the email and the banner say the same
+- [x] a subscription's annual value: annual at its price, monthly times 12
+
+### functions (T3)
+- [x] each lifecycle email (plan §9) is sent at most once per trigger, claimed with `create()`; two ticks at once send one
+- [x] a failed send leaves the claim unwritten, so the next tick retries it; the failure is in the email log
+- [x] the welcome goes when the subscription is made (a trigger), with the three steps; the next morning's tick does not send it again
+- [x] an old org, or one with no sign-up date, is welcomed by nobody
+- [x] past due, then restricted, each once, with the amount, reference and what changes
+- [x] the operator digest is not sent on a day with nothing to report
+- [x] the digest lists past due, restricted, held runs and failed emails, once a day, to the `sasimem/billing` contact (else the sending address); a new sign-up shows the next morning
+- [x] wiring: `subscriptionTick` and `onSubscriptionCreated` can read both mail secrets
+
+### console (T1)
+- [x] metrics: annual recurring revenue counts active and past_due subscriptions at their locked price, annualised; trials and free count zero
+- [x] metrics: subscribers by plan and status, trial to paid conversion, cancellations and invoices sent by month
+- [x] billing: renewals due in 30 days, overdue (not hand restrictions), payments this month and their total
+- [x] the billing CSV lists payments with date, org, amount, bank reference, period covered, oldest first, safe for a spreadsheet
+- [x] the Billing page downloads the CSV for the months chosen; Billing and Metrics have their own addresses
+
+Not in S5: the renewal emails (Phase A: the Sasimem org's own invoices do this), the payment receipt (Phase B) and the cancellation email (S6, with the export link).
 
 ## S6 - export, cancel, purge (T3)
 - [ ] export contains every CSV and every invoice PDF of the org, and nothing of another org

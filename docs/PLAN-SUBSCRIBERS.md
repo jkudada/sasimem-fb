@@ -1,6 +1,6 @@
 # Subscribers: plans, billing, the operator console
 
-Status: **S1-S4 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console; S3: operator actions, the audit trail, invitations with a plan; S4: enforcement, the daily subscription tick, the landlord's banner, limit message and Plan & billing); S5-S6 to come. Agreed with the user on 2026-11-08 ("go with
+Status: **S1-S4 built** (S1: core rules, rules, `createOrg` trial, tenancy count, ops scripts; S2: the read-only operator console; S3: operator actions, the audit trail, invitations with a plan; S4: enforcement, the daily subscription tick, the landlord's banner, limit message and Plan & billing; S5: lifecycle emails, the operator digest, Metrics and Billing); S6 to come. Agreed with the user on 2026-11-08 ("go with
 your recommendations"). Builds on `docs/PLAN-SASIMEM-FB.md` and
 `docs/product.md` §9 (business model), and on `docs/PLAN-TEMPLATES.md` §7
 (sign-up by invitation, phase P5).
@@ -257,6 +257,16 @@ upper-case), so the same transfer recorded twice is one payment.
 Each is sent at most once per trigger (`subscriptions/{orgId}/notices/{kind_period}`
 written with `create()`, as I8 does for reminders) and logged in the email log.
 
+How S5 built it: core's `lifecycleNoticesDue` decides; the daily tick (step 3) claims and
+sends each, giving the claim back if the send fails so the next day retries. The welcome
+also goes from a trigger on `subscriptions/{orgId}` being created, so it arrives at sign-up;
+it is due only within 2 days of the org's `createdAt` (and the nudge only within 10), so
+deploying S5 or running the backfill emails no existing landlord. Trial reminders are keyed
+by `trialEndsOn`, past due and restricted by the first unpaid day. The renewal reminders and
+receipt stay with the Sasimem org (Phase A); the cancellation email comes with S6's export.
+The operator digest goes at the end of the 06:00 tick, not 07:00, to the `sasimem/billing`
+contact (else `MAIL_FROM`), claimed once a day in `operatorDigests/{date}`.
+
 ## 10. The daily subscription tick
 
 `subscriptionTick`, scheduled daily at 06:00 Pacific/Port_Moresby, retried, safe
@@ -294,7 +304,7 @@ S4 built steps 1-2; the status change is audited as kind `statusChange`, actor `
 | S2 ✓ | `apps/console`: TOTP sign-in and set-up, Subscribers, Subscriber (read-only), Health; `system/tick`; hosting config for dev (deploy waits for TOTP on dev) | ~4 days |
 | S3 ✓ | Operator actions (one guarded callable) and the audit trail; the console's Actions forms; Invites with a plan, trial and expiry, emailed (after Templates P5) | ~3 days |
 | S4 ✓ | Enforcement: the hourly tick skips restricted orgs; `subscriptionTick` steps 1-2; banners, limit message, Plan & billing screen | ~4 days |
-| S5 | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
+| S5 ✓ | Lifecycle emails, the operator digest, Metrics, Billing screen and CSV | ~3 days |
 | S6 | Export, cancel, reinstate, purge and the retention bucket | ~3 days |
 | B | Phase B billing module (D8), when wanted | ~4 days |
 

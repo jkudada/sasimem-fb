@@ -122,12 +122,12 @@ describe("draftNow and a restricted org", () => {
 });
 
 describe("the daily subscription tick (PLAN-SUBSCRIBERS §10, steps 1-2)", () => {
-  const at = (t: Date) => ({ now: () => t });
+  const at = (t: Date) => ({ now: () => t, mailer: new FakeMailer(), appUrl: () => "https://sasimem.example", fallbackContact: () => "invoices@sasimem.example" });
 
   test("brings each stored status up to its dates, audited as subscription-tick", async () => {
     const { orgId } = await anOrgWith();
     const nov1 = new Date("2026-10-31T20:00:00Z"); // 06:00, 1 November, Port Moresby: the trial ended yesterday
-    expect(await runSubscriptionTick(at(nov1), { orgIds: [orgId] })).toEqual({ checked: 1, changed: 1, recounted: 0 });
+    expect(await runSubscriptionTick(at(nov1), { orgIds: [orgId] })).toMatchObject({ checked: 1, changed: 1, recounted: 0 });
     expect(await subOf(orgId)).toMatchObject({ status: "past_due", updatedAt: Timestamp.fromDate(nov1) });
     expect(await eventsOf(orgId)).toEqual([{
       kind: "statusChange", orgId, actor: "subscription-tick", actorEmail: null, at: Timestamp.fromDate(nov1),
@@ -151,7 +151,7 @@ describe("the daily subscription tick (PLAN-SUBSCRIBERS §10, steps 1-2)", () =>
     const t = at(new Date("2026-10-31T20:00:00Z"));
     await runSubscriptionTick(t, { orgIds: [orgId] });
     const after = await subOf(orgId);
-    expect(await runSubscriptionTick(t, { orgIds: [orgId] })).toEqual({ checked: 1, changed: 0, recounted: 0 });
+    expect(await runSubscriptionTick(t, { orgIds: [orgId] })).toMatchObject({ checked: 1, changed: 0, recounted: 0, emailed: 0 });
     expect(await subOf(orgId)).toEqual(after);
     expect(await eventsOf(orgId)).toHaveLength(1);
   });
@@ -168,7 +168,7 @@ describe("the daily subscription tick (PLAN-SUBSCRIBERS §10, steps 1-2)", () =>
     const { orgId } = await anOrgWith();
     const lines: [string, object][] = [];
     await subscriptionTickAndLog(at(new Date("2026-10-05T20:00:00Z")), { orgIds: [orgId] }, (m, d) => lines.push([m, d]));
-    expect(lines).toEqual([["subscription tick done", { event: "subscription_tick_done", checked: 1, changed: 0, recounted: 0 }]]);
+    expect(lines).toEqual([["subscription tick done", expect.objectContaining({ event: "subscription_tick_done", checked: 1, changed: 0, recounted: 0 })]]);
   });
 });
 

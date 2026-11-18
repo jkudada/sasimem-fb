@@ -25,9 +25,9 @@ describe("what is due (D3)", () => {
 });
 
 describe("the banner (PLAN-SUBSCRIBERS §8)", () => {
-  test("a trial says nothing until its last 14 days, then counts down", () => {
-    expect(n.subscriptionNotice(sub(), d("2026-11-16"), BANK)).toBeNull();
-    const first = n.subscriptionNotice(sub(), d("2026-11-17"), BANK);
+  test("a trial says nothing until 14 days before its last day, then counts down", () => {
+    expect(n.subscriptionNotice(sub(), d("2026-11-15"), BANK)).toBeNull();
+    const first = n.subscriptionNotice(sub(), d("2026-11-16"), BANK);
     expect(first).toMatchObject({ kind: "trialEnding", tone: "warning", title: "Your free trial ends on 30 November 2026" });
     expect(first?.body).toContain("K400.00");
     expect(first?.body).toContain("SUB-0042");
