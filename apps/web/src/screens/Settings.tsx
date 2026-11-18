@@ -1,5 +1,6 @@
 import { useSignal } from "@preact/signals";
-import { type OrgProfile, firstInvoiceNumberProblem, logoProblem, profileProblems } from "@sasimem/core";
+import { MAX_LOGO_BYTES, type OrgProfile, firstInvoiceNumberProblem, logoProblem, logoTypeProblem, profileProblems } from "@sasimem/core";
+import { shrinkLogo } from "../logo/shrink.js";
 import type { Numbering, Org } from "../setup.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
@@ -19,6 +20,8 @@ export function Settings(props: {
   onUploadLogo: (file: File) => Promise<string | null>;
   onRemoveLogo: () => Promise<string | null>;
   onSetNext: (next: number) => Promise<string | null>;
+  /** Makes a picture over 200 KB smaller; tests pass a fake, as there is no canvas outside a browser. */
+  shrink?: (file: File) => Promise<File>;
 }) {
   const o = props.org;
   const name = useSignal(o.name);
@@ -57,13 +60,31 @@ export function Settings(props: {
   };
 
   const pickLogo = async (e: Event) => {
-    const file = (e.currentTarget as HTMLInputElement).files?.[0];
-    if (file === undefined) return;
-    logoMessage.value = logoProblem(file);
-    if (logoMessage.value !== null) return;
+    const input = e.currentTarget as HTMLInputElement;
+    const picked = input.files?.[0];
+    if (picked === undefined) return;
     busy.value = true;
-    logoMessage.value = (await props.onUploadLogo(file)) ?? "Logo saved.";
+    const problem = await uploadLogo(picked);
     busy.value = false;
+    logoMessage.value = problem ?? "Logo saved.";
+    // A file that was not saved does not stay in the box, looking as if it had been.
+    if (problem !== null) input.value = "";
+  };
+
+  /** A picture over 200 KB is made smaller first; null once it is saved, else what went wrong. */
+  const uploadLogo = async (picked: File): Promise<string | null> => {
+    const wrongKind = logoTypeProblem(picked.type);
+    if (wrongKind !== null) return wrongKind;
+    let file = picked;
+    if (file.size > MAX_LOGO_BYTES) {
+      logoMessage.value = "Making your logo smaller...";
+      try {
+        file = await (props.shrink ?? shrinkLogo)(file);
+      } catch (err) {
+        return err instanceof Error ? err.message : "That picture could not be made smaller.";
+      }
+    }
+    return logoProblem(file) ?? (await props.onUploadLogo(file));
   };
 
   const p = problems.value;
@@ -125,7 +146,7 @@ export function Settings(props: {
 
       <h2>Logo</h2>
       {props.logoUrl !== null && <img class="logo" src={props.logoUrl} alt="Your logo" />}
-      <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF under 200 KB. It goes on future invoices.">
+      <Field label="Logo (optional)" hint="A PNG, JPEG, WebP or GIF. A big picture is made smaller for you. It goes on future invoices.">
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => void pickLogo(e)} />
       </Field>
       <p><a href="/settings/logo">{o.logoDesign === undefined ? "Design a logo" : "Change your logo design"}</a></p>
