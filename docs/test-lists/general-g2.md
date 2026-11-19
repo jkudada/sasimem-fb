@@ -102,3 +102,69 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 
 ### End to end (T4)
 - [x] an owner with `oneOff` adds an item, writes an invoice for a customer and sends it; the customer's email has the PDF; the month's rent review does not list it
+
+## G2b: part payments and receipts
+
+### Choices (say if any is wrong)
+
+- **Behind `oneOff`, like all of G2.** Rentals-only orgs keep the paid tick exactly as today.
+- **A payment is server-written** (`payments/{id}`, I9 as for invoices): customer, received on,
+  amount, method (bank transfer, cash, cheque, card, mobile money, other), reference, note,
+  allocations `[{ invoiceId, number, amountToea }]`, credit, receipt number, status.
+- **Allocation:** the screen proposes oldest due first (core); the owner can change it. The
+  server re-checks every allocation against the balances in the same transaction: an invoice of
+  this customer, sent, never more than its balance, at most 20 invoices per payment.
+- **Overpayment is kept as credit** on the payment and shown against the customer. *Using* a
+  credit against a later invoice comes with credit notes (G2c), which also make credit.
+- **An invoice records `amountPaidToea`.** Its balance is the total less that; at 0 it is `paid`
+  (with `paidAt`), otherwise it stays `sent` and shows **Part paid** (Overdue still wins past the
+  due date). An invoice ticked paid before G2b, with no `amountPaidToea`, counts as paid in full.
+- **Still owed sums balances**, not totals.
+- **Receipts are numbered `RCT-`** from their own counter, in the payment's transaction, and never
+  reused: an undone payment keeps its number, marked undone.
+- **The receipt is an email**, to the customer and their copy-to, sent when the owner ticks
+  "Email a receipt" (on by default; the owner presses Record, so this is their say-so). It names
+  each invoice paid and what is still owed on it. **No receipt PDF yet** (later, with statements, G7).
+- **A mistaken payment is undone**, with a reason, never edited: its allocations come off the
+  invoices (a paid invoice goes back to sent), and nobody is emailed.
+- **While an invoice has payments recorded:** the paid tick and "not paid" are refused (record or
+  undo a payment instead), and so is void (undo the payments first; G2c's credit notes handle money
+  already taken).
+- **A reminder for a part-paid invoice asks for the balance**, and says what was paid.
+- **Recording the same payment twice gives one payment:** the screen makes the payment's ID, and
+  the server creates it only once.
+- **The CSV export is unchanged;** payments go in the accountant's export (G7, AR-14).
+- **`setNextInvoiceNumber` now merges** into the counter, so it cannot wipe the receipt counter.
+
+### core (T1)
+- [ ] paid so far and balance: from `amountPaidToea`; a paid invoice without it is paid in full; void and unissued owe nothing
+- [ ] oldest first: by due date then number; stops when the money runs out; the rest is credit
+- [ ] a payment's problems: no customer; a date not a date or after today; amount 0, negative or over the limit; unknown method; reference over 40, note over 200
+- [ ] allocations: an invoice not open for this customer; the same invoice twice; 0 or negative; more than its balance; more than the payment; over 20
+- [ ] applying a payment: part leaves it sent with a balance, the rest makes it paid; undoing reverses either
+- [ ] the chip: Part paid before the due date, Overdue after, Paid when the balance is 0
+- [ ] arrears sum balances
+- [ ] property: any payment allocated oldest first never takes an invoice below 0, and allocations + credit = amount
+
+### Security rules (T2)
+- [ ] members read payments; nobody writes them
+
+### Functions (T3)
+- [ ] `recordPayment` allocates, updates each invoice, numbers the receipt (RCT-0001, then 0002), records the event, and emails the receipt to the customer and copy-to
+- [ ] paying an invoice in full marks it paid; part leaves it sent with its balance; overpayment is stored as credit
+- [ ] the same payment ID twice gives one payment, one receipt number, one email
+- [ ] refused: no `oneOff`; not the owner; an invoice of another customer, unsent, paid or void; more than the balance (checked in the transaction, so two payments at once cannot overpay an invoice)
+- [ ] without "Email a receipt" nothing is sent; a refused email leaves the payment recorded and says so
+- [ ] `undoPayment` takes the allocations off, reopens a paid invoice, keeps the receipt number, emails nobody; twice is once
+- [ ] mark paid, not paid and void are refused while an invoice has payments
+- [ ] a part-paid invoice's reminder asks for the balance
+- [ ] `setNextInvoiceNumber` keeps the other counters
+
+### Web (T1 web)
+- [ ] Still owed: Record a payment per customer (with `oneOff`), balances, Part paid, credit
+- [ ] the payment form: customer, amount, date, method, reference; allocation proposed oldest first and editable; credit shown; problems; Email a receipt
+- [ ] the payments list: receipt number, customer, amount, undone ones marked; Undo with a reason
+- [ ] Home's Payments tile only with `oneOff`
+
+### End to end (T4)
+- [ ] an owner records a part payment then the rest for a one-off invoice; the customer gets two receipts; the invoice ends paid
