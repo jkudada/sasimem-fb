@@ -165,10 +165,10 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - [x] `setNextInvoiceNumber` keeps the other counters
 
 ### Web (T1 web)
-- [ ] Still owed: Record a payment per customer (with `oneOff`), balances, Part paid, credit
-- [ ] the payment form: customer, amount, date, method, reference; allocation proposed oldest first and editable; credit shown; problems; Email a receipt
-- [ ] the payments list: receipt number, customer, amount, undone ones marked; Undo with a reason
-- [ ] Home's Payments tile only with `oneOff`
+- [x] Still owed: Record a payment per customer (with `oneOff`), balances, Part paid, credit
+- [x] the payment form: customer, amount, date, method, reference; allocation proposed oldest first and editable; credit shown; problems; Email a receipt
+- [x] the payments list: receipt number, customer, amount, undone ones marked; Undo with a reason
+- [x] Home's Payments tile only with `oneOff`
 
 ### End to end (T4)
-- [ ] an owner records a part payment then the rest for a one-off invoice; the customer gets two receipts; the invoice ends paid
+- [x] an owner records a part payment then the rest for a one-off invoice; the customer gets two receipts; the invoice ends paid

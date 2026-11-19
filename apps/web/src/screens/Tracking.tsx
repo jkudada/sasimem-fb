@@ -46,7 +46,7 @@ export function Tracking(props: Props) {
 function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
   const { inv, act } = props;
   const n = inv.number ?? "";
-  const chip = invoiceChip({ status: inv.status, dueDate: inv.dueDate ?? props.today }, props.today);
+  const chip = invoiceChip({ status: inv.status, dueDate: inv.dueDate ?? props.today, ...(inv.amountPaidToea === undefined ? {} : { amountPaidToea: inv.amountPaidToea }) }, props.today);
   const note = useSignal("");
   const noteProblem = useSignal<string | null>(null);
   const voiding = useSignal(false);
