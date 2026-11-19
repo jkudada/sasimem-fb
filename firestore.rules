@@ -60,7 +60,7 @@ service cloud.firestore {
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
               'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath',
-              'defaultTemplateId', 'logoDesign', 'defaultTermsDays'];
+              'defaultTemplateId', 'logoDesign', 'defaultTermsDays', 'scheduledSentNote'];
     }
 
     // A logo lives in the org's own folder; storage.rules guards the file itself.
@@ -108,7 +108,8 @@ service cloud.firestore {
         && str(d.invoicePrefix, 0, 10) && str(d.timezone, 1, 64)
         && wholeIn(d.approvalLeadDays, 1, 28) && wholeIn(d.sendHour, 0, 23) && wholeIn(d.reminderAfterDays, 0, 60)
         && d.reminderMode in ['auto', 'off']
-        && (!('defaultTermsDays' in d) || wholeIn(d.defaultTermsDays, 0, 90)); // G2a: one-off invoices' default terms
+        && (!('defaultTermsDays' in d) || wholeIn(d.defaultTermsDays, 0, 90)) // G2a: one-off invoices' default terms
+        && (!('scheduledSentNote' in d) || d.scheduledSentNote is bool); // G2d: email the owner when a scheduled one-off goes
     }
 
     // A tenant is a customer (docs/PLAN-GENERAL-INVOICING.md G1b): today's three fields,

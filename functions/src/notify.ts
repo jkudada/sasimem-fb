@@ -10,7 +10,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
 import type { StoredCreditNote } from "./store/creditNotes.js";
 import type { StoredPayment } from "./store/receipts.js";
@@ -74,6 +74,18 @@ export async function sendDispatch(deps: NotifyDeps, orgId: string, org: OrgDoc,
 export async function sendNotSent(deps: NotifyDeps, orgId: string, org: OrgDoc, s: { draftId: string; sendAt: Date; customerName: string }, problem: string): Promise<void> {
   await sendLogged(logged(deps), { orgId, kind: "notSent", noticeKey: `${s.draftId}@${s.sendAt.getTime()}` }, notSentNotice({
     to: org.email, orgName: org.name, customerName: s.customerName, sendAt: s.sendAt, timezone: org.timezone, problem, link: `${deps.appUrl()}/one-off/${s.draftId}`,
+  }));
+}
+
+/**
+ * A scheduled one-off went as planned (G2d): a note to the owner, once per invoice, unless
+ * they switched it off in Settings (`scheduledSentNote: false`; absent means on).
+ */
+export async function sendSentScheduled(deps: NotifyDeps, orgId: string, org: OrgDoc & { readonly scheduledSentNote?: boolean }, invoiceId: string, invoice: InvoiceDocument, sendAt: Date): Promise<void> {
+  if (org.scheduledSentNote === false || invoice.number === null) return;
+  await sendLogged(logged(deps), { orgId, kind: "sentScheduled", runPeriod: invoice.period, invoiceId }, sentScheduledNotice({
+    to: org.email, orgName: org.name, customerName: invoice.snapshot?.tenantName ?? "your customer", number: invoice.number,
+    totalToea: invoice.totalToea, sendAt, timezone: org.timezone, link: `${deps.appUrl()}/one-off`,
   }));
 }
 
