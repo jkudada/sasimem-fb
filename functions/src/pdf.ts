@@ -44,6 +44,14 @@ interface Page {
   readonly width: number;
   /** A credit note (G2c): it names the invoice in place of the due date, and the reason in place of how to pay. */
   readonly credit?: CreditPrint;
+  /** A quote (G2q): valid until in place of the due date, the terms in place of how to pay. */
+  readonly quote?: QuotePrint;
+}
+
+/** What a quote prints beyond an invoice's content. */
+export interface QuotePrint {
+  readonly validUntil: string;
+  readonly terms: string;
 }
 
 /** What a credit note prints beyond an invoice's content. */
@@ -57,7 +65,7 @@ export interface CreditPrint {
 const k = (t: number) => formatKina(t as Toea);
 const date = (d: string) => dateLabel(d as CalendarDate);
 
-export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | null, opts: { compress?: boolean; credit?: CreditPrint } = {}): Promise<Buffer> {
+export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | null, opts: { compress?: boolean; credit?: CreditPrint; quote?: QuotePrint } = {}): Promise<Buffer> {
   const snap = invoice.snapshot;
   if (snap === null || invoice.number === null) throw new Error(`invoice ${invoice.tenancyId}_${invoice.period} is not approved`);
   const org = snap.org;
@@ -79,6 +87,7 @@ export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | 
     showGst: invoice.lines.some((l) => l.gstApplicable),
     left: 50, right: doc.page.width - 50, width: doc.page.width - 100,
     ...(opts.credit === undefined ? {} : { credit: opts.credit }),
+    ...(opts.quote === undefined ? {} : { quote: opts.quote }),
   };
   if (t.layout === "band") band(page);
   else if (t.layout === "compact") compact(page);
@@ -119,8 +128,9 @@ function facts(p: Page): [string, string][] {
   const { invoice, org } = p;
   return [
     ["Number", invoice.number ?? ""],
-    ["Issued", date(invoice.issueDate)],
-    p.credit === undefined ? ["Due", date(invoice.dueDate)] : ["For invoice", p.credit.invoiceNumber],
+    [p.quote === undefined ? "Issued" : "Date", date(invoice.issueDate)],
+    p.quote !== undefined ? ["Valid until", date(p.quote.validUntil)]
+      : p.credit === undefined ? ["Due", date(invoice.dueDate)] : ["For invoice", p.credit.invoiceNumber],
     ...(p.showGst && org.gstRegistered && org.gstNumber !== "" ? [["GST number", org.gstNumber] as [string, string]] : []),
   ];
 }
@@ -263,6 +273,10 @@ function payment(p: Page, top: number, s: Scale, boxColour: string | null): void
     creditBlock(p, p.credit, top, s);
     return;
   }
+  if (p.quote !== undefined) {
+    termsBlock(p, p.quote, top, s);
+    return;
+  }
   let y = top;
   doc.font(f.regular).fontSize(s.body).fillColor(MUTED).text("Pay by bank deposit", left, y);
   y += s.payRow;
@@ -280,6 +294,15 @@ function payment(p: Page, top: number, s: Scale, boxColour: string | null): void
     const w = doc.widthOfString(invoice.paymentReference);
     doc.roundedRect(left - 6, y + 12, w + 12, s.reference + 8, 4).lineWidth(1.5).strokeColor(boxColour).stroke();
   }
+}
+
+/** A quote's terms, where an invoice says how to pay; and how long it holds. */
+function termsBlock(p: Page, q: QuotePrint, top: number, s: Scale): void {
+  const { doc, f, left, width } = p;
+  doc.font(f.regular).fontSize(s.body).fillColor(INK).text(`This quote is valid until ${date(q.validUntil)}.`, left, top, { width });
+  if (q.terms === "") return;
+  doc.fillColor(MUTED).text("Terms", left, doc.y + 8);
+  doc.fillColor(INK).fontSize(s.detail).text(q.terms, left, doc.y + 2, { width });
 }
 
 /** Why it was credited, and where the credit went: off what the invoice owes, and kept as credit. */

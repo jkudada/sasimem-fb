@@ -3,16 +3,17 @@
  * callables, the approval page and the tick call these after their transaction has
  * committed, and only the caller that won the compare-and-set does.
  */
-import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, METHOD_LABELS, type Period, type Toea, customerOf, sourceOf, templateFor } from "@sasimem/core";
+import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, METHOD_LABELS, type Period, type Toea, customerOf, quoteLabel, sourceOf, templateFor } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, quoteMail, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
 import type { StoredCreditNote } from "./store/creditNotes.js";
+import type { StoredQuote } from "./store/quotes.js";
 import type { StoredPayment } from "./store/receipts.js";
 import { type OrgDoc, refs } from "./store/runs.js";
 
@@ -87,6 +88,17 @@ export async function sendSentScheduled(deps: NotifyDeps, orgId: string, org: Or
     to: org.email, orgName: org.name, customerName: invoice.snapshot?.tenantName ?? "your customer", number: invoice.number,
     totalToea: invoice.totalToea, sendAt, timezone: org.timezone, link: `${deps.appUrl()}/one-off`,
   }));
+}
+
+/** A quote to its customer (G2q-a), with its PDF and the link to answer it. Once per revision. */
+export async function sendQuoteMail(deps: NotifyDeps, orgId: string, quoteId: string, q: StoredQuote, token: string): Promise<string> {
+  if (q.pdfPath === "") throw new Error("a quote is emailed only once it has its PDF");
+  const [pdf] = await bucket().file(q.pdfPath).download();
+  await sendLogged(logged(deps), { orgId, kind: "quote", noticeKey: `${quoteId}@r${q.revision}` }, quoteMail({
+    snapshot: q.snapshot, label: quoteLabel(q.number, q.revision), totalToea: q.totalToea,
+    validUntil: q.validUntil, link: `${deps.appUrl()}/q/${token}`, pdf, logo: await emailLogo(q.snapshot),
+  }));
+  return q.snapshot.tenantEmail;
 }
 
 /** A sent month's fresh link: the tracking page, not approval. Always to the org's address on file. */

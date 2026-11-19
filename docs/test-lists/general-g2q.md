@@ -55,24 +55,23 @@ three slices, each its own PR or pair of PRs:
 ## G2q-a: write and send a quote
 
 ### core (T1)
-- [ ] `quoteDraftOf` reads a stored draft defensively (as `draftOf`); `quoteProblems`: no customer, no lines, over 30 lines, a bad line, a total below K0.00, validity days outside 1-365
-- [ ] `validUntil`: the send day plus the quote's days, else the org's, else 30
-- [ ] `quoteProfileProblems`: `quoteValidDays` 1-365, `quoteTerms` up to 2,000 characters
-- [ ] `quoteTermsOf(org)`: the org's terms, the default (N11) when not set, none when cleared
-- [ ] `quoteNumber`: "QUO-0012", and "QUO-0012 rev 2" from revision 2 on
-- [ ] the quote PDF model: "QUOTATION", valid until, terms, totals with GST; no payment reference or due date
+- [x] `quoteDraftOf` reads a stored draft defensively (as `draftOf`); `quoteProblems`: no customer, no lines, over 30 lines, a bad line, a total below K0.00, validity days outside 1-365
+- [x] `validUntilOf`: the send day plus the quote's days, else the org's, else 30
+- [x] `quoteSettingsProblems`: `quoteValidDays` 1-365, `quoteTerms` up to 2,000 characters
+- [x] `quoteTermsOf(org)`: the org's terms, the default (N11) when not set, none when cleared
+- [x] `quoteLabel`: "QUO-0012", and "QUO-0012 rev 2" from revision 2 on
 
 ### Security rules (T2)
-- [ ] the owner creates, edits and deletes `quoteDrafts` (customer, lines, notes, validDays); members read them; the shape is checked as `drafts` are
-- [ ] members read `quotes`; nobody writes them; nobody reads or writes `quoteTokens`
-- [ ] the owner sets `quoteValidDays` (whole, 1-365) and `quoteTerms` (a string up to 2,000 characters)
+- [x] the owner creates, edits and deletes `quoteDrafts` (customer, lines, notes, validDays); members read them; the shape is checked as `drafts` are
+- [x] members read `quotes`; nobody writes them; nobody reads or writes `quoteTokens`
+- [x] the owner sets `quoteValidDays` (whole, 1-365) and `quoteTerms` (a string up to 2,000 characters)
 
 ### Functions (T3)
-- [ ] `sendQuote`: numbered `QUO-0001` from its own counter (invoices' counter untouched), frozen snapshot with terms and valid-until, status `sent`, revision 1, PDF stored, the token stored hashed, the draft gone, an event
-- [ ] emailed to the customer and copy-to, with the PDF and the link; the subject says the number, the business and the total
-- [ ] refused: no `quotes` (or no `oneOff`), not the owner, a missing draft, a draft with problems (in core's words)
-- [ ] two sends at once: one quote, one number, one email
-- [ ] the PDF prints "QUOTATION", the number, valid until, the lines, GST and total, and the terms
+- [x] `sendQuote`: numbered `QUO-0001` from its own counter (invoices' counter untouched), frozen snapshot with terms and valid-until, status `sent`, revision 1, PDF stored, the token stored hashed, the draft gone, an event
+- [x] emailed to the customer and copy-to, with the PDF and the link; the subject says the number, the business and the total
+- [x] refused: no `quotes` (or no `oneOff`), not the owner, a missing draft, a draft with problems (in core's words)
+- [x] two sends at once: one quote, one number, one email
+- [x] the PDF prints "QUOTATION", the number, valid until, the lines, GST and total, and the terms
 
 ### Web (T1 web)
 - [ ] Home and the menu show Quotes only with `quotes` on

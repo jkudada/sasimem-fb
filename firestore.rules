@@ -60,7 +60,7 @@ service cloud.firestore {
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
               'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath',
-              'defaultTemplateId', 'logoDesign', 'defaultTermsDays', 'scheduledSentNote'];
+              'defaultTemplateId', 'logoDesign', 'defaultTermsDays', 'scheduledSentNote', 'quoteValidDays', 'quoteTerms'];
     }
 
     // A logo lives in the org's own folder; storage.rules guards the file itself.
@@ -109,7 +109,9 @@ service cloud.firestore {
         && wholeIn(d.approvalLeadDays, 1, 28) && wholeIn(d.sendHour, 0, 23) && wholeIn(d.reminderAfterDays, 0, 60)
         && d.reminderMode in ['auto', 'off']
         && (!('defaultTermsDays' in d) || wholeIn(d.defaultTermsDays, 0, 90)) // G2a: one-off invoices' default terms
-        && (!('scheduledSentNote' in d) || d.scheduledSentNote is bool); // G2d: email the owner when a scheduled one-off goes
+        && (!('scheduledSentNote' in d) || d.scheduledSentNote is bool) // G2d: email the owner when a scheduled one-off goes
+        && (!('quoteValidDays' in d) || wholeIn(d.quoteValidDays, 1, 365)) // G2q: core's quoteSettingsProblems
+        && (!('quoteTerms' in d) || str(d.quoteTerms, 0, 2000));
     }
 
     // A tenant is a customer (docs/PLAN-GENERAL-INVOICING.md G1b): today's three fields,
@@ -165,6 +167,13 @@ service cloud.firestore {
       return exactly(d, ['customerId', 'lines', 'poNumber', 'notes', 'dueDays'])
         && str(d.customerId, 0, 128) && validLines(d.lines) && str(d.poNumber, 0, 40) && str(d.notes, 0, 500)
         && (d.dueDays == null || wholeIn(d.dueDays, 0, 90));
+    }
+
+    // A quote being written (G2q-a); sendQuote checks it in full, as issueInvoice does a draft.
+    function validQuoteDraft(d) {
+      return exactly(d, ['customerId', 'lines', 'notes', 'validDays'])
+        && str(d.customerId, 0, 128) && validLines(d.lines) && str(d.notes, 0, 500)
+        && (d.validDays == null || wholeIn(d.validDays, 1, 365));
     }
 
     function date(v) { return v is string && v.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'); }
@@ -226,6 +235,17 @@ service cloud.firestore {
         allow read: if canRead(orgId);
         allow create, update: if isOwner(orgId) && validDraft(request.resource.data);
         allow delete: if isOwner(orgId);
+      }
+
+      // Quotes (G2q): the owner writes drafts; sendQuote numbers and freezes them into quotes/,
+      // which only Functions write (I9). The links' quoteTokens/ are top level and server-only.
+      match /quoteDrafts/{draftId} {
+        allow read: if canRead(orgId);
+        allow create, update: if isOwner(orgId) && validQuoteDraft(request.resource.data);
+        allow delete: if isOwner(orgId);
+      }
+      match /quotes/{quoteId} {
+        allow read: if canRead(orgId);
       }
 
       match /tenants/{tenantId} {
