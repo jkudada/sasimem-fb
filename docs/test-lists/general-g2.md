@@ -250,3 +250,57 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 
 ### End to end (T4)
 - [ ] an owner credits part of a one-off invoice, then records a payment of the rest; the customer gets the credit note and a receipt; the invoice ends paid
+
+## G2d: scheduled send for a one-off invoice
+
+### Choices (say if any is wrong)
+
+- **Behind `oneOff`, like all of G2.**
+- **"Send later" is the say-so, given ahead (D7).** On a draft the owner picks a date and presses
+  Schedule; the hourly tick sends it on that date at the org's **send hour** (the one rent uses,
+  Settings), in the org's time. A date, not a time: one hour a day keeps the screen simple.
+- **From tomorrow to a year ahead.** Today is what Send invoice is for.
+- **Nothing is numbered until it goes.** The draft stays a draft (`drafts/{id}`); the schedule is
+  a separate server-written document, `sendLater/{draftId}` (`sendOn`, `sendAt`, who and when),
+  that members read. So numbers stay in send order with no gaps (I3), the invoice is dated the day
+  it goes, and the drafts' rules do not change.
+- **Scheduling checks the draft as Send does** (customer, lines, order number); the tick checks it
+  again when it goes, through the same `issueOneOff` transaction as Send.
+- **A scheduled draft can still be edited.** It goes as it stands on the day. Saving a scheduled
+  draft checks it as Send would, so a schedule is never left on a draft that cannot go.
+- **Send invoice on a scheduled draft sends it now** and drops the schedule. **Cancel the
+  schedule** leaves the draft. Deleting the draft drops the schedule too (the tick clears what is
+  left).
+- **If it cannot go on the day** (the customer was deleted, `oneOff` switched off, an order number
+  now required) nothing is numbered: the schedule records the problem, and the owner gets one
+  email saying what was not sent and why. The draft shows it until it is sent, rescheduled or
+  the schedule is cancelled.
+- **No email to the owner when it goes as planned:** the one-off list shows it sent, as when they
+  press Send. (Say if they want a note.)
+- **As with Send**, the PDF and the email follow the commit; a crash between them can lose the
+  email (the log shows it missing), never send it twice. The tick's failure is the alert.
+
+### core (T1)
+- [ ] the send-later date: blank, unreadable, today or earlier, over a year ahead; tomorrow and a year ahead are fine
+- [ ] when it goes: that date at the send hour in the org's time; due once that moment has come
+
+### Security rules (T2)
+- [ ] members read `sendLater`; nobody writes it
+
+### Functions (T3)
+- [ ] `scheduleInvoice` records the date and moment; refused: no `oneOff`, not the owner, a draft with problems, a missing draft, a bad date
+- [ ] scheduling again moves the date; `cancelSchedule` drops it
+- [ ] the tick sends a scheduled draft once its moment comes, not before: numbered from the shared counter, dated that day, PDF, emailed; the schedule goes
+- [ ] two ticks at once send it once
+- [ ] Send invoice on a scheduled draft sends it now and drops the schedule; the tick then sends nothing
+- [ ] the tick finds a draft it cannot send: nothing numbered, the problem recorded, the owner emailed once
+- [ ] the tick clears the schedule of a deleted draft
+
+### Web (T1 web)
+- [ ] the editor: Send later with a date; the date's problems; Schedule saves then schedules; "Goes on …" on a scheduled draft, with Cancel the schedule
+- [ ] the editor shows why a scheduled draft was not sent
+- [ ] saving a scheduled draft checks it as Send does
+- [ ] the one-off list marks scheduled drafts with their date, and ones that could not go
+
+### End to end (T4)
+- [ ] an owner schedules an invoice for tomorrow; the tick, run at that moment, numbers it and emails it to the customer
