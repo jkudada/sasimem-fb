@@ -4,7 +4,7 @@
  * screen shows what was actually stored.
  */
 import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
-import { type CalendarDate, type OneOffDraft, type Period, hasFeature, periodOf } from "@sasimem/core";
+import { type CalendarDate, type Period, hasFeature, periodOf } from "@sasimem/core";
 import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
@@ -12,7 +12,7 @@ import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
 import { newPaymentId } from "./payment-id.js";
 import { Mark } from "./screens/icons.js";
-import type { CreditNoteRow, CreditableRow, Month, Numbering, Outcome, PaymentRow, Setup, SetupStore } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, Month, Numbering, Outcome, PaymentRow, ScheduledDraft, Setup, SetupStore } from "./setup.js";
 import { invoiceTemplateName } from "./template-choice.js";
 
 const Home = lazyScreen(() => import("./screens/Home.js").then((m) => m.Home));
@@ -459,7 +459,7 @@ function EditorRoute(props: Params) {
   const c = useSignedIn();
   const { route } = useLocation();
   const id = idOf(props);
-  const draft = useSignal<OneOffDraft | null | string | undefined>(id === null ? null : undefined);
+  const draft = useSignal<ScheduledDraft | null | string | undefined>(id === null ? null : undefined);
   useEffect(() => {
     if (id !== null) void c.store.draft(id).then((d) => (draft.value = d ?? "That draft is not there any more. It may have been sent or deleted."));
   }, [id]);
@@ -468,8 +468,9 @@ function EditorRoute(props: Params) {
     <OneOffOnly>
       {d === undefined ? <main class="narrow"><p>Loading…</p></main>
         : typeof d === "string" ? <main class="narrow"><p role="alert">{d}</p><p><a href="/one-off">One-off invoices</a></p></main>
-        : <InvoiceEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value}
-            onSave={c.store.saveDraft} onDelete={c.store.deleteDraft} onSend={c.store.issueInvoice} onDone={() => route("/one-off")} />}
+        : <InvoiceEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value} today={c.today}
+            onSave={c.store.saveDraft} onDelete={c.store.deleteDraft} onSend={c.store.issueInvoice}
+            onSchedule={c.store.scheduleInvoice} onCancelSchedule={c.store.cancelSchedule} onDone={() => route("/one-off")} />}
     </OneOffOnly>
   );
 }

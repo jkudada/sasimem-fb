@@ -3,7 +3,7 @@
  * invoices sent. Payments are recorded from Still owed, as for rent.
  */
 import { useSignal } from "@preact/signals";
-import { type CalendarDate, balanceOf, dateLabel, formatKina, hasCreditNotes, hasPayments, invoiceChip, itemLine, totals } from "@sasimem/core";
+import { type CalendarDate, balanceOf, dateLabel, formatKina, hasCreditNotes, hasPayments, invoiceChip, itemLine, sendLaterLabel, totals } from "@sasimem/core";
 import type { OneOffs as List, Outcome, Setup } from "../setup.js";
 import { Back } from "./Back.js";
 
@@ -33,7 +33,12 @@ export function OneOffs(props: { list: List; setup: Setup; today: CalendarDate; 
             {drafts.map((d) => (
               <li key={d.id}>
                 <a href={`/one-off/${d.id}`}>{nameOf(d.customerId)}</a>
-                <span class="note">Draft · {d.lines.length} {d.lines.length === 1 ? "line" : "lines"} {totalOf([...d.lines])}</span>
+                <span class="note">
+                  Draft · {d.lines.length} {d.lines.length === 1 ? "line" : "lines"} {totalOf([...d.lines])}
+                  {d.sendLater !== undefined && (d.sendLater.problem === undefined
+                    ? ` · Goes on ${sendLaterLabel(d.sendLater.sendOn, props.setup.org.sendHour)}`
+                    : ` · Not sent on ${dateLabel(d.sendLater.sendOn)}: ${d.sendLater.problem}`)}
+                </span>
               </li>
             ))}
           </ul>

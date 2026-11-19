@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, SendLater, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 
@@ -308,12 +308,17 @@ export function setupStore(orgId: string): SetupStore {
 
     async oneOffs() {
       try {
-        const [drafts, invoices] = await Promise.all([
+        const [drafts, invoices, schedules] = await Promise.all([
           getDocs(collection(db, `${org}/drafts`)),
           getDocs(query(collection(db, `${org}/invoices`), where("source.kind", "==", "oneOff"))),
+          getDocs(collection(db, `${org}/sendLater`)),
         ]);
+        const sendLater = new Map(schedules.docs.map((d) => [d.id, scheduleOf(d.data())]));
         return {
-          drafts: drafts.docs.map((d) => ({ ...draftOf(d.data()), id: d.id })),
+          drafts: drafts.docs.map((d) => {
+            const s = sendLater.get(d.id);
+            return { ...draftOf(d.data()), id: d.id, ...(s === undefined ? {} : { sendLater: s }) };
+          }),
           invoices: invoices.docs
             .map((d): OneOffInvoice => {
               const i = d.data() as InvoiceDocument;
@@ -331,8 +336,9 @@ export function setupStore(orgId: string): SetupStore {
 
     async draft(id) {
       try {
-        const d = await getDoc(ref(`drafts/${id}`));
-        return d.exists() ? draftOf(d.data()) : null;
+        const [d, s] = await Promise.all([getDoc(ref(`drafts/${id}`)), getDoc(ref(`sendLater/${id}`))]);
+        if (!d.exists()) return null;
+        return { ...draftOf(d.data()), ...(s.exists() ? { sendLater: scheduleOf(s.data()) } : {}) };
       } catch {
         return OFFLINE;
       }
@@ -345,6 +351,8 @@ export function setupStore(orgId: string): SetupStore {
     },
     deleteDraft: (id) => attempt(() => deleteDoc(ref(`drafts/${id}`))),
     issueInvoice: (draftId) => call("issueInvoice", { orgId, draftId }, (r) => r.message ?? "Sent."),
+    scheduleInvoice: (draftId, sendOn) => call("scheduleInvoice", { orgId, draftId, sendOn }, (r) => r.message ?? "Scheduled."),
+    cancelSchedule: (draftId) => call("cancelSchedule", { orgId, draftId }, (r) => r.message ?? "It stays a draft."),
 
     async payments() {
       try {
@@ -440,4 +448,9 @@ export function setupStore(orgId: string): SetupStore {
       }
     },
   };
+}
+
+/** A draft's schedule as the screens show it (G2d). */
+function scheduleOf(d: Record<string, unknown>): SendLater {
+  return { sendOn: d["sendOn"] as SendLater["sendOn"], ...(typeof d["problem"] === "string" ? { problem: d["problem"] } : {}) };
 }

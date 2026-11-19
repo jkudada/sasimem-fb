@@ -123,13 +123,16 @@ export interface SetupStore {
   deleteItem(id: string): Promise<string | null>;
   /** Saved drafts and sent one-off invoices (G2a). A string is a problem. */
   oneOffs(): Promise<OneOffs | string>;
-  /** One saved draft; null when it is gone (sent or deleted). A string is a problem. */
-  draft(id: string): Promise<OneOffDraft | null | string>;
+  /** One saved draft, with its schedule if it has one; null when it is gone (sent or deleted). A string is a problem. */
+  draft(id: string): Promise<ScheduledDraft | null | string>;
   /** Save a draft; the result is its ID, or a problem. */
   saveDraft(id: string | null, draft: OneOffDraft): Promise<{ readonly id: string } | { readonly problem: string }>;
   deleteDraft(id: string): Promise<string | null>;
   /** Number, freeze and email a saved draft (the issueInvoice callable). */
   issueInvoice(draftId: string): Promise<Outcome>;
+  /** Send a saved draft later, on that day at the send hour (the scheduleInvoice callable, G2d). */
+  scheduleInvoice(draftId: string, sendOn: string): Promise<Outcome>;
+  cancelSchedule(draftId: string): Promise<Outcome>;
   /** Every payment, newest receipt first (G2b). A string is a problem. */
   payments(): Promise<readonly PaymentRow[] | string>;
   /** Record a payment under the ID the screen made, so a retry records it once (the recordPayment callable). */
@@ -187,9 +190,18 @@ export interface PaymentRow {
   readonly undoReason: string;
 }
 
+/** A draft's schedule (G2d, `sendLater/{draftId}`): the day it goes, or why it did not. */
+export interface SendLater {
+  readonly sendOn: CalendarDate;
+  /** Set when the tick could not send it; it is not tried again. */
+  readonly problem?: string;
+}
+
+export type ScheduledDraft = OneOffDraft & { readonly sendLater?: SendLater };
+
 export interface OneOffs {
   /** Drafts, in the order the store found them. */
-  readonly drafts: readonly WithId<OneOffDraft>[];
+  readonly drafts: readonly WithId<ScheduledDraft>[];
   /** Newest number first. */
   readonly invoices: readonly OneOffInvoice[];
 }

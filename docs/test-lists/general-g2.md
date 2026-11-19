@@ -298,10 +298,10 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - [x] the tick clears the schedule of a deleted draft
 
 ### Web (T1 web)
-- [ ] the editor: Send later with a date; the date's problems; Schedule saves then schedules; "Goes on …" on a scheduled draft, with Cancel the schedule
-- [ ] the editor shows why a scheduled draft was not sent
-- [ ] saving a scheduled draft checks it as Send does
-- [ ] the one-off list marks scheduled drafts with their date, and ones that could not go
+- [x] the editor: Send later with a date; the date's problems; Schedule saves then schedules; "Goes on …" on a scheduled draft, with Cancel the schedule
+- [x] the editor shows why a scheduled draft was not sent
+- [x] saving a scheduled draft checks it as Send does
+- [x] the one-off list marks scheduled drafts with their date, and ones that could not go
 
 ### End to end (T4)
-- [ ] an owner schedules an invoice for tomorrow; the tick, run at that moment, numbers it and emails it to the customer
+- [x] an owner schedules an invoice for tomorrow; the tick, run at that moment, numbers it and emails it to the customer

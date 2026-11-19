@@ -5,7 +5,7 @@
  */
 import { expect, test } from "./phone.js";
 import { draftThisMonth, onboard } from "./landlord.js";
-import { mailTo, switchOn } from "./emulator.js";
+import { mailTo, runTheTick, scheduledSendHasCome, switchOn } from "./emulator.js";
 
 test("one-off: add an item and a customer, write an invoice, send it; the PDF arrives and the rent month is untouched", async ({ page }) => {
   test.slow(); // onboarding, then two cold callables (issueInvoice, draftNow): past 30 s on a busy machine
@@ -135,4 +135,37 @@ test("credit notes: credit part of a one-off invoice, then pay the rest; the cus
   await expect(page.getByText(/K100.00 · K30.00 credited · due .* · Paid/)).toBeVisible();
   await page.goto("/credit-notes");
   await expect(page.getByText("CN-0001 · Kila Trading")).toBeVisible();
+});
+
+test("send later: schedule an invoice for tomorrow; on the day the tick numbers it and emails it", async ({ page }) => {
+  test.slow(); // onboarding, then a cold callable and the tick
+  const start = new Date();
+  const email = await onboard(page);
+  await switchOn(email, ["rentals", "repeating", "oneOff"]);
+  await page.goto("/tenants/new");
+  await page.getByLabel("Customer's name").fill("Gerehu Clinic");
+  await page.getByLabel("Customer's email").fill("ap@gerehu-clinic.example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("link", { name: "Gerehu Clinic" })).toBeVisible();
+
+  const tomorrow = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Port_Moresby" }).format(new Date(Date.now() + 86_400_000));
+  await page.goto("/one-off/new");
+  await page.getByRole("combobox", { name: "Customer" }).selectOption({ label: "Gerehu Clinic" });
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("What for").fill("Service the generator");
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("Price each").fill("K450");
+  await page.getByLabel(/^Send on/).fill(tomorrow);
+  await page.getByRole("button", { name: "Schedule" }).click();
+  await expect(page.getByText(/^Gerehu Clinic's invoice goes on .+ at 8:00 am\. It is numbered then\.$/)).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("link", { name: "See your one-off invoices" }).click();
+  await expect(page.getByText(/Goes on .+ at 8:00 am/)).toBeVisible();
+
+  await scheduledSendHasCome(email);
+  await runTheTick();
+  const mail = await mailTo("ap@gerehu-clinic.example", start, /^Invoice INV-0001 from /);
+  expect(mail.attachments).toEqual([{ filename: "INV-0001.pdf", bytes: expect.any(Number) }]);
+
+  await page.reload();
+  await expect(page.getByText("INV-0001 · Gerehu Clinic")).toBeVisible();
+  await expect(page.getByText(/Goes on/)).toHaveCount(0);
 });
