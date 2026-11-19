@@ -52,7 +52,13 @@ export interface BillingOrg {
   readonly reminderMode: ReminderMode;
 }
 
-export type LineKind = "rent" | "extra";
+export type LineKind = "rent" | "extra" | "item";
+
+/**
+ * A line's tax treatment outside Rentals (docs/PLAN-GENERAL-INVOICING.md §5.3):
+ * `standard` is 10% GST, `exempt` and `zero` (zero-rated, e.g. exports) charge none.
+ */
+export type TaxCode = "standard" | "exempt" | "zero";
 
 export interface Line {
   readonly kind: LineKind;
@@ -61,7 +67,31 @@ export interface Line {
   readonly amountToea: Toea;
   readonly gstApplicable: boolean;
   readonly gstToea: Toea;
+  /** Item lines only: quantity in thousandths (1.5 hours = 1500). Rent and extra lines carry none of these four. */
+  readonly quantityMilli?: number;
+  readonly unit?: string;
+  readonly unitPriceToea?: Toea;
+  readonly taxCode?: TaxCode;
 }
+
+/** An item line as typed, before amounts and GST are worked out. */
+export interface ItemLineInput {
+  readonly description: string;
+  readonly detail: string;
+  readonly quantityMilli: number;
+  /** Free text, e.g. "hour", "m", "each"; may be empty. */
+  readonly unit: string;
+  /** May be negative: a discount line. */
+  readonly unitPriceToea: Toea;
+  readonly taxCode: TaxCode;
+}
+
+/** What produced an invoice. Stored invoices from before G1 have none and read as rent. */
+export type InvoiceSource =
+  | { readonly kind: "rent"; readonly tenancyId: string; readonly period: Period }
+  | { readonly kind: "schedule"; readonly scheduleId: string; readonly issueOn: CalendarDate }
+  | { readonly kind: "oneOff"; readonly draftId: string }
+  | { readonly kind: "quote"; readonly quoteId: string; readonly revision: number; readonly part: "full" | "deposit" | "final" | "stage" };
 
 export interface Totals {
   readonly subtotalToea: Toea;
@@ -194,4 +224,6 @@ export interface InvoiceDocument extends DraftInvoice {
   readonly paidNote: string;
   readonly remindedAt: Date | null;
   readonly remindersPaused: boolean;
+  /** Absent on invoices drafted before G1: read it with `sourceOf`. */
+  readonly source?: InvoiceSource;
 }

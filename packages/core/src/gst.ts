@@ -4,7 +4,7 @@
  * This is a tool, not an accountant - the UI copy says so.
  */
 import { type Toea, toea } from "./money.js";
-import type { GstTreatment, UseType } from "./types.js";
+import type { GstTreatment, TaxCode, UseType } from "./types.js";
 
 /**
  * GST payable on a GST-exclusive amount, rounded half up to the toea.
@@ -35,6 +35,20 @@ export function isTaxable(q: TaxableQuestion): boolean {
     default:
       // Data from Firestore is not checked by the compiler. Refuse rather than exempt.
       throw new TypeError(`unknown GST treatment: ${JSON.stringify(q.treatment satisfies never)}`);
+  }
+}
+
+/** Whether a line with this tax code charges GST (item lines; rent keeps `isTaxable`). */
+export function chargesGst(code: TaxCode, orgGstRegistered: boolean): boolean {
+  switch (code) {
+    case "standard":
+      return orgGstRegistered; // an unregistered supplier cannot charge GST
+    case "exempt":
+    case "zero":
+      return false;
+    default:
+      // Data from Firestore is not checked by the compiler. Refuse rather than exempt.
+      throw new TypeError(`unknown tax code: ${JSON.stringify(code satisfies never)}`);
   }
 }
 
