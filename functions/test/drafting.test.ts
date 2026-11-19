@@ -20,6 +20,7 @@ describe("drafting a run (plan §3.4, I1, I2)", () => {
       issueDate: "2026-10-01", dueDate: "2026-10-08", paymentReference: "K1-OCT26",
       subtotalToea: 120_000, gstToea: 0, totalToea: 120_000, documentTitle: "INVOICE",
       sentAt: null, paidAt: null, paidNote: "", remindedAt: null, remindersPaused: false,
+      source: { kind: "rent", tenancyId: "k1", period: "2026-10" }, // G1c: where it came from
     });
   });
 

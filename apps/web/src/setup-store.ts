@@ -106,7 +106,7 @@ export function setupStore(orgId: string): SetupStore {
 
     saveProperty: (id, property) => attempt(() => (id === null ? addDoc(collection(db, `${org}/properties`), property) : setDoc(ref(`properties/${id}`), property))),
     deleteProperty: (id) => attempt(() => deleteDoc(ref(`properties/${id}`))),
-    saveTenant: (id, tenant) => attempt(() => (id === null ? addDoc(collection(db, `${org}/tenants`), tenant) : setDoc(ref(`tenants/${id}`), tenant))),
+    saveTenant: (id, tenant) => attempt(() => (id === null ? addDoc(collection(db, `${org}/tenants`), tenant) : setDoc(ref(`tenants/${id}`), tenant, { merge: true }))), // merge: keep the customer details this form does not show (G1b)
     deleteTenant: (id) => attempt(() => deleteDoc(ref(`tenants/${id}`))),
     createTenancy: (tenancy) => attempt(() => addDoc(collection(db, `${org}/tenancies`), tenancy)),
     updateTenancy: (id, { templateId, ...edit }: TenancyEdit) =>
