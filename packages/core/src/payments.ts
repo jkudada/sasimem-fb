@@ -5,6 +5,7 @@
  */
 import type { Toea } from "./money.js";
 import { type CalendarDate, type Period, shiftPeriod } from "./period.js";
+import { balanceOf, hasPayments } from "./receipts.js";
 import type { InvoiceStatus } from "./types.js";
 
 /** An invoice as the tracking and owed views see it. */
@@ -17,16 +18,22 @@ export interface IssuedInvoice {
   readonly status: InvoiceStatus;
   readonly dueDate: CalendarDate;
   readonly totalToea: Toea;
+  /** Recorded payments (G2b); absent before any, and on invoices from before G2b. */
+  readonly amountPaidToea?: Toea;
 }
 
-export type Chip = "Paid" | "Not paid" | "Overdue" | "Void" | "Left out" | "Draft" | "Approved";
+export type Chip = "Paid" | "Part paid" | "Not paid" | "Overdue" | "Void" | "Left out" | "Draft" | "Approved";
 
 const CHIPS: Record<Exclude<InvoiceStatus, "sent">, Chip> = { paid: "Paid", void: "Void", excluded: "Left out", draft: "Draft", approved: "Approved" };
 
-/** Where an invoice stands, in the landlord's words. Overdue is after the due date, on the landlord's calendar. */
-export function invoiceChip(invoice: Pick<IssuedInvoice, "status" | "dueDate">, today: CalendarDate): Chip {
+/**
+ * Where an invoice stands, in the landlord's words. Overdue is after the due date, on the
+ * landlord's calendar, and wins over Part paid (G2b): the balance is late either way.
+ */
+export function invoiceChip(invoice: Pick<IssuedInvoice, "status" | "dueDate" | "amountPaidToea">, today: CalendarDate): Chip {
   if (invoice.status !== "sent") return CHIPS[invoice.status];
-  return today > invoice.dueDate ? "Overdue" : "Not paid";
+  if (today > invoice.dueDate) return "Overdue";
+  return hasPayments(invoice) ? "Part paid" : "Not paid";
 }
 
 export interface Arrears<I extends IssuedInvoice = IssuedInvoice> {
@@ -39,14 +46,14 @@ export interface Arrears<I extends IssuedInvoice = IssuedInvoice> {
 
 const byDue = (a: IssuedInvoice, b: IssuedInvoice) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0);
 
-/** Everything sent and unpaid, grouped by tenant, the tenant owing longest first (plan §7, screen 6). */
+/** Everything sent and unpaid, grouped by tenant, the tenant owing longest first (plan §7, screen 6). The totals are balances (G2b). */
 export function arrears<I extends IssuedInvoice>(invoices: readonly I[]): Arrears<I>[] {
   const groups = new Map<string, I[]>();
   for (const i of invoices.filter((x) => x.status === "sent").sort(byDue)) groups.set(i.tenantId, [...(groups.get(i.tenantId) ?? []), i]);
   return [...groups.values()]
     .map((list) => {
       const first = list[0] as I;
-      return { tenantId: first.tenantId, tenantName: first.tenantName, oldestDue: first.dueDate, totalToea: list.reduce((t, i) => t + i.totalToea, 0), invoices: list };
+      return { tenantId: first.tenantId, tenantName: first.tenantName, oldestDue: first.dueDate, totalToea: list.reduce((t, i) => t + balanceOf(i), 0), invoices: list };
     })
     .sort((a, b) => (a.oldestDue < b.oldestDue ? -1 : a.oldestDue > b.oldestDue ? 1 : a.tenantName.localeCompare(b.tenantName)));
 }

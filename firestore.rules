@@ -240,6 +240,10 @@ service cloud.firestore {
       match /invoices/{invoiceId} {
         allow read: if canRead(orgId);
       }
+      // Payments and their receipts (G2b): written only by recordPayment and undoPayment (I9).
+      match /payments/{paymentId} {
+        allow read: if canRead(orgId);
+      }
       // The email log: members read it so a missing email shows up; it holds no bodies.
       match /emails/{emailId} {
         allow read: if canRead(orgId);

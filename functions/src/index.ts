@@ -12,6 +12,7 @@ import { ResendMailer } from "./mail/resend.js";
 import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, RETENTION_BUCKET, usesGmail } from "./params.js";
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
+import { makeReceiptCallables } from "./callables/receipts.js";
 import { makeTemplateCallables } from "./callables/templates.js";
 import { makeOperatorCallables } from "./callables/operator.js";
 import { makeBillingCallables } from "./callables/billing.js";
@@ -41,6 +42,10 @@ export const tick = makeTick(deps);
 const payments = makePaymentCallables(deps);
 // One-off invoices (docs/PLAN-GENERAL-INVOICING.md G2a).
 export const issueInvoice = makeOneOffCallables(deps).issueInvoice;
+const receipts = makeReceiptCallables(deps);
+export const recordPayment = receipts.recordPayment;
+export const undoPayment = receipts.undoPayment;
+export const resendReceipt = receipts.resendReceipt;
 export const markPaid = payments.markPaid;
 export const markUnpaid = payments.markUnpaid;
 export const pauseReminders = payments.pauseReminders;
