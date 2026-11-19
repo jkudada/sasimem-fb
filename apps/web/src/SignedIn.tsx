@@ -10,8 +10,9 @@ import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
+import { newPaymentId } from "./payment-id.js";
 import { Mark } from "./screens/icons.js";
-import type { Month, Numbering, Outcome, Setup, SetupStore } from "./setup.js";
+import { type Month, type Numbering, type Outcome, type PaymentRow, type Setup, type SetupStore, creditByCustomer } from "./setup.js";
 import { invoiceTemplateName } from "./template-choice.js";
 
 const Home = lazyScreen(() => import("./screens/Home.js").then((m) => m.Home));
@@ -34,6 +35,8 @@ const Items = lazyScreen(() => import("./screens/Items.js").then((m) => m.Items)
 const ItemForm = lazyScreen(() => import("./screens/Items.js").then((m) => m.ItemForm));
 const OneOffs = lazyScreen(() => import("./screens/OneOffs.js").then((m) => m.OneOffs));
 const InvoiceEditor = lazyScreen(() => import("./screens/InvoiceEditor.js").then((m) => m.InvoiceEditor));
+const Payments = lazyScreen(() => import("./screens/Payments.js").then((m) => m.Payments));
+const PaymentForm = lazyScreen(() => import("./screens/PaymentForm.js").then((m) => m.PaymentForm));
 
 const OFFLINE = "Your details could not be loaded. Check your signal, then reload the page.";
 
@@ -103,6 +106,8 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/items/:id" component={ItemRoute} />
           <Route path="/one-off" component={OneOffsRoute} />
           <Route path="/one-off/:id" component={EditorRoute} />
+          <Route path="/payments" component={PaymentsRoute} />
+          <Route path="/payments/new" component={PaymentFormRoute} />
           <Route default component={HomeRoute} />
         </Router>
       </LocationProvider>
@@ -207,15 +212,72 @@ function InvoicesRoute() {
   return <Invoices months={m} thisMonth={periodOf(c.today)} onExport={c.store.exportCsv} />;
 }
 
+/** Unused credit per customer, for orgs that record payments (G2b); empty for the rest, which read nothing more. */
+function useCredit(enabled: boolean) {
+  const { store } = useSignedIn();
+  const credit = useSignal<ReadonlyMap<string, number>>(new Map());
+  const load = async () => {
+    if (!enabled) return;
+    const p = await store.payments();
+    if (typeof p !== "string") credit.value = creditByCustomer(p);
+  };
+  useEffect(() => void load(), [store, enabled]);
+  return credit;
+}
+
 function OwedRoute() {
   const c = useSignedIn();
+  const payments = hasFeature(c.setup.value.org, "oneOff");
+  const credit = useCredit(payments);
   const groups = useSignal<Awaited<ReturnType<SetupStore["owed"]>> | null>(null);
   const load = async () => void (groups.value = await c.store.owed());
   useEffect(() => void load(), [c.store]);
   const g = groups.value;
   if (g === null) return <main class="narrow"><p>Loading…</p></main>;
   if (typeof g === "string") return <main class="narrow"><p role="alert">{g}</p></main>;
-  return <Owed groups={g} today={c.today} onMarkPaid={async (id, note) => { const o = await c.store.markPaid(id, note); await load(); return o; }} />;
+  return (
+    <Owed groups={g} today={c.today} payments={payments} credit={credit.value}
+      onMarkPaid={async (id, note) => { const o = await c.store.markPaid(id, note); await load(); return o; }} />
+  );
+}
+
+function PaymentsRoute() {
+  const c = useSignedIn();
+  const list = useSignal<readonly PaymentRow[] | string | null>(null);
+  const load = async () => void (list.value = await c.store.payments());
+  useEffect(() => void load(), [c.store]);
+  const thenReload = <A extends unknown[]>(act: (...a: A) => Promise<Outcome>) => async (...a: A) => {
+    const o = await act(...a);
+    await load();
+    return o;
+  };
+  const l = list.value;
+  return (
+    <OneOffOnly>
+      {l === null ? <main class="narrow"><p>Loading…</p></main>
+        : typeof l === "string" ? <main class="narrow"><p role="alert">{l}</p></main>
+        : <Payments payments={l} onUndo={thenReload(c.store.undoPayment)} onResend={c.store.resendReceipt} />}
+    </OneOffOnly>
+  );
+}
+
+/** The form needs what is owed now; its payment ID is made once, so a retry records the payment once. */
+function PaymentFormRoute() {
+  const c = useSignedIn();
+  const { query } = useLocation();
+  const credit = useCredit(true);
+  const owed = useSignal<Awaited<ReturnType<SetupStore["owed"]>> | null>(null);
+  const paymentId = useSignal(newPaymentId());
+  useEffect(() => void c.store.owed().then((o) => (owed.value = o)), [c.store]);
+  const o = owed.value;
+  return (
+    <OneOffOnly>
+      {o === null ? <main class="narrow"><p>Loading…</p></main>
+        : typeof o === "string" ? <main class="narrow"><p role="alert">{o}</p></main>
+        : <PaymentForm setup={c.setup.value} owed={o.flatMap((g) => g.invoices)} today={c.today} credit={credit.value} paymentId={paymentId.value}
+            {...(query["customer"] === undefined ? {} : { customerId: query["customer"] })} onRecord={c.store.recordPayment} />}
+    </OneOffOnly>
+  );
 }
 
 function PropertiesRoute() {

@@ -55,3 +55,41 @@ test("one-off: add an item and a customer, write an invoice, send it; the PDF ar
   await expect(page.getByText("Peter Kila", { exact: true })).toBeVisible();
   await expect(page.getByText("Kila Trading")).toHaveCount(0);
 });
+
+test("payments: part pay a one-off invoice, then the rest; the customer gets two receipts and the invoice ends paid", async ({ page }) => {
+  test.slow(); // onboarding, then three cold callables
+  const start = new Date();
+  const email = await onboard(page);
+  await switchOn(email, ["rentals", "repeating", "oneOff"]);
+  await page.goto("/tenants/new");
+  await page.getByLabel("Customer's name").fill("Kila Trading");
+  await page.getByLabel("Customer's email").fill("accounts@kila.example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("link", { name: "Kila Trading" })).toBeVisible();
+
+  await page.goto("/one-off/new");
+  await page.getByRole("combobox", { name: "Customer" }).selectOption({ label: "Kila Trading" });
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("What for").fill("Repair switchboard");
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("Price each").fill("K100");
+  await page.getByRole("button", { name: "Send invoice" }).click();
+  await expect(page.getByText("Sent INV-0001 to Kila Trading.")).toBeVisible({ timeout: 30_000 });
+
+  await page.goto("/owed");
+  await page.getByRole("link", { name: "Record a payment from Kila Trading" }).click();
+  await page.getByLabel(/^Amount received/).fill("K40");
+  await expect(page.getByLabel(/^Apply to INV-0001/)).toHaveValue("K40.00");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByText(/receipt RCT-0001\. Emailed to accounts@kila\.example\./)).toBeVisible({ timeout: 30_000 });
+  await mailTo("accounts@kila.example", start, /^Receipt RCT-0001 from Wari Holdings - K40.00 received$/);
+
+  await page.goto("/owed");
+  await expect(page.getByText("K40.00 paid · K60.00 left")).toBeVisible();
+  await page.getByRole("link", { name: "Record a payment from Kila Trading" }).click();
+  await page.getByLabel(/^Amount received/).fill("K60");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByText(/receipt RCT-0002/)).toBeVisible({ timeout: 30_000 });
+  await mailTo("accounts@kila.example", start, /^Receipt RCT-0002 /);
+
+  await page.goto("/one-off");
+  await expect(page.getByText(/K100.00 · due .* · Paid/)).toBeVisible();
+});

@@ -5,7 +5,7 @@
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
 import { customerOf } from "@sasimem/core";
-import type { Arrears, BankDetails, CalendarDate, Customer, Interval, Item, OneOffDraft, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, Customer, Interval, Item, OneOffDraft, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -130,7 +130,36 @@ export interface SetupStore {
   deleteDraft(id: string): Promise<string | null>;
   /** Number, freeze and email a saved draft (the issueInvoice callable). */
   issueInvoice(draftId: string): Promise<Outcome>;
+  /** Every payment, newest receipt first (G2b). A string is a problem. */
+  payments(): Promise<readonly PaymentRow[] | string>;
+  /** Record a payment under the ID the screen made, so a retry records it once (the recordPayment callable). */
+  recordPayment(paymentId: string, payment: PaymentInput, emailReceipt: boolean): Promise<Outcome>;
+  undoPayment(paymentId: string, reason: string): Promise<Outcome>;
+  resendReceipt(paymentId: string): Promise<Outcome>;
 }
+
+/** A payment as the screens show it (G2b). */
+export interface PaymentRow {
+  readonly id: string;
+  readonly receiptNumber: string;
+  readonly customerId: string;
+  readonly customerName: string;
+  readonly receivedOn: CalendarDate;
+  readonly amountToea: Toea;
+  readonly method: PaymentMethod;
+  readonly reference: string;
+  readonly allocations: readonly { readonly number: string; readonly amountToea: Toea }[];
+  readonly creditToea: Toea;
+  readonly status: "recorded" | "undone";
+  readonly undoReason: string;
+}
+
+/** A customer's unused credit: what their recorded payments did not apply (G2b). */
+export const creditByCustomer = (payments: readonly PaymentRow[]): ReadonlyMap<string, number> => {
+  const m = new Map<string, number>();
+  for (const p of payments) if (p.status === "recorded" && p.creditToea > 0) m.set(p.customerId, (m.get(p.customerId) ?? 0) + p.creditToea);
+  return m;
+};
 
 export interface OneOffs {
   /** Drafts, in the order the store found them. */
@@ -147,6 +176,8 @@ export interface OneOffInvoice {
   readonly dueDate: CalendarDate;
   readonly totalToea: Toea;
   readonly status: InvoiceStatus;
+  /** Recorded payments (G2b); absent before any. */
+  readonly amountPaidToea?: Toea;
 }
 
 /** An export's outcome: when it worked, the hour-long link to download it again. */
@@ -193,6 +224,8 @@ export interface MonthInvoice {
   readonly dueDate?: CalendarDate;
   readonly paidNote?: string;
   readonly remindersPaused?: boolean;
+  /** Recorded payments (G2b); absent before any. */
+  readonly amountPaidToea?: Toea;
 }
 
 export interface Month {

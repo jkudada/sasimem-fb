@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 const COULD_NOT_SAVE = "That could not be saved. Please try again.";
@@ -190,6 +190,7 @@ export function setupStore(orgId: string): SetupStore {
               return {
                 id: d.id, tenancyId: i.tenancyId, ...(i.snapshot?.template === undefined ? {} : { templateName: i.snapshot.template.name }), tenantName: i.tenantName, unitLabel: i.unitLabel, status: i.status, rentToea: (rent?.amountToea ?? 0) as Toea, totalToea: i.totalToea, number: i.number,
                 dueDate: i.dueDate, paidNote: i.paidNote, remindersPaused: i.remindersPaused,
+                ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
               };
             })
             .sort((a, b) => (a.number !== null && b.number !== null ? a.number.localeCompare(b.number) : a.tenantName.localeCompare(b.tenantName))),
@@ -228,7 +229,10 @@ export function setupStore(orgId: string): SetupStore {
         const sent = await getDocs(query(collection(db, `${org}/invoices`), where("status", "==", "sent")));
         return arrears(sent.docs.map((d): OwedInvoice => {
           const i = d.data() as InvoiceDocument;
-          return { id: d.id, tenantId: i.tenantId, tenantName: i.snapshot?.tenantName ?? i.tenantName, number: i.number, period: i.period, status: i.status, dueDate: i.dueDate, totalToea: i.totalToea };
+          return {
+            id: d.id, tenantId: i.tenantId, tenantName: i.snapshot?.tenantName ?? i.tenantName, number: i.number, period: i.period, status: i.status, dueDate: i.dueDate, totalToea: i.totalToea,
+            ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+          };
         }));
       } catch {
         return OFFLINE;
@@ -306,7 +310,10 @@ export function setupStore(orgId: string): SetupStore {
           invoices: invoices.docs
             .map((d): OneOffInvoice => {
               const i = d.data() as InvoiceDocument;
-              return { id: d.id, number: i.number ?? "", customerName: i.snapshot?.tenantName ?? i.tenantName, issueDate: i.issueDate, dueDate: i.dueDate, totalToea: i.totalToea, status: i.status };
+              return {
+                id: d.id, number: i.number ?? "", customerName: i.snapshot?.tenantName ?? i.tenantName, issueDate: i.issueDate, dueDate: i.dueDate, totalToea: i.totalToea, status: i.status,
+                ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+              };
             })
             .sort((a, b) => b.number.localeCompare(a.number)),
         };
@@ -331,6 +338,30 @@ export function setupStore(orgId: string): SetupStore {
     },
     deleteDraft: (id) => attempt(() => deleteDoc(ref(`drafts/${id}`))),
     issueInvoice: (draftId) => call("issueInvoice", { orgId, draftId }, (r) => r.message ?? "Sent."),
+
+    async payments() {
+      try {
+        const snap = await getDocs(collection(db, `${org}/payments`));
+        return snap.docs
+          .map((d) => {
+            const p = d.data();
+            return {
+              id: d.id, receiptNumber: p["receiptNumber"], customerId: p["customerId"], customerName: p["customerName"], receivedOn: p["receivedOn"],
+              amountToea: p["amountToea"], method: p["method"], reference: p["reference"], creditToea: p["creditToea"], status: p["status"], undoReason: p["undoReason"] ?? "",
+              allocations: (p["allocations"] as { number: string; amountToea: Toea }[]).map((a) => ({ number: a.number, amountToea: a.amountToea })),
+              seq: p["receiptSeq"] as number,
+            };
+          })
+          .sort((a, b) => b.seq - a.seq)
+          .map(({ seq: _seq, ...row }) => row as PaymentRow);
+      } catch {
+        return OFFLINE;
+      }
+    },
+    recordPayment: (paymentId, payment, emailReceipt) =>
+      call("recordPayment", { orgId, paymentId, ...payment, allocations: payment.allocations.map((a) => ({ ...a })), emailReceipt }, (r) => r.message ?? "Recorded."),
+    undoPayment: (paymentId, reason) => call("undoPayment", { orgId, paymentId, reason }, (r) => r.message ?? "Undone."),
+    resendReceipt: (paymentId) => call("resendReceipt", { orgId, paymentId }, (r) => r.message ?? "Emailed again."),
 
     async setNextNumber(next) {
       try {

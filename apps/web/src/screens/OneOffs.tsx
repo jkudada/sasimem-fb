@@ -3,7 +3,7 @@
  * invoices sent. Payments are recorded from Still owed, as for rent.
  */
 import { useSignal } from "@preact/signals";
-import { type CalendarDate, dateLabel, formatKina, invoiceChip, itemLine, totals } from "@sasimem/core";
+import { type CalendarDate, balanceOf, dateLabel, formatKina, hasPayments, invoiceChip, itemLine, totals } from "@sasimem/core";
 import type { OneOffs as List, Outcome, Setup } from "../setup.js";
 import { Back } from "./Back.js";
 
@@ -47,7 +47,7 @@ export function OneOffs(props: { list: List; setup: Setup; today: CalendarDate; 
         {invoices.map((i) => (
           <li key={i.id}>
             <strong>{i.number} · {i.customerName}</strong>
-            <span class="note">{formatKina(i.totalToea)} · due {dateLabel(i.dueDate)} · {invoiceChip(i, props.today)}</span>
+            <span class="note">{formatKina(i.totalToea)}{hasPayments(i) && i.status === "sent" && ` · ${formatKina(balanceOf(i))} left`} · due {dateLabel(i.dueDate)} · {invoiceChip(i, props.today)}</span>
             <button type="button" class="quiet small" aria-label={`Open the PDF of ${i.number}`} onClick={async () => {
               const o = await props.onOpenPdf(i.id);
               failure.value = o.ok ? null : o.message;
