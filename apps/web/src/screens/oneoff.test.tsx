@@ -226,15 +226,16 @@ describe("the invoice editor", () => {
     expect(onDelete).toHaveBeenCalledWith("d9");
   });
 
-  test("lines can be removed, but not the last one; at 30 lines no more can be added", () => {
+  // The 30-line cap is core's and the rules' (T1, T2); rendering 30 lines here passes a T1 test's CPU budget.
+  test("lines can be removed, but not the last one", () => {
     const draft: OneOffDraft = {
       customerId: "", poNumber: "", notes: "", dueDays: null,
-      lines: Array.from({ length: 30 }, () => ({ description: "x", detail: "", quantityMilli: 1000, unit: "", unitPriceToea: 100 as Toea, taxCode: "standard" as const })),
+      lines: ["first", "second"].map((description) => ({ description, detail: "", quantityMilli: 1000, unit: "", unitPriceToea: 100 as Toea, taxCode: "standard" as const })),
     };
     editor({ id: "d1", draft });
-    expect(screen.queryByRole("button", { name: "Add a line" })).toBeNull();
-    click("Remove line 30");
-    expect(screen.getByRole("button", { name: "Add a line" })).toBeTruthy();
+    click("Remove line 1");
+    expect(within(line(1)).getByLabelText("What for")).toHaveProperty("value", "second");
+    expect(screen.queryByRole("button", { name: /remove line/i })).toBeNull();
   });
 
   test("the hint names the org's usual terms when the customer has none", () => {
