@@ -19,7 +19,7 @@ export async function readNumbering(orgId: string): Promise<Numbering> {
 export async function setNext(orgId: string, next: number): Promise<boolean> {
   return db().runTransaction(async (tx) => {
     if (!(await tx.get(issuedOf(orgId))).empty) return false;
-    tx.set(counterOf(orgId), { nextInvoiceNumber: next });
+    tx.set(counterOf(orgId), { nextInvoiceNumber: next }, { merge: true }); // keeps the receipt and other counters (G2b)
     return true;
   });
 }

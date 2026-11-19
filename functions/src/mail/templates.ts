@@ -113,7 +113,12 @@ export interface TenantInvoiceFacts {
   readonly logo: Buffer | null;
   /** A one-off invoice (G2a): worded without a unit or month, copied to the customer's ccEmails. */
   readonly oneOff?: boolean;
+  /** Payments recorded so far (G2b); above 0, the email asks for the balance. */
+  readonly amountPaidToea?: Toea;
 }
+
+/** What is still to pay: the total, less what was recorded (G2b). */
+const stillToPay = (i: TenantInvoiceFacts): Toea => (i.totalToea - (i.amountPaidToea ?? 0)) as Toea;
 
 /** INV/0142 → INV-0142.pdf: a prefix can hold characters a file name cannot. */
 export const pdfFilename = (number: string): string => `${number.replace(/[^A-Za-z0-9._-]+/g, "-")}.pdf`;
@@ -137,7 +142,9 @@ function tenantMail(i: TenantInvoiceFacts, subject: string, opening: readonly st
     greeting: `Hello ${i.snapshot.tenantName},`,
     blocks: [
       ...opening.map((p) => ({ p })),
-      { rows: [["Amount", formatKina(i.totalToea)], ["Due", dateLabel(i.dueDate)]] },
+      { rows: (i.amountPaidToea ?? 0) > 0
+        ? [["Invoice total", formatKina(i.totalToea)], ["Paid so far", formatKina(i.amountPaidToea as Toea)], ["Still to pay", formatKina(stillToPay(i))], ["Due", dateLabel(i.dueDate)]]
+        : [["Amount", formatKina(i.totalToea)], ["Due", dateLabel(i.dueDate)]] },
       { rows: [["Pay to", `${i.snapshot.org.bankName}, account ${i.snapshot.org.bankAccount}`], ["Payment reference", i.paymentReference]] },
       ...(footer === "" ? [] : [{ note: footer }]),
       ...(i.snapshot.notes ? [{ note: i.snapshot.notes }] : []),
@@ -175,10 +182,64 @@ export function tenantInvoice(i: TenantInvoiceFacts): Mail {
 }
 
 export function tenantReminder(i: TenantInvoiceFacts): Mail {
-  return tenantMail(i, reminderSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: i.totalToea, dueDate: i.dueDate }), [
-    `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. The PDF is attached again.`,
+  const partPaid = (i.amountPaidToea ?? 0) > 0;
+  return tenantMail(i, reminderSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: stillToPay(i), dueDate: i.dueDate }), [
+    partPaid
+      ? `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. Thank you for the ${formatKina(i.amountPaidToea as Toea)} paid so far; ${formatKina(stillToPay(i))} is still to pay. The PDF is attached again.`
+      : `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. The PDF is attached again.`,
     "If you have already paid, thank you, and please ignore this email.",
   ]);
+}
+
+/** What a receipt states (G2b, AR-10): what came in, and where it went. */
+export interface ReceiptFacts {
+  readonly to: string;
+  readonly cc: readonly string[];
+  readonly orgName: string;
+  readonly orgEmail: string;
+  /** The org's default template's look, as on its invoices. */
+  readonly accent: string;
+  readonly font: Brand["font"];
+  readonly customerName: string;
+  readonly receiptNumber: string;
+  readonly receivedOn: CalendarDate;
+  readonly amountToea: Toea;
+  readonly method: string;
+  readonly reference: string;
+  readonly applied: readonly { readonly number: string; readonly amountToea: Toea; readonly balanceToea: Toea }[];
+  readonly creditToea: Toea;
+}
+
+export const receiptSubject = (r: Pick<ReceiptFacts, "receiptNumber" | "orgName" | "amountToea">): string =>
+  `Receipt ${r.receiptNumber} from ${r.orgName} - ${formatKina(r.amountToea)} received`;
+
+export function receipt(r: ReceiptFacts): Mail {
+  const subject = receiptSubject(r);
+  const letter: Letter = {
+    greeting: `Hello ${r.customerName},`,
+    blocks: [
+      { p: `${r.orgName} has received your payment. Thank you. This is your receipt, ${r.receiptNumber}.` },
+      { rows: [
+        ["Received", formatKina(r.amountToea)], ["On", dateLabel(r.receivedOn)], ["By", r.method],
+        ...(r.reference === "" ? [] : [["Your reference", r.reference] as const]),
+      ] },
+      ...(r.applied.length === 0 ? [] : [{ rows: r.applied.map((a) => [
+        `Invoice ${a.number}`,
+        `${formatKina(a.amountToea)} paid${a.balanceToea === 0 ? ", now paid in full" : `, ${formatKina(a.balanceToea)} still to pay`}`,
+      ] as const) }]),
+      ...(r.creditToea > 0 ? [{ p: `${formatKina(r.creditToea)} was more than the invoices owed. ${r.orgName} keeps it as credit for you.` }] : []),
+      { p: `To ask about this receipt, reply to this email to reach ${r.orgName}.` },
+    ],
+  };
+  return {
+    to: r.to,
+    ...(r.cc.length === 0 ? {} : { cc: r.cc }),
+    fromName: r.orgName,
+    replyTo: r.orgEmail,
+    subject,
+    text: letterText(letter),
+    html: letterHtml(letter, { name: r.orgName, accent: r.accent, font: r.font, mark: { kind: "monogram" } }, subject),
+  };
 }
 
 /** An operator's invitation to sign up (PLAN-SUBSCRIBERS S3): the plan, the trial and the link. */

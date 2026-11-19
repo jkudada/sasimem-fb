@@ -230,4 +230,6 @@ export interface InvoiceDocument extends DraftInvoice {
   readonly remindersPaused: boolean;
   /** Absent on invoices drafted before G1: read it with `sourceOf`. */
   readonly source?: InvoiceSource;
+  /** Payments recorded against it (G2b), server-written; absent means none. */
+  readonly amountPaidToea?: Toea;
 }

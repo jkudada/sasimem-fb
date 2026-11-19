@@ -3,15 +3,16 @@
  * callables, the approval page and the tick call these after their transaction has
  * committed, and only the caller that won the compare-and-set does.
  */
-import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type Period, type Toea, sourceOf } from "@sasimem/core";
+import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, METHOD_LABELS, type Period, type Toea, customerOf, sourceOf, templateFor } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, freshTrackingLink, heldNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, freshTrackingLink, heldNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
+import type { StoredPayment } from "./store/receipts.js";
 import { type OrgDoc, refs } from "./store/runs.js";
 
 export interface NotifyDeps {
@@ -82,6 +83,7 @@ async function invoiceMail(invoice: InvoiceDocument, make: typeof tenantInvoice)
     totalToea: invoice.totalToea, dueDate: invoice.dueDate, paymentReference: invoice.paymentReference, pdf,
     logo: await emailLogo(invoice.snapshot),
     oneOff: sourceOf(invoice).kind !== "rent",
+    ...(invoice.amountPaidToea === undefined ? {} : { amountPaidToea: invoice.amountPaidToea }),
   });
 }
 
@@ -111,4 +113,25 @@ export async function sendInvoiceAgain(deps: NotifyDeps, orgId: string, invoiceI
 
 export async function sendReminder(deps: NotifyDeps, orgId: string, invoiceId: string, invoice: InvoiceDocument): Promise<void> {
   await sendLogged(logged(deps), { orgId, kind: "reminder", runPeriod: invoice.period, invoiceId }, await invoiceMail(invoice, tenantReminder));
+}
+
+/**
+ * A payment's receipt (G2b), to the customer as they are on file now and their copy-to,
+ * in the org's default template's colours. It states the balances the payment left, as
+ * stored with it. `again`: the owner asked, so it is not once-only. Returns the address.
+ */
+export async function sendReceipt(deps: NotifyDeps, orgId: string, paymentId: string, payment: StoredPayment, again = false): Promise<string> {
+  const r = refs(orgId);
+  const [orgSnap, customerSnap, templates] = await Promise.all([r.org.get(), r.tenant(payment.customerId).get(), r.templates.get()]);
+  const org = orgSnap.data() as OrgDoc;
+  const customer = customerOf(customerSnap.data() ?? {});
+  if (customer.email === "") throw new Error("the customer has no email address");
+  const t = templateFor({ org }, Object.fromEntries(templates.docs.map((d) => [d.id, d.data() as InvoiceTemplate])));
+  await sendLogged(logged(deps), { orgId, kind: again ? "receiptAgain" : "receipt", paymentId }, receipt({
+    to: customer.email, cc: customer.ccEmails, orgName: org.name, orgEmail: org.email, accent: t.accent, font: t.font,
+    customerName: customer.name, receiptNumber: payment.receiptNumber, receivedOn: payment.receivedOn, amountToea: payment.amountToea,
+    method: METHOD_LABELS[payment.method], reference: payment.reference,
+    applied: payment.allocations.map((a) => ({ number: a.number, amountToea: a.amountToea, balanceToea: a.balanceAfterToea })), creditToea: payment.creditToea,
+  }));
+  return customer.email;
 }
