@@ -4,7 +4,8 @@
  * save. Screens get plain data and functions that resolve to a plain-English
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
-import type { Arrears, BankDetails, CalendarDate, Interval, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import { customerOf } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, Customer, Interval, Item, OneOffDraft, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -15,15 +16,26 @@ export interface Org extends OrgProfile {
   readonly defaultTemplateId?: string;
   /** The logo builder's choices, to reopen it; absent when the logo was uploaded as a file. */
   readonly logoDesign?: LogoDesign;
+  /** Days to pay a one-off invoice when neither it nor the customer says (G2a); absent means 14. */
+  readonly defaultTermsDays?: number;
+  /** Server-written (docs/PLAN-GENERAL-INVOICING.md §3); read with core's orgFeatures. */
+  readonly modules?: unknown;
+  readonly features?: unknown;
 }
+
+/** What Settings saves: the profile, and the one-off default terms when that part is shown. */
+export type ProfileEdit = OrgProfile & { readonly defaultTermsDays?: number };
 
 export interface Setup {
   readonly org: Org;
   readonly properties: readonly WithId<PropertyInput>[];
+  /** Tenants are customers (G1b): the stored business details come along; read them with core's customerOf. */
   readonly tenants: readonly WithId<TenantInput>[];
   readonly tenancies: readonly WithId<TenancyDocument>[];
   /** Invoice templates, by name (docs/PLAN-TEMPLATES.md). */
   readonly templates: readonly WithId<InvoiceTemplate>[];
+  /** The price list (G2a); loaded only when one-off invoices are on. Absent in older fixtures. */
+  readonly items?: readonly WithId<Item>[];
   /** The org's Sasimem subscription (PLAN-SUBSCRIBERS S4); null if it has none or it could not be read. Absent in older fixtures. */
   readonly subscription?: SubscriptionFields | null;
   /** Where subscribers pay Sasimem; null until ops/billing-details.ts has set it. */
@@ -55,12 +67,13 @@ export interface SetupStore {
   load(): Promise<Setup>;
   saveProperty(id: string | null, property: PropertyInput): Promise<string | null>;
   deleteProperty(id: string): Promise<string | null>;
-  saveTenant(id: string | null, tenant: TenantInput): Promise<string | null>;
+  /** The form sends the business details only when it shows them; a merge keeps the rest. */
+  saveTenant(id: string | null, tenant: TenantInput | Customer): Promise<string | null>;
   deleteTenant(id: string): Promise<string | null>;
   createTenancy(tenancy: TenancyDocument): Promise<string | null>;
   updateTenancy(id: string, edit: TenancyEdit): Promise<string | null>;
   deleteTenancy(id: string): Promise<string | null>;
-  saveProfile(profile: OrgProfile): Promise<string | null>;
+  saveProfile(profile: ProfileEdit): Promise<string | null>;
   /** A file the landlord picked; it replaces any built logo, so the design is cleared. */
   uploadLogo(file: File): Promise<string | null>;
   /** Clears the logo and its design. */
@@ -106,6 +119,34 @@ export interface SetupStore {
   exportEverything(): Promise<ExportOutcome>;
   /** Cancel the subscription (S6). */
   cancelSubscription(): Promise<Outcome>;
+  saveItem(id: string | null, item: Item): Promise<string | null>;
+  deleteItem(id: string): Promise<string | null>;
+  /** Saved drafts and sent one-off invoices (G2a). A string is a problem. */
+  oneOffs(): Promise<OneOffs | string>;
+  /** One saved draft; null when it is gone (sent or deleted). A string is a problem. */
+  draft(id: string): Promise<OneOffDraft | null | string>;
+  /** Save a draft; the result is its ID, or a problem. */
+  saveDraft(id: string | null, draft: OneOffDraft): Promise<{ readonly id: string } | { readonly problem: string }>;
+  deleteDraft(id: string): Promise<string | null>;
+  /** Number, freeze and email a saved draft (the issueInvoice callable). */
+  issueInvoice(draftId: string): Promise<Outcome>;
+}
+
+export interface OneOffs {
+  /** Drafts, in the order the store found them. */
+  readonly drafts: readonly WithId<OneOffDraft>[];
+  /** Newest number first. */
+  readonly invoices: readonly OneOffInvoice[];
+}
+
+export interface OneOffInvoice {
+  readonly id: string;
+  readonly number: string;
+  readonly customerName: string;
+  readonly issueDate: CalendarDate;
+  readonly dueDate: CalendarDate;
+  readonly totalToea: Toea;
+  readonly status: InvoiceStatus;
 }
 
 /** An export's outcome: when it worked, the hour-long link to download it again. */
@@ -164,6 +205,9 @@ export interface Month {
   /** The month's email log, newest first; empty before anything was sent. */
   readonly emails?: readonly EmailEntry[];
 }
+
+/** A tenant as a customer, with the business details stored beside the name (G1b), read defensively. */
+export const customerFrom = (t: WithId<TenantInput>): Customer => customerOf(t as unknown as Readonly<Record<string, unknown>>);
 
 /** A short random ID for a new unit or charge; unique within its list is enough. */
 export const newId = (): string => crypto.randomUUID().slice(0, 8);

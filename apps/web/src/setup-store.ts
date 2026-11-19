@@ -5,8 +5,8 @@
  * small documents. Storage loads only when Settings shows or changes the logo.
  */
 import {
-  type BankDetails, type InvoiceDocument, type SubscriptionFields, type InvoiceTemplate, type OrgProfile, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
-  arrears, logoExtension,
+  type BankDetails, type InvoiceDocument, type Item, type OneOffDraft, type SubscriptionFields, type InvoiceTemplate, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
+  arrears, draftOf, hasFeature, logoExtension, sourceOf,
 } from "@sasimem/core";
 import {
   type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch,
@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { EmailEntry, Month, MonthSummary, Numbering, Org, Outcome, OwedInvoice, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 const COULD_NOT_SAVE = "That could not be saved. Please try again.";
@@ -94,13 +94,16 @@ export function setupStore(orgId: string): SetupStore {
         optional<BankDetails>("sasimem/billing"),
       ]);
       const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
+      const orgData = o.data() as Org;
+      // The price list only for orgs with one-off invoices (G2a): Rentals-only orgs read nothing more.
+      const items = hasFeature(orgData, "oneOff") ? withIds<Item>(await getDocs(collection(db, `${org}/items`))).sort(byName) : [];
       return {
-        org: o.data() as Org,
+        org: orgData,
         properties: withIds<PropertyInput>(properties).sort((a, b) => a.address.localeCompare(b.address)),
         tenants: withIds<TenantInput>(tenants).sort(byName),
         tenancies: withIds<TenancyDocument>(tenancies),
         templates: withIds<InvoiceTemplate>(templates).sort(byName),
-        subscription, bank,
+        subscription, bank, items,
       };
     },
 
@@ -112,7 +115,7 @@ export function setupStore(orgId: string): SetupStore {
     updateTenancy: (id, { templateId, ...edit }: TenancyEdit) =>
       attempt(() => updateDoc(ref(`tenancies/${id}`), { ...edit, templateId: templateId ?? deleteField() })),
     deleteTenancy: (id) => attempt(() => deleteDoc(ref(`tenancies/${id}`))),
-    saveProfile: (profile: OrgProfile) => attempt(() => updateDoc(doc(db, org), { ...profile })),
+    saveProfile: (profile: ProfileEdit) => attempt(() => updateDoc(doc(db, org), { ...profile })),
 
     uploadLogo: (file) => attempt(async () => {
       const path = await upload(logoExtension(file.type), file, file.type);
@@ -178,7 +181,9 @@ export function setupStore(orgId: string): SetupStore {
           sendAt: (r["sendAt"] as Timestamp).toDate(),
           totalToea: r["totalToea"] as Toea,
           invoiceCount: r["invoiceCount"] as number,
+          // The Rentals month shows rent invoices only: a one-off records its month too (G2a).
           invoices: invoices.docs
+            .filter((d) => sourceOf(d.data() as InvoiceDocument).kind === "rent")
             .map((d) => {
               const i = d.data() as InvoiceDocument;
               const rent = i.lines.find((l) => l.kind === "rent");
@@ -286,6 +291,46 @@ export function setupStore(orgId: string): SetupStore {
     },
 
     cancelSubscription: () => call("cancelSubscription", { orgId }, () => "Your subscription is cancelled."),
+
+    saveItem: (id, item) => attempt(() => (id === null ? addDoc(collection(db, `${org}/items`), { ...item }) : setDoc(ref(`items/${id}`), { ...item }))),
+    deleteItem: (id) => attempt(() => deleteDoc(ref(`items/${id}`))),
+
+    async oneOffs() {
+      try {
+        const [drafts, invoices] = await Promise.all([
+          getDocs(collection(db, `${org}/drafts`)),
+          getDocs(query(collection(db, `${org}/invoices`), where("source.kind", "==", "oneOff"))),
+        ]);
+        return {
+          drafts: drafts.docs.map((d) => ({ ...draftOf(d.data()), id: d.id })),
+          invoices: invoices.docs
+            .map((d): OneOffInvoice => {
+              const i = d.data() as InvoiceDocument;
+              return { id: d.id, number: i.number ?? "", customerName: i.snapshot?.tenantName ?? i.tenantName, issueDate: i.issueDate, dueDate: i.dueDate, totalToea: i.totalToea, status: i.status };
+            })
+            .sort((a, b) => b.number.localeCompare(a.number)),
+        };
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    async draft(id) {
+      try {
+        const d = await getDoc(ref(`drafts/${id}`));
+        return d.exists() ? draftOf(d.data()) : null;
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    async saveDraft(id, draft: OneOffDraft) {
+      const target = id === null ? doc(collection(db, `${org}/drafts`)) : ref(`drafts/${id}`);
+      const problem = await attempt(() => setDoc(target, { ...draft, lines: draft.lines.map((l) => ({ ...l })) }));
+      return problem === null ? { id: target.id } : { problem };
+    },
+    deleteDraft: (id) => attempt(() => deleteDoc(ref(`drafts/${id}`))),
+    issueInvoice: (draftId) => call("issueInvoice", { orgId, draftId }, (r) => r.message ?? "Sent."),
 
     async setNextNumber(next) {
       try {

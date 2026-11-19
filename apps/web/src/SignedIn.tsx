@@ -4,7 +4,7 @@
  * screen shows what was actually stored.
  */
 import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
-import { type CalendarDate, type Period, periodOf } from "@sasimem/core";
+import { type CalendarDate, type OneOffDraft, type Period, hasFeature, periodOf } from "@sasimem/core";
 import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
@@ -30,6 +30,10 @@ const Review = lazyScreen(() => import("./screens/Review.js").then((m) => m.Revi
 const Tracking = lazyScreen(() => import("./screens/Tracking.js").then((m) => m.Tracking));
 const Invoices = lazyScreen(() => import("./screens/Invoices.js").then((m) => m.Invoices));
 const Owed = lazyScreen(() => import("./screens/Owed.js").then((m) => m.Owed));
+const Items = lazyScreen(() => import("./screens/Items.js").then((m) => m.Items));
+const ItemForm = lazyScreen(() => import("./screens/Items.js").then((m) => m.ItemForm));
+const OneOffs = lazyScreen(() => import("./screens/OneOffs.js").then((m) => m.OneOffs));
+const InvoiceEditor = lazyScreen(() => import("./screens/InvoiceEditor.js").then((m) => m.InvoiceEditor));
 
 const OFFLINE = "Your details could not be loaded. Check your signal, then reload the page.";
 
@@ -95,6 +99,10 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/month/:period" component={ReviewRoute} />
           <Route path="/invoices" component={InvoicesRoute} />
           <Route path="/owed" component={OwedRoute} />
+          <Route path="/items" component={ItemsRoute} />
+          <Route path="/items/:id" component={ItemRoute} />
+          <Route path="/one-off" component={OneOffsRoute} />
+          <Route path="/one-off/:id" component={EditorRoute} />
           <Route default component={HomeRoute} />
         </Router>
       </LocationProvider>
@@ -309,5 +317,60 @@ function SettingsRoute() {
         return problem;
       }}
     />
+  );
+}
+
+/** One-off invoices (G2a) are only for orgs that have them; anyone else who types the address goes home. */
+function OneOffOnly(props: { children: preact.ComponentChildren }) {
+  const { setup } = useSignedIn();
+  if (!hasFeature(setup.value.org, "oneOff")) return <main class="narrow"><p>One-off invoices are not switched on for your account. <a href="/">Back home</a></p></main>;
+  return <>{props.children}</>;
+}
+
+function ItemsRoute() {
+  return <OneOffOnly><Items setup={useSignedIn().setup.value} /></OneOffOnly>;
+}
+
+function ItemRoute(props: Params) {
+  const c = useSignedIn();
+  const done = useDoneTo("/items");
+  return (
+    <OneOffOnly>
+      <ItemForm key={props.params["id"]} id={idOf(props)} setup={c.setup.value} onSave={c.store.saveItem} onDelete={c.store.deleteItem} onDone={done} />
+    </OneOffOnly>
+  );
+}
+
+function OneOffsRoute() {
+  const c = useSignedIn();
+  const list = useSignal<Awaited<ReturnType<SetupStore["oneOffs"]>> | null>(null);
+  useEffect(() => void c.store.oneOffs().then((l) => (list.value = l)), [c.store]);
+  const l = list.value;
+  return (
+    <OneOffOnly>
+      {l === null ? <main class="narrow"><p>Loading…</p></main>
+        : typeof l === "string" ? <main class="narrow"><p role="alert">{l}</p></main>
+        : <OneOffs list={l} setup={c.setup.value} today={c.today} onOpenPdf={c.store.openPdf} />}
+    </OneOffOnly>
+  );
+}
+
+/** A new invoice, or a saved draft loaded first. A draft that was sent or deleted meanwhile says so. */
+function EditorRoute(props: Params) {
+  const c = useSignedIn();
+  const { route } = useLocation();
+  const id = idOf(props);
+  const draft = useSignal<OneOffDraft | null | string | undefined>(id === null ? null : undefined);
+  useEffect(() => {
+    if (id !== null) void c.store.draft(id).then((d) => (draft.value = d ?? "That draft is not there any more. It may have been sent or deleted."));
+  }, [id]);
+  const d = draft.value;
+  return (
+    <OneOffOnly>
+      {d === undefined ? <main class="narrow"><p>Loading…</p></main>
+        : typeof d === "string" ? <main class="narrow"><p role="alert">{d}</p><p><a href="/one-off">One-off invoices</a></p></main>
+        : <InvoiceEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value}
+            onSave={c.store.saveDraft} onDelete={c.store.deleteDraft} onSend={c.store.issueInvoice} onDone={() => route("/one-off")} />}
+    </OneOffOnly>
   );
 }

@@ -37,6 +37,17 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
   machine, with main's code too (checked 2026-11-19); CI passes it.
 - **At most 30 lines** per invoice (fits two A4 pages within the 150 KB PDF budget).
 - **Sending is the say-so (D7).** There is no approval email for a one-off.
+- **Screens (G2a web):** a new invoice opens with one blank line; an item picked from the price
+  list fills it rather than leaving it empty above. **Save draft** keeps an unfinished invoice
+  (no customer yet, say) but refuses a quantity or price it cannot read, so a draft never stores
+  nonsense; **Send** checks everything, saves, then calls `issueInvoice`. A failed send keeps
+  the saved draft, and the next try saves the same one.
+- **Customers' accounts details are edited on the tenant form** when `oneOff` is on (G1 left them
+  for G2). Rentals-only orgs see the form unchanged.
+- **Switching it on:** `node ops/features.ts --project sasimem-dev --org <orgId> --on rentals,repeating,oneOff`.
+  The list replaces what is there: once `features` exists core reads only it.
+- **Size:** the "all JS" budget is 160 KB; G2a's screens bring it to about 156 KB. G2b and G2c
+  will need it raised or split (it sums every lazy screen, not just the shell).
 - **Found while building: the rules check a draft's shape and line count, not each line.**
   Checking 30 lines field by field passes the rules engine's limit of 1,000 expressions per
   write. A draft is a work in progress; `issueInvoice` re-runs core's full checks on a
@@ -79,11 +90,15 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - [x] email: a one-off is worded "has sent you invoice INV-0001 for your order PO-7731", with no unit or month, and carries its notes; a rent invoice's email is unchanged
 
 ### Web (T1 web)
-- [ ] the menu shows Items and New invoice only when the org has `oneOff`
-- [ ] the item list, add, edit and delete
-- [ ] the invoice editor: pick a customer, add lines from items or typed, see totals and GST as you type, see problems, Send
-- [ ] the Rentals month screens list rent invoices only
-- [ ] Settings edits the default payment terms
+- [x] the menu shows One-off invoices and Price list only when the org has `oneOff` (and then names the months "Rent invoices", and tenants "Tenants and customers")
+- [x] the item list, add, edit and delete
+- [x] the invoice editor: pick a customer, add lines from items or typed, see totals and GST as you type, see problems, Send
+- [x] the Rentals month screens list rent invoices only
+- [x] Settings edits the default payment terms
+- [x] with `oneOff`, the tenant form asks for a customer's accounts details (copy-to, address, TIN, GST number, terms, PO required); without, it is unchanged
+
+### Ops
+- [x] `ops/features.ts` writes an org's whole features map (only that field, on an org that exists); its copy of core's features is proved equal
 
 ### End to end (T4)
-- [ ] an owner with `oneOff` adds an item, writes an invoice for a customer and sends it; the customer's email has the PDF
+- [x] an owner with `oneOff` adds an item, writes an invoice for a customer and sends it; the customer's email has the PDF; the month's rent review does not list it

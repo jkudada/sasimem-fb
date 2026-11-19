@@ -12,6 +12,8 @@ const PATHS = {
   plan: "M3 6h18v12H3zM3 10h18M7 15h4",
   home: "M3 11l9-8 9 8M5 9v12h14V9",
   arrow: "M5 12h14M13 6l6 6-6 6",
+  items: "M9 6h11M9 12h11M9 18h11M4.5 6h0M4.5 12h0M4.5 18h0",
+  oneOff: "M7 3h7l5 5v13H7zM14 3v5h5M13 11v6M10 14h6",
 } as const;
 
 export type IconName = keyof typeof PATHS;

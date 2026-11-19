@@ -47,6 +47,8 @@ const fakeStore = (): SetupStore => ({
   markPaid: vi.fn(), markUnpaid: vi.fn(), pauseReminders: vi.fn(), voidInvoice: vi.fn(), resendInvoice: vi.fn(), openPdf: vi.fn(), exportCsv: vi.fn(),
   subscriptionPayments: vi.fn().mockResolvedValue([]), askToChangePlan: vi.fn(),
   exportEverything: vi.fn(), cancelSubscription: vi.fn(),
+  saveItem: vi.fn(), deleteItem: vi.fn(), oneOffs: vi.fn().mockResolvedValue({ drafts: [], invoices: [] }), draft: vi.fn().mockResolvedValue(null),
+  saveDraft: vi.fn(), deleteDraft: vi.fn(), issueInvoice: vi.fn(),
 });
 
 const noActions = (): Actions => ({

@@ -1,16 +1,31 @@
-import { type CalendarDate, formatKina, type Toea } from "@sasimem/core";
+import { type CalendarDate, formatKina, hasFeature, type Toea } from "@sasimem/core";
 import type { ComponentChildren } from "preact";
 import type { Setup } from "../setup.js";
 import { Icon, type IconName } from "./icons.js";
 import { SubscriptionBanner } from "./SubscriptionBanner.js";
 
+type MenuEntry = { href: string; icon: IconName; title: string; hint: string };
+
 /** Home's menu: where each part of the app is, in a word or two, with what it holds underneath. */
-const MENU: readonly { href: string; icon: IconName; title: string; hint: string }[] = [
+const MENU: readonly MenuEntry[] = [
   { href: "/invoices", icon: "invoices", title: "Invoices", hint: "Every month's invoices, and a CSV export" },
   { href: "/properties", icon: "properties", title: "Properties and units", hint: "Addresses, units and who rents each" },
   { href: "/tenants", icon: "tenants", title: "Tenants", hint: "Who you invoice, and their email" },
   { href: "/settings", icon: "settings", title: "Settings", hint: "Your details, logo, invoice look and plan" },
 ];
+
+/** With one-off invoices on (G2a): writing one, the price list, and customers beside tenants. */
+const ONE_OFF_MENU: readonly MenuEntry[] = [
+  { href: "/one-off", icon: "oneOff", title: "One-off invoices", hint: "Write and send an invoice for a job or a sale" },
+  { href: "/items", icon: "items", title: "Price list", hint: "Your services, materials and rates" },
+];
+
+export function menuFor(org: Setup["org"]): readonly MenuEntry[] {
+  if (!hasFeature(org, "oneOff")) return MENU;
+  const [invoices, properties, , settings] = MENU as [MenuEntry, MenuEntry, MenuEntry, MenuEntry];
+  const customers: MenuEntry = { href: "/tenants", icon: "tenants", title: "Tenants and customers", hint: "Who you invoice, and their details" };
+  return [...ONE_OFF_MENU, { ...invoices, title: "Rent invoices" }, properties, customers, settings];
+}
 
 /** Home (plan §7, screen 3): this month's one action (the card, as children), the amount owed, then setup. */
 /** today: shows the subscription banner (PLAN-SUBSCRIBERS §8) when there is one. */
@@ -50,7 +65,7 @@ export function Home(props: { setup: Setup; today?: CalendarDate; owedToea?: num
       <h2 class="section-title">Manage</h2>
       <nav aria-label="Invoices and setup">
         <ul class="tiles">
-          {MENU.map((m) => (
+          {menuFor(org).map((m) => (
             <li key={m.href}>
               <a class="tile" href={m.href} aria-labelledby={`menu-${m.icon}`} aria-describedby={`menu-${m.icon}-hint`}>
                 <span class="tile-icon"><Icon name={m.icon} /></span>
