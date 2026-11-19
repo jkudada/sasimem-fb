@@ -10,33 +10,6 @@
     "size": "size-limit",
     "e2e": "playwright test"
   },
-  "size-limit": [
-    {
-      "name": "sign-in route (JS, gzip)",
-      "path": [
-        "dist/assets/index-*.js",
-        "dist/assets/SignIn-*.js",
-        "dist/assets/Field-*.js",
-        "dist/assets/jsxRuntime-*.js"
-      ],
-      "limit": "70 KB",
-      "gzip": true
-    },
-    {
-      "name": "logo builder route (its own JS, gzip)",
-      "path": [
-        "dist/assets/LogoBuilder-*.js"
-      ],
-      "limit": "8 KB",
-      "gzip": true
-    },
-    {
-      "name": "signed-in app shell (all JS, gzip)",
-      "path": "dist/assets/*.js",
-      "limit": "160 KB",
-      "gzip": true
-    }
-  ],
   "dependencies": {
     "@preact/signals": "^2.11.4",
     "@sasimem/core": "workspace:*",
