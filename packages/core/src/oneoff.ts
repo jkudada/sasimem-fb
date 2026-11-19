@@ -9,7 +9,7 @@ import type { Customer } from "./customers.js";
 import { documentTitle } from "./gst.js";
 import { itemLine, itemLineProblems } from "./lines.js";
 import { MAX_EDITABLE_TOEA, type Toea, formatKina, toea } from "./money.js";
-import { addDays, type CalendarDate, periodOf } from "./period.js";
+import { addDays, type CalendarDate, dateLabel, parseCalendarDate, periodOf, zonedInstant } from "./period.js";
 import { wholeIn } from "./setup.js";
 import type { InvoiceTemplate } from "./templates.js";
 import type { DraftInvoice, InvoiceSnapshot, InvoiceSource, ItemLineInput, OrgProfile, Problems, TaxCode } from "./types.js";
@@ -160,4 +160,34 @@ export function oneOffSnapshot(
     poNumber: draft.poNumber.trim(),
     notes: draft.notes.trim(),
   };
+}
+
+// ---------------------------------------------------------------- send later (G2d)
+
+/** How far ahead a draft can be scheduled. */
+export const SEND_LATER_MAX_DAYS = 365;
+
+/** What is wrong with the day typed for Send later, or null. Today is Send invoice's job. */
+export function sendLaterProblem(text: string, today: CalendarDate): string | null {
+  let on: CalendarDate;
+  try {
+    on = parseCalendarDate(text);
+  } catch {
+    return "Choose the day to send it.";
+  }
+  if (on <= today) return "Choose a day after today. To send it today, press Send invoice.";
+  if (on > addDays(today, SEND_LATER_MAX_DAYS)) return "Choose a day within a year.";
+  return null;
+}
+
+/** The moment a scheduled draft goes: that day at the org's send hour, in its time (as rent does). */
+export const sendLaterAt = (sendOn: CalendarDate, org: { readonly sendHour: number; readonly timezone: string }): Date =>
+  zonedInstant(sendOn, org.sendHour, org.timezone);
+
+export const sendLaterDue = (s: { readonly sendAt: Date }, now: Date): boolean => now.getTime() >= s.sendAt.getTime();
+
+/** "1 December 2026 at 8:00 am". */
+export function sendLaterLabel(sendOn: CalendarDate, sendHour: number): string {
+  const h = sendHour % 12 === 0 ? 12 : sendHour % 12;
+  return `${dateLabel(sendOn)} at ${h}:00 ${sendHour < 12 ? "am" : "pm"}`;
 }

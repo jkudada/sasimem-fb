@@ -1,6 +1,6 @@
 /**
- * The hourly tick (plan §6.4). Five steps in order - draft, request approval,
- * release, hold, remind - each safe to run twice or concurrently: every state change
+ * The hourly tick (plan §6.4). Six steps in order - draft, request approval,
+ * release, hold, send scheduled one-offs (G2d), remind - each safe to run twice or concurrently: every state change
  * is a create() or a compare-and-set, and only the tick that wins it sends email.
  *
  * One landlord's failure does not stop another's: each unit of work runs on its own,
@@ -10,12 +10,14 @@
 import { type BillingOrg, type InvoiceDocument, approvalRequestDue, periodsToDraft } from "@sasimem/core";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendReminder, sendTenantInvoice } from "./notify.js";
+import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendReminder, sendTenantInvoice } from "./notify.js";
 import type { DispatchLine } from "./mail/templates.js";
-import { renderMissingPdfs } from "./store/pdfs.js";
+import { issueOneOff } from "./store/oneoff.js";
+import { renderMissingPdfs, renderPdfOf } from "./store/pdfs.js";
 import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
-import { type OrgDoc, billingOf, draftRun, orgIdsToTick, runPeriodsOf, runsIn } from "./store/runs.js";
+import { type OrgDoc, billingOf, draftRun, orgIdsToTick, refs, runPeriodsOf, runsIn } from "./store/runs.js";
+import { dropSchedule, dueSchedules, recordNotSent } from "./store/sendLater.js";
 import { MAIL_SECRETS } from "./params.js";
 import { db } from "./admin.js";
 import { holdRun, mintTrackingToken, requestApproval } from "./store/tokens.js";
@@ -30,6 +32,8 @@ export interface Tally {
   sent: number;
   held: number;
   reminded: number;
+  /** One-off invoices sent on the day they were scheduled for (G2d). */
+  scheduled: number;
   /** Orgs whose subscription stops new months (restricted, cancelled): step 1 passed them by. */
   skipped: number;
 }
@@ -41,7 +45,7 @@ export interface TickOptions {
 
 export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<Tally> {
   const now = deps.now();
-  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, skipped: 0 };
+  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, scheduled: 0, skipped: 0 };
   const errors: unknown[] = [];
   const orgs = new Map<string, Promise<OrgDoc & BillingOrg>>();
   const orgOf = (orgId: string) => {
@@ -113,7 +117,33 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
     await sendHeld(deps, run.orgId, await orgOf(run.orgId), run.period, token);
   });
 
-  // 5. Remind, last: nothing about it is urgent.
+  // 5. Send the one-off invoices scheduled for now (G2d), through Send's own transaction.
+  //    Only the tick whose transaction issued it emails; one that cannot go is recorded once.
+  await each(await dueSchedules(now, opts.orgIds), async (s) => {
+    const outcome = await issueOneOff(s.orgId, s.draftId, { actor: s.scheduledBy, now, scheduled: true });
+    switch (outcome.kind) {
+      case "issued": {
+        tally.scheduled++;
+        await renderPdfOf(s.orgId, s.draftId);
+        const invoice = (await refs(s.orgId).invoice(s.draftId).get()).data() as InvoiceDocument;
+        await sendTenantInvoice(deps, s.orgId, s.draftId, invoice);
+        return;
+      }
+      case "notFound": // the draft was deleted
+        return dropSchedule(s);
+      case "notEnabled":
+      case "refused": {
+        const problem = outcome.kind === "refused" ? outcome.message : "One-off invoices are not switched on for your account.";
+        if (await recordNotSent(s, problem, now)) await sendNotSent(deps, s.orgId, await orgOf(s.orgId), s, problem);
+        return;
+      }
+      case "alreadyIssued":
+      case "notDue":
+        return; // another tick sent it, or the owner moved or cancelled it
+    }
+  });
+
+  // 6. Remind, last: nothing about it is urgent.
   await each(await unremindedInvoices(opts.orgIds), async ({ orgId, ref }) => {
     const invoice = await claimReminder(ref, await orgOf(orgId), now);
     if (invoice === null) return;

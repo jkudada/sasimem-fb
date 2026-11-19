@@ -10,7 +10,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
 import type { StoredCreditNote } from "./store/creditNotes.js";
 import type { StoredPayment } from "./store/receipts.js";
@@ -68,6 +68,13 @@ export async function sendHeld(deps: NotifyDeps, orgId: string, org: OrgDoc, per
 
 export async function sendDispatch(deps: NotifyDeps, orgId: string, org: OrgDoc, period: Period, lines: readonly DispatchLine[], trackingToken: string): Promise<void> {
   await sendLogged(logged(deps), { orgId, kind: "dispatch", runPeriod: period }, dispatchNotice({ to: org.email, orgName: org.name, period, lines, trackLink: linkFor(deps, trackingToken) }));
+}
+
+/** A scheduled one-off the tick could not send (G2d), to the org's address; once per schedule. */
+export async function sendNotSent(deps: NotifyDeps, orgId: string, org: OrgDoc, s: { draftId: string; sendAt: Date; customerName: string }, problem: string): Promise<void> {
+  await sendLogged(logged(deps), { orgId, kind: "notSent", noticeKey: `${s.draftId}@${s.sendAt.getTime()}` }, notSentNotice({
+    to: org.email, orgName: org.name, customerName: s.customerName, sendAt: s.sendAt, timezone: org.timezone, problem, link: `${deps.appUrl()}/one-off/${s.draftId}`,
+  }));
 }
 
 /** A sent month's fresh link: the tracking page, not approval. Always to the org's address on file. */

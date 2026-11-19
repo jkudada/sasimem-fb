@@ -281,20 +281,20 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
   email (the log shows it missing), never send it twice. The tick's failure is the alert.
 
 ### core (T1)
-- [ ] the send-later date: blank, unreadable, today or earlier, over a year ahead; tomorrow and a year ahead are fine
-- [ ] when it goes: that date at the send hour in the org's time; due once that moment has come
+- [x] the send-later date: blank, unreadable, today or earlier, over a year ahead; tomorrow and a year ahead are fine
+- [x] when it goes: that date at the send hour in the org's time; due once that moment has come
 
 ### Security rules (T2)
-- [ ] members read `sendLater`; nobody writes it
+- [x] members read `sendLater`; nobody writes it
 
 ### Functions (T3)
-- [ ] `scheduleInvoice` records the date and moment; refused: no `oneOff`, not the owner, a draft with problems, a missing draft, a bad date
-- [ ] scheduling again moves the date; `cancelSchedule` drops it
-- [ ] the tick sends a scheduled draft once its moment comes, not before: numbered from the shared counter, dated that day, PDF, emailed; the schedule goes
-- [ ] two ticks at once send it once
-- [ ] Send invoice on a scheduled draft sends it now and drops the schedule; the tick then sends nothing
-- [ ] the tick finds a draft it cannot send: nothing numbered, the problem recorded, the owner emailed once
-- [ ] the tick clears the schedule of a deleted draft
+- [x] `scheduleInvoice` records the date and moment; refused: no `oneOff`, not the owner, a draft with problems, a missing draft, a bad date
+- [x] scheduling again moves the date; `cancelSchedule` drops it
+- [x] the tick sends a scheduled draft once its moment comes, not before: numbered from the shared counter, dated that day, PDF, emailed; the schedule goes
+- [x] two ticks at once send it once
+- [x] Send invoice on a scheduled draft sends it now and drops the schedule; the tick then sends nothing
+- [x] the tick finds a draft it cannot send: nothing numbered, the problem recorded, the owner emailed once
+- [x] the tick clears the schedule of a deleted draft
 
 ### Web (T1 web)
 - [ ] the editor: Send later with a date; the date's problems; Schedule saves then schedules; "Goes on …" on a scheduled draft, with Cancel the schedule

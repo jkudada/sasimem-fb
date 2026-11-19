@@ -12,6 +12,7 @@ import type { Mail, Mailer } from "./mailer.js";
 export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "tenantInvoice" | "tenantInvoiceAgain" | "reminder"
   | "receipt" | "receiptAgain" // G2b: one per payment, keyed by the payment's ID; again when the owner asks
   | "creditNote" | "creditNoteAgain" // G2c: one per credit note, keyed by its ID; again when the owner asks
+  | "notSent" // G2d: a scheduled one-off the tick could not send, once per schedule (the notice key)
   // The subscriber's lifecycle (PLAN-SUBSCRIBERS §9), each sent once per notice key.
   | "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted" | "cancelled";
 

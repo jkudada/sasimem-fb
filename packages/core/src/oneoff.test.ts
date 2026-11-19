@@ -132,3 +132,40 @@ test("a one-off's snapshot: the customer as bill-to, with TIN, GST number, copy-
     org: { name: "Wari Electrical", gstNumber: "G-1" },
   });
 });
+
+describe("send later (G2d)", () => {
+  const org = { sendHour: 8, timezone: "Pacific/Port_Moresby" };
+
+  test("a date from tomorrow to a year ahead is fine", () => {
+    expect(oneOff.sendLaterProblem("2026-11-20", TODAY)).toBeNull();
+    expect(oneOff.sendLaterProblem(" 2027-11-19 ", TODAY)).toBeNull();
+  });
+
+  test("blank, unreadable, today or earlier, and over a year ahead are refused, in the owner's words", () => {
+    expect(oneOff.sendLaterProblem("", TODAY)).toBe("Choose the day to send it.");
+    expect(oneOff.sendLaterProblem("2026-02-30", TODAY)).toBe("Choose the day to send it.");
+    expect(oneOff.sendLaterProblem("tomorrow", TODAY)).toBe("Choose the day to send it.");
+    expect(oneOff.sendLaterProblem("2026-11-19", TODAY)).toBe("Choose a day after today. To send it today, press Send invoice.");
+    expect(oneOff.sendLaterProblem("2026-10-01", TODAY)).toBe("Choose a day after today. To send it today, press Send invoice.");
+    expect(oneOff.sendLaterProblem("2027-11-20", TODAY)).toBe("Choose a day within a year.");
+  });
+
+  test("it goes on that day at the send hour, in the org's time", () => {
+    expect(oneOff.sendLaterAt("2026-12-01" as CalendarDate, org).toISOString()).toBe("2026-11-30T22:00:00.000Z");
+    expect(oneOff.sendLaterAt("2026-12-01" as CalendarDate, { ...org, sendHour: 0 }).toISOString()).toBe("2026-11-30T14:00:00.000Z");
+  });
+
+  test("it is due once that moment has come, not before", () => {
+    const at = new Date("2026-11-30T22:00:00Z");
+    expect(oneOff.sendLaterDue({ sendAt: at }, new Date("2026-11-30T21:59:59Z"))).toBe(false);
+    expect(oneOff.sendLaterDue({ sendAt: at }, at)).toBe(true);
+    expect(oneOff.sendLaterDue({ sendAt: at }, new Date("2026-12-05T00:00:00Z"))).toBe(true);
+  });
+
+  test("the label says the day and the hour", () => {
+    expect(oneOff.sendLaterLabel("2026-12-01" as CalendarDate, 8)).toBe("1 December 2026 at 8:00 am");
+    expect(oneOff.sendLaterLabel("2026-12-01" as CalendarDate, 0)).toBe("1 December 2026 at 12:00 am");
+    expect(oneOff.sendLaterLabel("2026-12-01" as CalendarDate, 12)).toBe("1 December 2026 at 12:00 pm");
+    expect(oneOff.sendLaterLabel("2026-12-01" as CalendarDate, 17)).toBe("1 December 2026 at 5:00 pm");
+  });
+});

@@ -74,6 +74,17 @@ export function heldNotice(req: { to: string; orgName: string; period: Period; l
   });
 }
 
+/** A scheduled one-off the tick could not send (G2d): what, why, and where to put it right. Nothing was numbered. */
+export function notSentNotice(req: { to: string; orgName: string; customerName: string; sendAt: Date; timezone: string; problem: string; link: string }): Mail {
+  return toLandlord(req.to, `Not sent: your invoice for ${req.customerName}`, {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: `Your invoice was due to go to ${req.customerName} at ${whenLabel(req.sendAt, req.timezone)}, but was not sent: ${req.problem}` },
+      { p: "It is still a draft, and nothing was numbered. Put it right and send it, or schedule it again, here:", link: req.link },
+    ],
+  });
+}
+
 export interface DispatchLine {
   readonly tenantName: string;
   readonly number: string;

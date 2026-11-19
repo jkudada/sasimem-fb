@@ -252,6 +252,11 @@ service cloud.firestore {
       match /credits/{customerId} {
         allow read: if canRead(orgId);
       }
+      // A one-off draft's schedule (G2d): written only by scheduleInvoice, cancelSchedule,
+      // issuing and the tick, so a schedule is always one the server checked.
+      match /sendLater/{draftId} {
+        allow read: if canRead(orgId);
+      }
       // The email log: members read it so a missing email shows up; it holds no bodies.
       match /emails/{emailId} {
         allow read: if canRead(orgId);
