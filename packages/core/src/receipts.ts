@@ -32,6 +32,8 @@ export interface PaymentInput {
   readonly reference: string;
   readonly note: string;
   readonly allocations: readonly PaymentAllocation[];
+  /** Customer credit used as well as the money received (G2c); absent means none. */
+  readonly creditUsedToea?: Toea;
 }
 
 /** An invoice as payments see it. `amountPaidToea` is absent on invoices from before G2b. */
@@ -44,9 +46,11 @@ export interface OpenInvoice {
   readonly dueDate: CalendarDate;
   readonly totalToea: Toea;
   readonly amountPaidToea?: Toea;
+  /** Taken off its balance by credit notes (G2c); absent means none. */
+  readonly creditedToea?: Toea;
 }
 
-type Paid = Pick<OpenInvoice, "status" | "totalToea" | "amountPaidToea">;
+type Paid = Pick<OpenInvoice, "status" | "totalToea" | "amountPaidToea" | "creditedToea">;
 
 /** What has been paid: as recorded; an invoice ticked paid before G2b, with nothing recorded, in full. */
 export function paidSoFar(i: Paid): Toea {
@@ -54,8 +58,8 @@ export function paidSoFar(i: Paid): Toea {
   return i.status === "paid" ? i.totalToea : toea(0);
 }
 
-/** What is still owed. Only a sent invoice owes anything: void and unissued ones owe nothing. */
-export const balanceOf = (i: Paid): Toea => (i.status === "sent" ? toea(i.totalToea - paidSoFar(i)) : toea(0));
+/** What is still owed: less payments and credit notes. Only a sent invoice owes anything: void and unissued ones owe nothing. */
+export const balanceOf = (i: Paid): Toea => (i.status === "sent" ? toea(i.totalToea - paidSoFar(i) - (i.creditedToea ?? 0)) : toea(0));
 
 /** True once a payment has been recorded against it (a plain paid tick does not count). */
 export const hasPayments = (i: Pick<OpenInvoice, "amountPaidToea">): boolean => (i.amountPaidToea ?? 0) > 0;
@@ -76,8 +80,11 @@ export function oldestFirst(amount: Toea, open: readonly OpenInvoice[]): { alloc
   return { allocations, creditToea: toea(left) };
 }
 
-export const creditOf = (p: Pick<PaymentInput, "amountToea" | "allocations">): Toea =>
-  toea(p.amountToea - p.allocations.reduce((t, a) => t + a.amountToea, 0));
+const appliedTotal = (p: Pick<PaymentInput, "allocations">): Toea => toea(p.allocations.reduce((t, a) => t + a.amountToea, 0));
+
+/** The credit a payment makes: what was received and credit used, less what it applied. */
+export const creditOf = (p: Pick<PaymentInput, "amountToea" | "allocations" | "creditUsedToea">): Toea =>
+  toea(p.amountToea + (p.creditUsedToea ?? 0) - appliedTotal(p));
 
 const validDate = (d: string): boolean => {
   try {
@@ -89,15 +96,20 @@ const validDate = (d: string): boolean => {
 };
 
 /**
- * What stops a payment being recorded. `open` is the customer's invoices as they stand now;
- * the server passes what it read in the transaction, so two payments cannot overpay one.
+ * What stops a payment being recorded. `open` is the customer's invoices and `credit` their
+ * credit as they stand now; the server passes what it read in the transaction, so two
+ * payments cannot overpay one invoice or use the same credit.
  */
-export function paymentProblems(p: PaymentInput, open: readonly OpenInvoice[], today: CalendarDate): Problems<keyof PaymentInput> {
+export function paymentProblems(p: PaymentInput, open: readonly OpenInvoice[], today: CalendarDate, credit: Toea = toea(0)): Problems<keyof PaymentInput> {
   const problems: Problems<keyof PaymentInput> = {};
   if (p.customerId === "") problems.customerId = "Choose who paid.";
   if (!validDate(p.receivedOn)) problems.receivedOn = "Enter the date it was received.";
   else if (p.receivedOn > today) problems.receivedOn = "A payment cannot be received in the future.";
-  if (!Number.isSafeInteger(p.amountToea) || p.amountToea <= 0) problems.amountToea = "Enter the amount received.";
+  const used = p.creditUsedToea ?? 0;
+  if (!Number.isSafeInteger(used) || used < 0) problems.creditUsedToea = "Enter how much credit to use.";
+  else if (used > credit) problems.creditUsedToea = credit > 0 ? `They have only ${formatKina(credit)} in credit.` : "They have no credit to use.";
+  else if (used > appliedTotal(p)) problems.creditUsedToea = "Use no more credit than you apply to invoices.";
+  if (!Number.isSafeInteger(p.amountToea) || p.amountToea < 0 || (p.amountToea === 0 && used <= 0)) problems.amountToea = "Enter the amount received.";
   else {
     const tooBig = amountProblem(p.amountToea);
     if (tooBig !== null) problems.amountToea = tooBig;
@@ -121,9 +133,11 @@ function allocationProblem(p: PaymentInput, open: readonly OpenInvoice[]): strin
     if (!Number.isSafeInteger(a.amountToea) || a.amountToea <= 0) return "Each amount applied must be more than K0.00.";
     if (a.amountToea > balanceOf(i)) return `${i.number} has only ${formatKina(balanceOf(i))} left to pay.`;
   }
-  const applied = toea(p.allocations.reduce((t, a) => t + a.amountToea, 0));
-  if (Number.isSafeInteger(p.amountToea) && applied > p.amountToea) {
-    return `You have applied ${formatKina(applied)}, more than the ${formatKina(p.amountToea)} received.`;
+  const applied = appliedTotal(p);
+  const used = Number.isSafeInteger(p.creditUsedToea ?? 0) ? (p.creditUsedToea ?? 0) : 0;
+  if (Number.isSafeInteger(p.amountToea) && applied > p.amountToea + used) {
+    const from = used > 0 ? `the ${formatKina(p.amountToea)} received and ${formatKina(toea(used))} of credit` : `the ${formatKina(p.amountToea)} received`;
+    return `You have applied ${formatKina(applied)}, more than ${from}.`;
   }
   return null;
 }
@@ -134,8 +148,9 @@ function allocationProblem(p: PaymentInput, open: readonly OpenInvoice[]): strin
  */
 export function applied(i: Paid, amount: Toea): { amountPaidToea: Toea; status: "sent" | "paid" } {
   const paid = paidSoFar(i) + amount;
-  if (paid < 0 || paid > i.totalToea) throw new RangeError(`paid ${paid} outside 0..${i.totalToea}`);
-  return { amountPaidToea: toea(paid), status: paid === i.totalToea ? "paid" : "sent" };
+  const payable = i.totalToea - (i.creditedToea ?? 0);
+  if (paid < 0 || paid > payable) throw new RangeError(`paid ${paid} outside 0..${payable}`);
+  return { amountPaidToea: toea(paid), status: paid === payable ? "paid" : "sent" };
 }
 
 export function undoReasonProblem(reason: string): string | null {

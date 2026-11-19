@@ -218,26 +218,28 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
   a kind of credit note) come with statements and the accountant's export (G7).
 
 ### core (T1)
-- [ ] crediting a line: the amount's sign and size against what is left of the line; GST at 10%, the last of a line taking the last of its GST; untaxed lines none
-- [ ] the whole invoice: every line's remainder, matching the invoice's totals to the toea after earlier part credits
-- [ ] a credit note's problems: no reason or over 200; nothing credited; a line not on the invoice or listed twice; more than is left; a void or unissued invoice; over the limit
-- [ ] where it goes: off the balance first, the rest credit; an invoice credited to 0 is paid
-- [ ] balance and Still owed subtract what was credited; the Credited chip
-- [ ] a payment may use credit: up to the customer's credit; allocations up to received plus credit used; K0.00 received only when credit is used
-- [ ] property: crediting any invoice in random parts never passes its lines, and crediting the rest leaves exactly 0 on every line and in all
+- [x] crediting a line: the amount's sign and size against what is left of the line; GST at 10%, the last of a line taking the last of its GST; untaxed lines none
+- [x] the whole invoice: every line's remainder, matching the invoice's totals to the toea after earlier part credits
+- [x] a credit note's problems: no reason or over 200; nothing credited; a line not on the invoice or listed twice; more than is left; a void or unissued invoice; over the limit
+- [x] where it goes: off the balance first, the rest credit; an invoice credited to 0 is paid
+- [x] balance and Still owed subtract what was credited; the Credited chip
+- [x] a payment may use credit: up to the customer's credit; allocations up to received plus credit used; K0.00 received only when credit is used
+- [x] property: crediting any invoice in random parts never passes its lines, and crediting the rest credits it in full, leaving 0 on every line
+  (or, found by the property: what is left can come to K0.00, a discount against a toea, which is credited in full already)
 
 ### Security rules (T2)
-- [ ] members read credit notes and credits; nobody writes them
+- [x] members read credit notes and credits; nobody writes them
 
 ### Functions (T3)
-- [ ] `issueCreditNote` numbers it (CN-0001, then 0002), freezes it, records the event, takes it off the balance, makes the PDF, and emails it to the customer and copy-to
-- [ ] crediting a paid invoice adds to the customer's credit; crediting part of a sent one leaves the rest owed; crediting all of it makes it paid
-- [ ] the same credit note ID twice gives one credit note, one number, one email
-- [ ] refused: no `oneOff`; not the owner; a void or unissued invoice; more than is left (checked in the transaction)
-- [ ] the credit note's PDF prints TAX CREDIT NOTE, the invoice it credits, and the reason
-- [ ] a payment using credit takes it off the customer's credit; one using only credit has no receipt and sends nothing
-- [ ] recording a payment that makes credit adds it; undoing one gives back credit used and takes back credit made; refused when that credit has been used
-- [ ] mark paid, not paid and void are refused once an invoice has a credit note
+- [x] `issueCreditNote` numbers it (CN-0001, then 0002), freezes it, records the event, takes it off the balance, makes the PDF, and emails it to the customer and copy-to
+- [x] crediting a paid invoice adds to the customer's credit; crediting part of a sent one leaves the rest owed; crediting all of it makes it paid
+- [x] the same credit note ID twice gives one credit note, one number, one email
+- [x] refused: no `oneOff`; not the owner; a void or unissued invoice; more than is left (checked in the transaction)
+- [x] the credit note's PDF prints TAX CREDIT NOTE, the invoice it credits, and the reason
+- [x] a payment using credit takes it off the customer's credit; one using only credit has no receipt and sends nothing
+- [x] recording a payment that makes credit adds it; undoing one gives back credit used and takes back credit made; refused when that credit has been used
+- [x] mark paid, not paid and void are refused once an invoice has a credit note
+- [x] a part-credited invoice's reminder asks for what is left
 
 ### Web (T1 web)
 - [ ] the credit note form: each line with what is left; Credit the whole invoice; GST and total as typed; where it goes; reason; problems

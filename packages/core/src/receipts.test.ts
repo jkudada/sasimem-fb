@@ -95,6 +95,33 @@ describe("what is wrong with a payment", () => {
   });
 });
 
+describe("using credit (G2c)", () => {
+  const open = [inv()];
+  const problems = (p: Partial<r.PaymentInput>, credit = 0) => r.paymentProblems(payment(p), open, today, k(credit));
+
+  test("up to the customer's credit, and no more than is applied", () => {
+    expect(problems({ amountToea: k(7_500), creditUsedToea: k(2_500) }, 2_500)).toEqual({});
+    expect(problems({ amountToea: k(7_500), creditUsedToea: k(2_500) }, 2_000).creditUsedToea).toBe("They have only K20.00 in credit.");
+    expect(problems({ amountToea: k(7_500), creditUsedToea: k(2_500) }).creditUsedToea).toBe("They have no credit to use.");
+    expect(problems({ amountToea: k(7_500), creditUsedToea: k(-1) }, 2_500).creditUsedToea).toBe("Enter how much credit to use.");
+    expect(problems({ allocations: [{ invoiceId: "i1", amountToea: k(1_000) }], creditUsedToea: k(2_000) }, 2_500).creditUsedToea).toBe("Use no more credit than you apply to invoices.");
+  });
+
+  test("allocations up to what was received plus credit used", () => {
+    expect(problems({ amountToea: k(5_000), creditUsedToea: k(2_500) }, 2_500).allocations).toBe("You have applied K100.00, more than the K50.00 received and K25.00 of credit.");
+  });
+
+  test("K0.00 received only when credit is used", () => {
+    expect(problems({ amountToea: k(0), creditUsedToea: k(10_000) }, 10_000)).toEqual({});
+    expect(problems({ amountToea: k(0), allocations: [] }).amountToea).toBe("Enter the amount received.");
+  });
+
+  test("the credit a payment makes counts the credit it used", () => {
+    expect(r.creditOf(payment({ amountToea: k(5_000), creditUsedToea: k(5_000) }))).toBe(0);
+    expect(r.creditOf(payment({ amountToea: k(8_000), creditUsedToea: k(5_000) }))).toBe(3_000);
+  });
+});
+
 describe("applying a payment to an invoice, and undoing it", () => {
   test("part leaves it sent with a balance; the rest makes it paid", () => {
     expect(r.applied(inv(), k(4_000))).toEqual({ amountPaidToea: 4_000, status: "sent" });
@@ -104,6 +131,12 @@ describe("applying a payment to an invoice, and undoing it", () => {
   test("undoing reverses either", () => {
     expect(r.applied(inv({ status: "paid", amountPaidToea: k(10_000) }), k(-6_000))).toEqual({ amountPaidToea: 4_000, status: "sent" });
     expect(r.applied(inv({ amountPaidToea: k(4_000) }), k(-4_000))).toEqual({ amountPaidToea: 0, status: "sent" });
+  });
+
+  test("credit notes come off the balance and what can be paid (G2c)", () => {
+    expect(r.balanceOf(inv({ amountPaidToea: k(4_000), creditedToea: k(1_000) }))).toBe(5_000);
+    expect(r.applied(inv({ creditedToea: k(1_000) }), k(9_000))).toEqual({ amountPaidToea: 9_000, status: "paid" });
+    expect(() => r.applied(inv({ creditedToea: k(1_000) }), k(9_001))).toThrow(RangeError);
   });
 
   test("never below 0 or above the total", () => {

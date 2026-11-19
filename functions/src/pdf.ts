@@ -42,12 +42,22 @@ interface Page {
   readonly left: number;
   readonly right: number;
   readonly width: number;
+  /** A credit note (G2c): it names the invoice in place of the due date, and the reason in place of how to pay. */
+  readonly credit?: CreditPrint;
+}
+
+/** What a credit note prints beyond an invoice's content. */
+export interface CreditPrint {
+  readonly invoiceNumber: string;
+  readonly reason: string;
+  readonly appliedToea: number;
+  readonly creditToea: number;
 }
 
 const k = (t: number) => formatKina(t as Toea);
 const date = (d: string) => dateLabel(d as CalendarDate);
 
-export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | null, opts: { compress?: boolean } = {}): Promise<Buffer> {
+export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | null, opts: { compress?: boolean; credit?: CreditPrint } = {}): Promise<Buffer> {
   const snap = invoice.snapshot;
   if (snap === null || invoice.number === null) throw new Error(`invoice ${invoice.tenancyId}_${invoice.period} is not approved`);
   const org = snap.org;
@@ -68,6 +78,7 @@ export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | 
     logo: t.mark === "logo" && logo !== null ? await prepareLogo(logo) : null,
     showGst: invoice.lines.some((l) => l.gstApplicable),
     left: 50, right: doc.page.width - 50, width: doc.page.width - 100,
+    ...(opts.credit === undefined ? {} : { credit: opts.credit }),
   };
   if (t.layout === "band") band(page);
   else if (t.layout === "compact") compact(page);
@@ -109,7 +120,7 @@ function facts(p: Page): [string, string][] {
   return [
     ["Number", invoice.number ?? ""],
     ["Issued", date(invoice.issueDate)],
-    ["Due", date(invoice.dueDate)],
+    p.credit === undefined ? ["Due", date(invoice.dueDate)] : ["For invoice", p.credit.invoiceNumber],
     ...(p.showGst && org.gstRegistered && org.gstNumber !== "" ? [["GST number", org.gstNumber] as [string, string]] : []),
   ];
 }
@@ -245,9 +256,13 @@ function totals(p: Page, top: number, s: Scale, totalColour: string | null): num
   return Math.max(y, doc.y + 16);
 }
 
-/** How to pay, with the reference in large type: it is what matches the deposit. */
+/** How to pay, with the reference in large type: it is what matches the deposit. A credit note's reason instead. */
 function payment(p: Page, top: number, s: Scale, boxColour: string | null): void {
   const { doc, invoice, org, f, left } = p;
+  if (p.credit !== undefined) {
+    creditBlock(p, p.credit, top, s);
+    return;
+  }
   let y = top;
   doc.font(f.regular).fontSize(s.body).fillColor(MUTED).text("Pay by bank deposit", left, y);
   y += s.payRow;
@@ -264,6 +279,24 @@ function payment(p: Page, top: number, s: Scale, boxColour: string | null): void
   if (boxColour !== null) {
     const w = doc.widthOfString(invoice.paymentReference);
     doc.roundedRect(left - 6, y + 12, w + 12, s.reference + 8, 4).lineWidth(1.5).strokeColor(boxColour).stroke();
+  }
+}
+
+/** Why it was credited, and where the credit went: off what the invoice owes, and kept as credit. */
+function creditBlock(p: Page, c: CreditPrint, top: number, s: Scale): void {
+  const { doc, f, left, width } = p;
+  doc.font(f.regular).fontSize(s.body).fillColor(MUTED).text("Reason", left, top);
+  doc.fillColor(INK).text(c.reason, left, top + s.payRow, { width });
+  let y = doc.y + 8;
+  const rows: [string, number][] = [
+    ...(c.appliedToea > 0 ? [[`Taken off what you owe on ${c.invoiceNumber}`, c.appliedToea] as [string, number]] : []),
+    ...(c.creditToea > 0 ? [["Kept as credit for you", c.creditToea] as [string, number]] : []),
+  ];
+  for (const [label, amount] of rows) {
+    doc.fillColor(MUTED).text(label, left, y, { width: 260 });
+    doc.fillColor(INK).font(f.bold).text(k(amount), left + 270, y);
+    doc.font(f.regular);
+    y += s.payRow;
   }
 }
 

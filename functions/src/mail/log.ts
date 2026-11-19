@@ -11,6 +11,7 @@ import type { Mail, Mailer } from "./mailer.js";
 
 export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "tenantInvoice" | "tenantInvoiceAgain" | "reminder"
   | "receipt" | "receiptAgain" // G2b: one per payment, keyed by the payment's ID; again when the owner asks
+  | "creditNote" | "creditNoteAgain" // G2c: one per credit note, keyed by its ID; again when the owner asks
   // The subscriber's lifecycle (PLAN-SUBSCRIBERS §9), each sent once per notice key.
   | "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted" | "cancelled";
 
@@ -23,17 +24,20 @@ export interface MailContext {
   readonly noticeKey?: string;
   /** A receipt's payment (G2b). */
   readonly paymentId?: string;
+  /** A credit note (G2c). */
+  readonly creditNoteId?: string;
 }
 
 /** A landlord may ask for fresh links, or an invoice emailed again, more than once; every other kind goes once per run or invoice. */
-const sentOnce = (kind: EmailKind) => kind !== "freshLink" && kind !== "tenantInvoiceAgain" && kind !== "receiptAgain";
+const sentOnce = (kind: EmailKind) => kind !== "freshLink" && kind !== "tenantInvoiceAgain" && kind !== "receiptAgain" && kind !== "creditNoteAgain";
 
 export async function sendLogged(deps: { readonly mailer: Mailer; readonly now: Date }, ctx: MailContext, mail: Mail): Promise<string> {
-  const key = sentOnce(ctx.kind) ? `${ctx.orgId}/${ctx.kind}/${ctx.invoiceId ?? ctx.paymentId ?? ctx.runPeriod ?? ctx.noticeKey ?? ""}` : undefined;
+  const key = sentOnce(ctx.kind) ? `${ctx.orgId}/${ctx.kind}/${ctx.invoiceId ?? ctx.paymentId ?? ctx.creditNoteId ?? ctx.runPeriod ?? ctx.noticeKey ?? ""}` : undefined;
   const entry = {
     kind: ctx.kind, to: mail.to, subject: mail.subject,
     runPeriod: ctx.runPeriod ?? null, invoiceId: ctx.invoiceId ?? null,
     ...(ctx.paymentId === undefined ? {} : { paymentId: ctx.paymentId }),
+    ...(ctx.creditNoteId === undefined ? {} : { creditNoteId: ctx.creditNoteId }),
     sentAt: Timestamp.fromDate(deps.now),
   };
   const log = db().collection(`orgs/${ctx.orgId}/emails`);
