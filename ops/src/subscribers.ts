@@ -4,15 +4,17 @@
  * node, which cannot load core's sources, so the little they need from core is copied
  * here; test/subscribers.test.ts proves each copy equal to core's.
  */
-type Value =
+export type Value =
   | { stringValue: string } | { integerValue: string } | { booleanValue: boolean }
-  | { nullValue: null } | { timestampValue: string };
+  | { nullValue: null } | { timestampValue: string } | { mapValue: { fields: Record<string, Value> } };
 type Plain = string | number | boolean | null | Date;
 
 export interface Write {
   readonly update: { readonly name: string; readonly fields: Record<string, Value> };
   /** Create-only when present; absent, the write replaces the document (billing details). */
-  readonly currentDocument?: { readonly exists: false };
+  readonly currentDocument?: { readonly exists: boolean };
+  /** Only these fields change; the rest of the document is kept (features.ts). */
+  readonly updateMask?: { readonly fieldPaths: readonly string[] };
 }
 
 export const documentsRoot = (project: string): string => `projects/${project}/databases/(default)/documents`;

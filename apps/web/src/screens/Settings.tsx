@@ -1,13 +1,13 @@
 import { useSignal } from "@preact/signals";
-import { MAX_LOGO_BYTES, type OrgProfile, firstInvoiceNumberProblem, logoProblem, logoTypeProblem, profileProblems } from "@sasimem/core";
+import { DEFAULT_TERMS_DAYS, MAX_LOGO_BYTES, type OrgProfile, firstInvoiceNumberProblem, hasFeature, logoProblem, logoTypeProblem, profileProblems, wholeIn } from "@sasimem/core";
 import { shrinkLogo } from "../logo/shrink.js";
-import type { Numbering, Org } from "../setup.js";
+import type { Numbering, Org, ProfileEdit } from "../setup.js";
 import { Icon, type IconName } from "./icons.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { whole } from "./read.js";
 
-type Problems = ReturnType<typeof profileProblems>;
+type Problems = ReturnType<typeof profileProblems> & { defaultTermsDays?: string };
 
 /** How the next invoice number will print (plan §6.3: prefix + zero-pad(4)). */
 const printed = (prefix: string, n: number) => `${prefix}${String(n).padStart(4, "0")}`;
@@ -17,7 +17,7 @@ export function Settings(props: {
   org: Org;
   numbering: Numbering | null;
   logoUrl: string | null;
-  onSave: (profile: OrgProfile) => Promise<string | null>;
+  onSave: (profile: ProfileEdit) => Promise<string | null>;
   onUploadLogo: (file: File) => Promise<string | null>;
   onRemoveLogo: () => Promise<string | null>;
   onSetNext: (next: number) => Promise<string | null>;
@@ -37,6 +37,8 @@ export function Settings(props: {
   const sendHour = useSignal(String(o.sendHour));
   const reminderDays = useSignal(String(o.reminderAfterDays));
   const remind = useSignal(o.reminderMode === "auto");
+  const oneOff = hasFeature(o, "oneOff");
+  const termsDays = useSignal(String(o.defaultTermsDays ?? DEFAULT_TERMS_DAYS));
   const problems = useSignal<Problems>({});
   const message = useSignal<string | null>(null);
   const logoMessage = useSignal<string | null>(null);
@@ -52,11 +54,13 @@ export function Settings(props: {
       approvalLeadDays: whole(leadDays.value), sendHour: whole(sendHour.value), reminderAfterDays: whole(reminderDays.value),
       reminderMode: remind.value ? "auto" : "off",
     };
-    problems.value = profileProblems(profile);
+    // One-off invoices' usual terms (G2a), only where that part is shown.
+    const terms = whole(termsDays.value);
+    problems.value = { ...profileProblems(profile), ...(oneOff && !wholeIn(terms, 0, 90) ? { defaultTermsDays: "Choose from 0 to 90 days." } : {}) };
     message.value = null;
     if (Object.keys(problems.value).length > 0) return;
     busy.value = true;
-    message.value = (await props.onSave(profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
+    message.value = (await props.onSave(oneOff ? { ...profile, defaultTermsDays: terms } : profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
     busy.value = false;
   };
 
@@ -140,6 +144,11 @@ export function Settings(props: {
           {remind.value && (
             <Field label="Days after the due date to send the reminder" problem={p.reminderAfterDays}>
               <input inputMode="numeric" value={reminderDays} onInput={(e) => (reminderDays.value = value(e))} />
+            </Field>
+          )}
+          {oneOff && (
+            <Field label="Days to pay a one-off invoice" hint="Your usual terms. A customer's own terms, or the invoice's, come first." problem={p.defaultTermsDays}>
+              <input inputMode="numeric" value={termsDays} onInput={(e) => (termsDays.value = value(e))} />
             </Field>
           )}
           {message.value !== null && <p role="status">{message.value}</p>}

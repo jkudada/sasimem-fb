@@ -160,3 +160,14 @@ export async function setSubscription(email: string, fields: Record<string, numb
   });
   if (!res.ok) throw new Error(`could not change the subscription: ${res.status}`);
 }
+
+/** Switch features on for the landlord's org, as ops/features.ts does on a real project (G2a). The whole map, as there. */
+export async function switchOn(email: string, features: readonly string[]): Promise<void> {
+  const orgId = await orgIdOf(email);
+  const all = ["rentals", "repeating", "oneOff", "quotes", "tradeJobs"];
+  const res = await fetch(`${DOCS}/orgs/${orgId}?updateMask.fieldPaths=features`, {
+    method: "PATCH", headers: { ...OWNER, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { features: { mapValue: { fields: Object.fromEntries(all.map((f) => [f, { booleanValue: features.includes(f) }])) } } } }),
+  });
+  if (!res.ok) throw new Error(`could not switch features on: ${res.status}`);
+}
