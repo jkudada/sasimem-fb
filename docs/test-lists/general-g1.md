@@ -6,8 +6,8 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 | Slice | What | Needs |
 |---|---|---|
 | **G1a** | `core` only: tax codes, quantities, item lines, invoice sources, modules and features, document counters | - |
-| G1b | Customers: the shared customer record (decision C1 below) | user's answer on C1 |
-| G1c | Functions: new rent invoices carry `source` and `customerId`; golden PDFs unchanged | G1a |
+| G1b | Customers: the shared customer record, stored at `orgs/{orgId}/tenants` (C1) | - |
+| G1c | Functions: new rent invoices carry `source`; golden PDFs unchanged | G1a |
 
 **The G1 rule:** a Rentals user sees nothing new, and every rent invoice, PDF, email and
 number is exactly what it would have been before.
@@ -75,3 +75,44 @@ number is exactly what it would have been before.
 - [x] each kind has its counter field and default prefix: invoice INV-, quote QUO-, credit note CN-, receipt RCT-
 - [x] a missing counter field reads as 1
 - [x] the invoice prefix still comes from the org (today's `invoicePrefix`)
+
+## G1b: customers
+
+**C1, agreed 2026-11-19:** a customer is stored where tenants always were,
+`orgs/{orgId}/tenants/{id}`, with optional business details. Nothing moves (M1 is dropped);
+the path name stays "tenants" internally and can be renamed later. Choices:
+- **The Rentals tenant form now saves with a merge**, so editing a tenant's name or phone keeps
+  business details it does not show. (Before, the form replaced the whole document.)
+- **Copy-to addresses: at most 3**, none repeating the main address. Rules check each by index.
+- **Payment terms blank = the org's default.** 0-90 days, as for a tenancy's due days.
+- **The CSV export is unchanged** until a screen can set these fields (G2).
+
+### core (T1)
+- [x] a tenant as stored today reads as a customer with every extra empty
+- [x] stored extras are read back; malformed ones read as empty, not trusted
+- [x] name and email follow the tenant rules, in neutral words ("the customer's name")
+- [x] copy-to: at most 3, each a real address, none repeating the main one
+- [x] lengths: address 200, TIN 20, GST number 20, notes 500, phone 30
+- [x] terms blank, or 0-90 whole days
+- [x] `CUSTOMER_EXTRAS` names the optional fields, for the rules and store to agree on
+
+### Security rules (T2)
+- [x] an owner saves a customer with every business detail, or with none (today's tenant)
+- [x] the rules accept exactly the extras core names
+- [x] bad details are refused: 4 copy-to addresses, a bad or non-list copy-to, long address or TIN, a number for a GST number, terms 91 / 7.5 / "14", a non-boolean PO flag, long notes, an unknown field
+- [x] a merge of name, email and phone onto a customer with details is allowed (the Rentals form)
+- [x] a stranger cannot write a customer
+
+## G1c: functions
+
+Choices:
+- **No `customerId` on invoices.** With C1 a tenant *is* the customer, so the invoice's existing
+  `tenantId` is its customer id; a second field would only be a copy to keep in step.
+- **One place makes a new rent invoice.** The tick's drafting and `rebuildRun` each listed the
+  fields by hand; both now call `newInvoice`, so they cannot drift apart.
+- Invoices drafted before G1c have no `source`; core's `sourceOf` reads them as rent.
+
+### Functions (T3)
+- [x] a drafted rent invoice carries `source: { kind: "rent", tenancyId, period }`
+- [x] a tenancy added by `rebuildRun` gets the same fields as one drafted by the tick, `source` included
+- [x] every existing T3 test passes unchanged: approval, numbering, the golden PDFs (byte-identical), emails, payments, the tick
