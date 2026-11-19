@@ -19,3 +19,4 @@ export * from "./subscription-lifecycle.js";
 export * from "./export.js";
 export * from "./lines.js";
 export * from "./modules.js";
+export * from "./customers.js";

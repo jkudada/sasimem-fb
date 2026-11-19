@@ -37,7 +37,7 @@ export function orgProblems(org: OrgSetup): Problems<keyof OrgSetup> {
   return p;
 }
 
-const EMAIL_PROBLEM = "Enter an email address like name@example.com.";
+export const EMAIL_PROBLEM = "Enter an email address like name@example.com.";
 
 const DATE_PROBLEM = "Enter a real date, such as 2026-10-01.";
 
@@ -49,7 +49,7 @@ function realDate(text: string): CalendarDate | null {
   }
 }
 
-const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteger(n) && n >= min && n <= max;
+export const wholeIn = (n: number, min: number, max: number): boolean => Number.isInteger(n) && n >= min && n <= max;
 
 /** Deliberately loose: the real check is whether mail arrives. */
 export const looksLikeEmail = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
