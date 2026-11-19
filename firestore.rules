@@ -60,7 +60,7 @@ service cloud.firestore {
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
               'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath',
-              'defaultTemplateId', 'logoDesign'];
+              'defaultTemplateId', 'logoDesign', 'defaultTermsDays'];
     }
 
     // A logo lives in the org's own folder; storage.rules guards the file itself.
@@ -107,7 +107,8 @@ service cloud.firestore {
         && str(d.bankName, 0, 100) && str(d.bankAccount, 0, 50)
         && str(d.invoicePrefix, 0, 10) && str(d.timezone, 1, 64)
         && wholeIn(d.approvalLeadDays, 1, 28) && wholeIn(d.sendHour, 0, 23) && wholeIn(d.reminderAfterDays, 0, 60)
-        && d.reminderMode in ['auto', 'off'];
+        && d.reminderMode in ['auto', 'off']
+        && (!('defaultTermsDays' in d) || wholeIn(d.defaultTermsDays, 0, 90)); // G2a: one-off invoices' default terms
     }
 
     // A tenant is a customer (docs/PLAN-GENERAL-INVOICING.md G1b): today's three fields,
@@ -143,6 +144,26 @@ service cloud.firestore {
       return xs is list && xs.size() <= 10
         && extraOk(xs, 0) && extraOk(xs, 1) && extraOk(xs, 2) && extraOk(xs, 3) && extraOk(xs, 4)
         && extraOk(xs, 5) && extraOk(xs, 6) && extraOk(xs, 7) && extraOk(xs, 8) && extraOk(xs, 9);
+    }
+
+    // One-off invoices (docs/PLAN-GENERAL-INVOICING.md G2a). Items and drafts are setup
+    // data the owner writes; the shape and bounds mirror core's oneoff.ts and lines.ts.
+    // A draft may be incomplete while it is written; issueInvoice checks it in full.
+    function taxCode(v) { return v in ['standard', 'exempt', 'zero']; }
+    function price(v) { return wholeIn(v, -1000000000, 1000000000); }
+    function validItem(d) {
+      return exactly(d, ['name', 'description', 'unit', 'unitPriceToea', 'taxCode'])
+        && str(d.name, 1, 100) && d.name.trim().size() > 0 && str(d.description, 0, 200) && str(d.unit, 0, 12)
+        && price(d.unitPriceToea) && taxCode(d.taxCode);
+    }
+    // Lines are checked in full where it matters: issueInvoice re-runs core's draftProblems
+    // and line checks before anything is numbered. Here only the list and its size: checking
+    // 30 lines field by field passes the rules engine's 1,000-expression limit per write.
+    function validLines(ls) { return ls is list && ls.size() <= 30; }
+    function validDraft(d) {
+      return exactly(d, ['customerId', 'lines', 'poNumber', 'notes', 'dueDays'])
+        && str(d.customerId, 0, 128) && validLines(d.lines) && str(d.poNumber, 0, 40) && str(d.notes, 0, 500)
+        && (d.dueDays == null || wholeIn(d.dueDays, 0, 90));
     }
 
     function date(v) { return v is string && v.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'); }
@@ -191,6 +212,18 @@ service cloud.firestore {
         allow create, update: if isOwner(orgId) && validProperty(request.resource.data);
         // A property a tenancy uses is kept by the UI (core's deleteProblem); rules cannot
         // query. A tenancy carries its own copies, so drafting survives either way.
+        allow delete: if isOwner(orgId);
+      }
+
+      // One-off invoices (G2a): the price list and drafts. Issuing is a callable (I9).
+      match /items/{itemId} {
+        allow read: if canRead(orgId);
+        allow create, update: if isOwner(orgId) && validItem(request.resource.data);
+        allow delete: if isOwner(orgId);
+      }
+      match /drafts/{draftId} {
+        allow read: if canRead(orgId);
+        allow create, update: if isOwner(orgId) && validDraft(request.resource.data);
         allow delete: if isOwner(orgId);
       }
 

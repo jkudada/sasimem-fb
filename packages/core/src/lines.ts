@@ -64,7 +64,7 @@ export function itemLine(input: ItemLineInput, org: { readonly gstRegistered: bo
   };
 }
 
-export type ItemLineField = "description" | "detail" | "quantity" | "unit" | "unitPrice";
+export type ItemLineField = "description" | "detail" | "quantity" | "unit" | "unitPrice" | "taxCode";
 
 /** What is wrong with an item line as typed. Empty when it is fine. */
 export function itemLineProblems(input: ItemLineInput): Problems<ItemLineField> {
@@ -76,9 +76,12 @@ export function itemLineProblems(input: ItemLineInput): Problems<ItemLineField> 
   if (input.unit.length > 12) problems.unit = "Keep the unit short, like hour, m or each.";
   if (!Number.isSafeInteger(input.quantityMilli) || input.quantityMilli <= 0 || input.quantityMilli > MAX_QUANTITY) {
     problems.quantity = "The quantity must be more than 0 and at most 1,000,000.";
+  } else if (!Number.isSafeInteger(input.unitPriceToea)) {
+    problems.unitPrice = "Enter the price in kina and toea.";
   } else if (Math.abs(lineAmount(input.quantityMilli, input.unitPriceToea)) > MAX_EDITABLE_TOEA) {
     problems.unitPrice = `This line comes to more than ${formatKina(toea(MAX_EDITABLE_TOEA))}. Check the price and quantity.`;
   }
+  if (!(["standard", "exempt", "zero"] as readonly unknown[]).includes(input.taxCode)) problems.taxCode = "Choose standard, exempt or zero-rated.";
   return problems;
 }
 
