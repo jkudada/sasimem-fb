@@ -18,10 +18,11 @@ const TOMORROW = "2026-11-20";
 const MOMENT = new Date("2026-11-19T22:00:00Z"); // 8:00 am on 20 November, the org's send hour
 const labour = { description: "Labour - rewire kitchen", detail: "", quantityMilli: 1500, unit: "hour", unitPriceToea: 8_000, taxCode: "standard" };
 
-async function world(opts: { feature?: boolean; draft?: Record<string, unknown> } = {}) {
+async function world(opts: { feature?: boolean; draft?: Record<string, unknown>; note?: boolean } = {}) {
   const { uid, orgId } = await anOrgWith({ tenancies: [] });
   const org = adminDb().doc(`orgs/${orgId}`);
   if (opts.feature !== false) await org.update({ features: { rentals: true, repeating: true, oneOff: true } });
+  if (opts.note !== undefined) await org.update({ scheduledSentNote: opts.note });
   await org.collection("tenants").doc("c1").set({ name: "Kila Trading", email: "accounts@kila.example", phone: "", ccEmails: ["boss@kila.example"] });
   const draft = org.collection("drafts").doc();
   await draft.set({ customerId: "c1", lines: [labour], poNumber: "", notes: "", dueDays: null, ...opts.draft });
@@ -102,14 +103,36 @@ describe("the tick sends it on the day", () => {
     expect(await w.counter()).toBe(2);
     expect(await w.stored()).toBeUndefined();
     expect((await w.org.collection("drafts").doc(w.draftId).get()).exists).toBe(false);
-    expect(w.mailer.sent).toHaveLength(1);
+    expect(w.mailer.sent).toHaveLength(2); // the customer's invoice, then the owner's note
     expect(w.mailer.sent[0]).toMatchObject({ to: "accounts@kila.example", cc: ["boss@kila.example"] });
     expect(w.mailer.sent[0]?.attachments?.[0]?.filename).toBe("INV-0001.pdf");
     const events = await w.org.collection("events").where("kind", "==", "invoiceIssued").get();
     expect(events.docs.map((d) => [d.get("actor"), d.get("note")])).toEqual([[w.uid, "INV-0001, Kila Trading, as scheduled"]]);
 
     expect((await w.tick(new Date(MOMENT.getTime() + 3_600_000))).scheduled).toBe(0);
-    expect(w.mailer.sent).toHaveLength(1);
+    expect(w.mailer.sent).toHaveLength(2);
+  });
+
+  test("the owner gets one note that it went; none when switched off; Send invoice sends none", async () => {
+    const w = await world();
+    await w.schedule(TOMORROW);
+    await w.tick(MOMENT);
+    const owner = (await w.org.get()).get("email") as string;
+    const notes = w.mailer.sent.filter((m) => m.to === owner);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ subject: "Sent as scheduled: INV-0001 to Kila Trading" });
+    expect(notes[0]?.text).toContain("Your invoice INV-0001 for K120.00 went to Kila Trading at 8:00 am, Friday 20 November 2026, as you scheduled");
+    expect(notes[0]?.text).toContain("https://sasimem.example/one-off");
+    expect(notes[0]?.attachments ?? []).toEqual([]);
+
+    const off = await world({ note: false });
+    await off.schedule(TOMORROW);
+    await off.tick(MOMENT);
+    expect(off.mailer.sent.map((m) => m.to)).toEqual(["accounts@kila.example"]);
+
+    const now = await world();
+    await now.send();
+    expect(now.mailer.sent.map((m) => m.to)).toEqual(["accounts@kila.example"]);
   });
 
   test("two ticks at once send it once", async () => {
@@ -118,7 +141,7 @@ describe("the tick sends it on the day", () => {
     const tallies = await Promise.all([w.tick(MOMENT), w.tick(MOMENT)]);
     expect(tallies.map((t) => t.scheduled).sort()).toEqual([0, 1]);
     expect((await w.org.collection("issuedNumbers").get()).size).toBe(1);
-    expect(w.mailer.sent).toHaveLength(1);
+    expect(w.mailer.sent).toHaveLength(2);
   }, RACE_TIMEOUT_MS);
 
   test("Send invoice on a scheduled draft sends it now and drops the schedule; the tick then sends nothing", async () => {
@@ -128,7 +151,7 @@ describe("the tick sends it on the day", () => {
     expect(await w.stored()).toBeUndefined();
     expect(await w.invoice()).toMatchObject({ issueDate: "2026-11-19" });
     expect((await w.tick(MOMENT)).scheduled).toBe(0);
-    expect(w.mailer.sent).toHaveLength(1);
+    expect(w.mailer.sent).toHaveLength(1); // Send invoice: the customer's only; no note
   });
 
   test("a draft it cannot send: nothing numbered, the problem recorded, the owner emailed once", async () => {

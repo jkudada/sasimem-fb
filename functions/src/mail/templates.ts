@@ -85,6 +85,17 @@ export function notSentNotice(req: { to: string; orgName: string; customerName: 
   });
 }
 
+export function sentScheduledNotice(req: { to: string; orgName: string; customerName: string; number: string; totalToea: Toea; sendAt: Date; timezone: string; link: string }): Mail {
+  return toLandlord(req.to, `Sent as scheduled: ${req.number} to ${req.customerName}`, {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: `Your invoice ${req.number} for ${formatKina(req.totalToea)} went to ${req.customerName} at ${whenLabel(req.sendAt, req.timezone)}, as you scheduled, with its PDF attached.` },
+      { p: "See your one-off invoices:", link: req.link },
+      { p: "To stop these notes, switch off \"Email me when a scheduled invoice goes\" in Settings." },
+    ],
+  });
+}
+
 export interface DispatchLine {
   readonly tenantName: string;
   readonly number: string;

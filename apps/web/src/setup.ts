@@ -18,13 +18,15 @@ export interface Org extends OrgProfile {
   readonly logoDesign?: LogoDesign;
   /** Days to pay a one-off invoice when neither it nor the customer says (G2a); absent means 14. */
   readonly defaultTermsDays?: number;
+  /** Email the owner when a scheduled one-off goes (G2d); absent means on. */
+  readonly scheduledSentNote?: boolean;
   /** Server-written (docs/PLAN-GENERAL-INVOICING.md §3); read with core's orgFeatures. */
   readonly modules?: unknown;
   readonly features?: unknown;
 }
 
-/** What Settings saves: the profile, and the one-off default terms when that part is shown. */
-export type ProfileEdit = OrgProfile & { readonly defaultTermsDays?: number };
+/** What Settings saves: the profile, and the one-off settings when that part is shown. */
+export type ProfileEdit = OrgProfile & { readonly defaultTermsDays?: number; readonly scheduledSentNote?: boolean };
 
 export interface Setup {
   readonly org: Org;
