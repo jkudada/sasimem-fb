@@ -3,13 +3,15 @@
  * lines from the price list or typed, see the totals and GST as you type, then Send.
  * Sending is the say-so (D7): it saves the draft, and issueInvoice numbers, freezes,
  * renders and emails it. Every rule is core's; this screen only reads what was typed.
+ * Send later (G2d) is the same say-so given ahead: the tick numbers and sends it on the day.
  */
 import { useSignal } from "@preact/signals";
 import {
-  type ItemLineField, type ItemLineInput, type OneOffDraft, type Problems, type TaxCode, type Toea,
-  draftProblems, dueDaysFor, formatKina, formatQuantity, itemLine, itemLineProblems, lineFromItem, MAX_LINES, parseQuantity, totals,
+  type CalendarDate, type ItemLineField, type ItemLineInput, type OneOffDraft, type Problems, type TaxCode, type Toea,
+  addDays, draftProblems, dueDaysFor, formatKina, formatQuantity, hourLabel, itemLine, itemLineProblems, lineFromItem, MAX_LINES, parseQuantity,
+  sendLaterLabel, sendLaterProblem, totals,
 } from "@sasimem/core";
-import { type Outcome, type Setup, customerFrom, newId } from "../setup.js";
+import { type Outcome, type ScheduledDraft, type Setup, customerFrom, newId } from "../setup.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { TAX_LABELS, priceOf } from "./Items.js";
@@ -55,12 +57,15 @@ type DraftField = keyof OneOffDraft;
 export function InvoiceEditor(props: {
   /** The saved draft's ID; null for a new invoice. */
   id: string | null;
-  /** The saved draft; null for a new invoice. */
-  draft: OneOffDraft | null;
+  /** The saved draft, with its schedule if it has one; null for a new invoice. */
+  draft: ScheduledDraft | null;
   setup: Setup;
+  today: CalendarDate;
   onSave: (id: string | null, draft: OneOffDraft) => Promise<{ readonly id: string } | { readonly problem: string }>;
   onDelete: (id: string) => Promise<string | null>;
   onSend: (id: string) => Promise<Outcome>;
+  onSchedule: (id: string, sendOn: string) => Promise<Outcome>;
+  onCancelSchedule: (id: string) => Promise<Outcome>;
   onDone: () => void;
 }) {
   const { org, tenants } = props.setup;
@@ -75,8 +80,14 @@ export function InvoiceEditor(props: {
   const tried = useSignal(false);
   const problems = useSignal<Problems<DraftField>>({});
   const failure = useSignal<string | null>(null);
-  const sent = useSignal<string | null>(null);
+  const done = useSignal<{ readonly heading: "Sent" | "Scheduled"; readonly message: string } | null>(null);
   const busy = useSignal(false);
+  const schedule = useSignal(d?.sendLater ?? null);
+  const sendOn = useSignal<string>(d?.sendLater?.sendOn ?? "");
+  const sendOnProblem = useSignal<string | null>(null);
+  const notice = useSignal<string | null>(null);
+  /** Scheduled and still to go (not one the tick could not send). */
+  const waiting = schedule.value !== null && schedule.value.problem === undefined;
 
   const customerDoc = tenants.find((t) => t.id === customerId.value);
   const customer = customerDoc === undefined ? null : customerFrom(customerDoc);
@@ -119,24 +130,51 @@ export function InvoiceEditor(props: {
     return saved.id;
   };
 
-  const saveDraft = async (e: Event) => {
-    e.preventDefault();
-    failure.value = null;
-    if ((await save()) !== null) props.onDone();
-  };
-
-  const send = async () => {
+  /** Everything Send checks; true when it may go. */
+  const sendable = () => {
     tried.value = true;
     failure.value = null;
     problems.value = draftProblems(draft, customer);
-    if (Object.keys(problems.value).length > 0) return;
+    return Object.keys(problems.value).length === 0 && read.every((r) => r.readable);
+  };
+
+  const saveDraft = async (e: Event) => {
+    e.preventDefault();
+    failure.value = null;
+    if (waiting && !sendable()) return; // a schedule never sits on a draft that cannot go
+    if ((await save()) !== null) props.onDone();
+  };
+
+  /** Save, then hand the saved draft to `act`; its outcome is the screen's. */
+  const saveThen = async (heading: "Sent" | "Scheduled", act: (id: string) => Promise<Outcome>) => {
     const saved = await save();
     if (saved === null) return;
     busy.value = true;
-    const outcome = await props.onSend(saved);
+    const outcome = await act(saved);
     busy.value = false;
-    if (outcome.ok) sent.value = outcome.message;
+    if (outcome.ok) done.value = { heading, message: outcome.message };
     else failure.value = outcome.message;
+  };
+
+  const send = async () => {
+    if (sendable()) await saveThen("Sent", props.onSend);
+  };
+
+  const scheduleIt = async () => {
+    const ok = sendable();
+    sendOnProblem.value = sendLaterProblem(sendOn.value, props.today);
+    if (ok && sendOnProblem.value === null) await saveThen("Scheduled", (saved) => props.onSchedule(saved, sendOn.value.trim()));
+  };
+
+  const cancelSchedule = async () => {
+    if (id.value === null) return;
+    busy.value = true;
+    const outcome = await props.onCancelSchedule(id.value);
+    busy.value = false;
+    if (outcome.ok) {
+      schedule.value = null;
+      notice.value = outcome.message;
+    } else failure.value = outcome.message;
   };
 
   const remove = async () => {
@@ -147,13 +185,13 @@ export function InvoiceEditor(props: {
     if (failure.value === null) props.onDone();
   };
 
-  if (sent.value !== null) {
+  if (done.value !== null) {
     return (
       <main class="narrow">
         <Back href="/one-off" label="One-off invoices" />
-        <h1>Sent</h1>
-        <p role="status">{sent.value}</p>
-        <p>The PDF went by email. When they pay, mark it paid from Still owed.</p>
+        <h1>{done.value.heading}</h1>
+        <p role="status">{done.value.message}</p>
+        <p>{done.value.heading === "Sent" ? "The PDF went by email. When they pay, mark it paid from Still owed." : "It stays with your drafts until then, where you can change it or cancel the schedule."}</p>
         <p><a class="button" href="/one-off/new">Write another invoice</a></p>
         <p><a href="/one-off">See your one-off invoices</a></p>
       </main>
@@ -227,6 +265,22 @@ export function InvoiceEditor(props: {
         <button type="button" disabled={busy} onClick={() => void send()}>Send invoice</button>
         <button type="submit" class="quiet" disabled={busy}>Save draft</button>
         {id.value !== null && <button type="button" class="danger" disabled={busy} onClick={() => void remove()}>Delete this draft</button>}
+
+        <fieldset class="card">
+          <legend>Send later</legend>
+          {waiting && schedule.value !== null && (
+            <p role="status">Scheduled: it goes to {customer?.name ?? "the customer"} on {sendLaterLabel(schedule.value.sendOn, org.sendHour)}. It is numbered then.</p>
+          )}
+          {schedule.value?.problem !== undefined && (
+            <p role="alert">This was due to go on {sendLaterLabel(schedule.value.sendOn, org.sendHour)}, but was not sent: {schedule.value.problem} Put it right, then send it or schedule it again.</p>
+          )}
+          {notice.value !== null && <p role="status">{notice.value}</p>}
+          <Field label="Send on" hint={`It goes at ${hourLabel(org.sendHour)} that day, the hour you send invoices.`} problem={sendOnProblem.value ?? undefined}>
+            <input type="date" min={addDays(props.today, 1)} value={sendOn} onInput={(e) => (sendOn.value = value(e))} />
+          </Field>
+          <button type="button" class="quiet" disabled={busy} onClick={() => void scheduleIt()}>Schedule</button>
+          {schedule.value !== null && <button type="button" class="quiet" disabled={busy} onClick={() => void cancelSchedule()}>Cancel the schedule</button>}
+        </fieldset>
       </form>
     </main>
   );

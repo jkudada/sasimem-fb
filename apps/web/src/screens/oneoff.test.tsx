@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import type { CalendarDate, Item, OneOffDraft, Toea } from "@sasimem/core";
 import { type Mock, describe, expect, test, vi } from "vitest";
-import type { OneOffs as List, Outcome, Setup, WithId } from "../setup.js";
+import type { OneOffs as List, Outcome, ScheduledDraft, Setup, WithId } from "../setup.js";
 import { Home } from "./Home.js";
 import { InvoiceEditor } from "./InvoiceEditor.js";
 import { ItemForm, Items } from "./Items.js";
@@ -106,13 +106,17 @@ describe("the price list", () => {
 
 describe("the invoice editor", () => {
   type Send = (id: string) => Promise<Outcome>;
-  const editor = (over: { draft?: OneOffDraft | null; id?: string | null; setup?: Setup; onSend?: Mock<Send> } = {}) => {
+  type Schedule = (id: string, sendOn: string) => Promise<Outcome>;
+  const editor = (over: { draft?: ScheduledDraft | null; id?: string | null; setup?: Setup; onSend?: Mock<Send>; onSchedule?: Mock<Schedule> } = {}) => {
     const onSave = vi.fn(async (id: string | null, _draft: OneOffDraft) => ({ id: id ?? "d1" }));
     const onSend = over.onSend ?? vi.fn<Send>().mockResolvedValue({ ok: true, message: "Sent INV-0001 to Kila Trading." });
+    const onSchedule = over.onSchedule ?? vi.fn<Schedule>().mockResolvedValue({ ok: true, message: "Kila Trading's invoice goes on 1 December 2026 at 8:00 am. It is numbered then." });
+    const onCancelSchedule = vi.fn<Send>().mockResolvedValue({ ok: true, message: "It will not be sent. It stays a draft." });
     const onDone = vi.fn();
     const onDelete = vi.fn().mockResolvedValue(null);
-    render(<InvoiceEditor id={over.id ?? null} draft={over.draft ?? null} setup={over.setup ?? setup()} onSave={onSave} onSend={onSend} onDelete={onDelete} onDone={onDone} />);
-    return { onSave, onSend, onDone, onDelete };
+    render(<InvoiceEditor id={over.id ?? null} draft={over.draft ?? null} setup={over.setup ?? setup()} today={today}
+      onSave={onSave} onSend={onSend} onSchedule={onSchedule} onCancelSchedule={onCancelSchedule} onDelete={onDelete} onDone={onDone} />);
+    return { onSave, onSend, onSchedule, onCancelSchedule, onDone, onDelete };
   };
   const total = () => within(screen.getByLabelText("Totals")).getAllByRole("definition").map((d) => d.textContent);
 
@@ -242,6 +246,88 @@ describe("the invoice editor", () => {
     editor({ setup: setup({ defaultTermsDays: 21 }) });
     choose(/customer/i, "c1");
     expect(screen.getByLabelText(/days to pay/i).closest("label")?.textContent).toContain("Leave blank for your usual 21 days.");
+  });
+});
+
+describe("send later (G2d)", () => {
+  type Send = (id: string) => Promise<Outcome>;
+  type Schedule = (id: string, sendOn: string) => Promise<Outcome>;
+  const ready: OneOffDraft = {
+    customerId: "c1", poNumber: "", notes: "", dueDays: null,
+    lines: [{ description: "Labour", detail: "", quantityMilli: 1000, unit: "hour", unitPriceToea: 8_000 as Toea, taxCode: "standard" }],
+  };
+  const editor = (draft: ScheduledDraft | null, id: string | null = "d1") => {
+    const onSave = vi.fn(async (i: string | null, _d: OneOffDraft) => ({ id: i ?? "d1" }));
+    const onSchedule = vi.fn<Schedule>().mockResolvedValue({ ok: true, message: "Kila Trading's invoice goes on 1 December 2026 at 8:00 am. It is numbered then." });
+    const onCancelSchedule = vi.fn<Send>().mockResolvedValue({ ok: true, message: "It will not be sent. It stays a draft." });
+    const onSend = vi.fn<Send>();
+    render(<InvoiceEditor id={id} draft={draft} setup={setup()} today={today}
+      onSave={onSave} onSend={onSend} onSchedule={onSchedule} onCancelSchedule={onCancelSchedule} onDelete={vi.fn()} onDone={vi.fn()} />);
+    return { onSave, onSchedule, onCancelSchedule, onSend };
+  };
+
+  test("Schedule saves the draft, then schedules it for the day chosen, and says so", async () => {
+    const { onSave, onSchedule, onSend } = editor(ready);
+    expect(screen.getByLabelText(/send on/i).closest("label")?.textContent).toContain("It goes at 8:00 am that day, the hour you send invoices.");
+    type(/send on/i, "2026-12-01");
+    click("Schedule");
+    expect(await screen.findByText("Kila Trading's invoice goes on 1 December 2026 at 8:00 am. It is numbered then.")).toBeTruthy();
+    expect(onSave).toHaveBeenCalledWith("d1", ready);
+    expect(onSchedule).toHaveBeenCalledWith("d1", "2026-12-01");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Scheduled" })).toBeTruthy();
+  });
+
+  test("the day's problems in core's words, and a draft that could not be sent: nothing saved or scheduled", () => {
+    const { onSave, onSchedule } = editor(ready);
+    click("Schedule");
+    expect(screen.getByText("Choose the day to send it.")).toBeTruthy();
+    type(/send on/i, "2026-11-19");
+    click("Schedule");
+    expect(screen.getByText("Choose a day after today. To send it today, press Send invoice.")).toBeTruthy();
+    choose(/customer/i, "");
+    type(/send on/i, "2026-12-01");
+    click("Schedule");
+    expect(screen.getByText("Choose who this invoice is for.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onSchedule).not.toHaveBeenCalled();
+  });
+
+  test("a scheduled draft says when it goes; Cancel the schedule drops it", async () => {
+    const { onCancelSchedule } = editor({ ...ready, sendLater: { sendOn: "2026-12-01" as CalendarDate } });
+    expect(screen.getByText("Scheduled: it goes to Kila Trading on 1 December 2026 at 8:00 am. It is numbered then.")).toBeTruthy();
+    expect(screen.getByLabelText(/send on/i)).toHaveProperty("value", "2026-12-01");
+    click("Cancel the schedule");
+    expect(await screen.findByText("It will not be sent. It stays a draft.")).toBeTruthy();
+    expect(onCancelSchedule).toHaveBeenCalledWith("d1");
+    expect(screen.queryByRole("button", { name: "Cancel the schedule" })).toBeNull();
+  });
+
+  test("saving a scheduled draft checks it as Send would, so a schedule never sits on a draft that cannot go", () => {
+    const { onSave } = editor({ ...ready, sendLater: { sendOn: "2026-12-01" as CalendarDate } });
+    type("What for", "", line(1));
+    click("Save draft");
+    expect(within(line(1)).getByText("Say what this line is for.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  test("a draft the tick could not send says why", () => {
+    editor({ ...ready, sendLater: { sendOn: "2026-12-01" as CalendarDate, problem: "This customer pays only against an order number. Enter it." } });
+    expect(screen.getByRole("alert").textContent).toBe("This was due to go on 1 December 2026 at 8:00 am, but was not sent: This customer pays only against an order number. Enter it. Put it right, then send it or schedule it again.");
+    expect(screen.getByRole("button", { name: "Cancel the schedule" })).toBeTruthy();
+  });
+
+  test("the list marks scheduled drafts with their day, and ones that could not go", () => {
+    const list: List = {
+      drafts: [
+        { id: "d1", ...ready, sendLater: { sendOn: "2026-12-01" as CalendarDate } },
+        { id: "d2", ...ready, customerId: "c2", sendLater: { sendOn: "2026-11-18" as CalendarDate, problem: "Choose who this invoice is for." } },
+      ],
+      invoices: [],
+    };
+    render(<OneOffs list={list} setup={setup()} today={today} onOpenPdf={vi.fn()} />);
+    expect(screen.getByText(/Goes on 1 December 2026 at 8:00 am/)).toBeTruthy();
+    expect(screen.getByText(/Not sent on 18 November 2026: Choose who this invoice is for\./)).toBeTruthy();
   });
 });
 

@@ -67,6 +67,22 @@ export async function sendTimeHasPassed(email: string): Promise<void> {
   }
 }
 
+/** Move every scheduled one-off of the landlord's org to an hour ago, as waiting for the day would (G2d). */
+export async function scheduledSendHasCome(email: string): Promise<void> {
+  const orgId = await orgIdOf(email);
+  const docs = (await (await fetch(`${DOCS}/orgs/${orgId}/sendLater`, { headers: OWNER })).json()) as { documents?: { name: string }[] };
+  if ((docs.documents ?? []).length === 0) throw new Error("nothing is scheduled");
+  const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  for (const d of docs.documents ?? []) {
+    const path = d.name.split("/documents/")[1] ?? "";
+    const res = await fetch(`${DOCS}/${path}?updateMask.fieldPaths=sendAt`, {
+      method: "PATCH", headers: { ...OWNER, "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { sendAt: { timestampValue: anHourAgo } } }),
+    });
+    if (!res.ok) throw new Error(`could not move the scheduled send: ${res.status}`);
+  }
+}
+
 /**
  * Fire the real scheduled tick, as Cloud Scheduler would. The Functions emulator loads a
  * scheduled function only with the Pub/Sub emulator running, but firebase-tools 15.25's

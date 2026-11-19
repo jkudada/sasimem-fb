@@ -186,8 +186,8 @@ export const sendLaterAt = (sendOn: CalendarDate, org: { readonly sendHour: numb
 
 export const sendLaterDue = (s: { readonly sendAt: Date }, now: Date): boolean => now.getTime() >= s.sendAt.getTime();
 
+/** "8:00 am", "12:00 pm": the org's send hour as people say it. */
+export const hourLabel = (hour: number): string => `${hour % 12 === 0 ? 12 : hour % 12}:00 ${hour < 12 ? "am" : "pm"}`;
+
 /** "1 December 2026 at 8:00 am". */
-export function sendLaterLabel(sendOn: CalendarDate, sendHour: number): string {
-  const h = sendHour % 12 === 0 ? 12 : sendHour % 12;
-  return `${dateLabel(sendOn)} at ${h}:00 ${sendHour < 12 ? "am" : "pm"}`;
-}
+export const sendLaterLabel = (sendOn: CalendarDate, sendHour: number): string => `${dateLabel(sendOn)} at ${hourLabel(sendHour)}`;
