@@ -19,6 +19,7 @@ const ONE_OFF_MENU: readonly MenuEntry[] = [
   { href: "/one-off", icon: "oneOff", title: "One-off invoices", hint: "Write and send an invoice for a job or a sale" },
   { href: "/items", icon: "items", title: "Price list", hint: "Your services, materials and rates" },
   { href: "/payments", icon: "owed", title: "Payments", hint: "Record money received, and email receipts" },
+  { href: "/credit-notes", icon: "creditNote", title: "Credit notes", hint: "Take money off an invoice already sent" },
 ];
 
 export function menuFor(org: Setup["org"]): readonly MenuEntry[] {

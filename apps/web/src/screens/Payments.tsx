@@ -40,17 +40,21 @@ export function Payments(props: {
       {message.value !== null && <p role={message.value.ok ? "status" : "alert"}>{message.value.message}</p>}
       {props.payments.length === 0 && <p>No payments recorded yet.</p>}
       <ul class="invoices">
-        {props.payments.map((p) => (
+        {props.payments.map((p) => {
+          // A payment of credit only (G2c) has no receipt: it is named by its date and the credit used.
+          const name = p.receiptNumber !== "" ? p.receiptNumber : `the credit used ${dateLabel(p.receivedOn)}`;
+          return (
           <li key={p.id} class="card">
-            <p><strong>{p.receiptNumber} · {p.customerName}</strong> · {formatKina(p.amountToea)}</p>
+            <p><strong>{p.receiptNumber !== "" ? p.receiptNumber : "Credit used"} · {p.customerName}</strong> · {formatKina(p.receiptNumber !== "" ? p.amountToea : (p.creditUsedToea ?? p.amountToea))}</p>
             <p class="note">
-              {dateLabel(p.receivedOn)} · {METHOD_LABELS[p.method]}{p.reference !== "" && ` · ${p.reference}`}
+              {dateLabel(p.receivedOn)}{p.receiptNumber !== "" && ` · ${METHOD_LABELS[p.method]}`}{p.reference !== "" && ` · ${p.reference}`}
+              {p.receiptNumber !== "" && (p.creditUsedToea ?? 0) > 0 && ` · and ${formatKina(p.creditUsedToea as Toea)} of credit`}
               {p.allocations.length > 0 && ` · paid ${p.allocations.map((a) => `${a.number} ${formatKina(a.amountToea)}`).join(", ")}`}
               {p.creditToea > 0 && ` · ${formatKina(p.creditToea as Toea)} credit`}
             </p>
             {p.status === "undone" ? <p class="note"><span class="chip">Undone</span> {p.undoReason}</p> : undoing.value === p.id ? (
               <form onSubmit={(e) => void undo(e, p.id)} noValidate>
-                <Field label={`Why undo ${p.receiptNumber}?`} hint="Its invoices go back to owing what they did before it. Nobody is emailed." problem={problem.value ?? undefined}>
+                <Field label={`Why undo ${name}?`} hint="Its invoices go back to owing what they did before it. Nobody is emailed." problem={problem.value ?? undefined}>
                   <input value={reason} onInput={(e) => (reason.value = value(e))} />
                 </Field>
                 <button type="submit" class="danger" disabled={busy}>Undo this payment</button>
@@ -58,12 +62,13 @@ export function Payments(props: {
               </form>
             ) : (
               <div>
-                <button type="button" class="quiet small" aria-label={`Email ${p.receiptNumber} again`} disabled={busy} onClick={() => void act(() => props.onResend(p.id))}>Email receipt again</button>
-                <button type="button" class="quiet small" aria-label={`Undo ${p.receiptNumber}`} disabled={busy} onClick={() => { undoing.value = p.id; reason.value = ""; problem.value = null; }}>Undo…</button>
+                {p.receiptNumber !== "" && <button type="button" class="quiet small" aria-label={`Email ${p.receiptNumber} again`} disabled={busy} onClick={() => void act(() => props.onResend(p.id))}>Email receipt again</button>}
+                <button type="button" class="quiet small" aria-label={`Undo ${name}`} disabled={busy} onClick={() => { undoing.value = p.id; reason.value = ""; problem.value = null; }}>Undo…</button>
               </div>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </main>
   );

@@ -14,9 +14,16 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
+
+/** What has been paid and credited on an invoice (G2b, G2c), for the screens; absent fields stay absent. */
+const moneyOf = (i: InvoiceDocument) => ({
+  ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+  ...(i.creditedToea === undefined ? {} : { creditedToea: i.creditedToea }),
+  ...(i.creditNotedToea === undefined ? {} : { creditNotedToea: i.creditNotedToea }),
+});
 const COULD_NOT_SAVE = "That could not be saved. Please try again.";
 
 /** Turn a thrown write into a plain message, or null on success. */
@@ -190,7 +197,7 @@ export function setupStore(orgId: string): SetupStore {
               return {
                 id: d.id, tenancyId: i.tenancyId, ...(i.snapshot?.template === undefined ? {} : { templateName: i.snapshot.template.name }), tenantName: i.tenantName, unitLabel: i.unitLabel, status: i.status, rentToea: (rent?.amountToea ?? 0) as Toea, totalToea: i.totalToea, number: i.number,
                 dueDate: i.dueDate, paidNote: i.paidNote, remindersPaused: i.remindersPaused,
-                ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+                ...moneyOf(i),
               };
             })
             .sort((a, b) => (a.number !== null && b.number !== null ? a.number.localeCompare(b.number) : a.tenantName.localeCompare(b.tenantName))),
@@ -231,7 +238,7 @@ export function setupStore(orgId: string): SetupStore {
           const i = d.data() as InvoiceDocument;
           return {
             id: d.id, tenantId: i.tenantId, tenantName: i.snapshot?.tenantName ?? i.tenantName, number: i.number, period: i.period, status: i.status, dueDate: i.dueDate, totalToea: i.totalToea,
-            ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+            ...moneyOf(i),
           };
         }));
       } catch {
@@ -312,7 +319,7 @@ export function setupStore(orgId: string): SetupStore {
               const i = d.data() as InvoiceDocument;
               return {
                 id: d.id, number: i.number ?? "", customerName: i.snapshot?.tenantName ?? i.tenantName, issueDate: i.issueDate, dueDate: i.dueDate, totalToea: i.totalToea, status: i.status,
-                ...(i.amountPaidToea === undefined ? {} : { amountPaidToea: i.amountPaidToea }),
+                ...moneyOf(i),
               };
             })
             .sort((a, b) => b.number.localeCompare(a.number)),
@@ -349,11 +356,13 @@ export function setupStore(orgId: string): SetupStore {
               id: d.id, receiptNumber: p["receiptNumber"], customerId: p["customerId"], customerName: p["customerName"], receivedOn: p["receivedOn"],
               amountToea: p["amountToea"], method: p["method"], reference: p["reference"], creditToea: p["creditToea"], status: p["status"], undoReason: p["undoReason"] ?? "",
               allocations: (p["allocations"] as { number: string; amountToea: Toea }[]).map((a) => ({ number: a.number, amountToea: a.amountToea })),
-              seq: p["receiptSeq"] as number,
+              ...(p["creditUsedToea"] === undefined ? {} : { creditUsedToea: p["creditUsedToea"] }),
+              // When it was recorded: a payment of credit only has no receipt number to sort by (G2c).
+              at: (p["recordedAt"] as Timestamp | undefined)?.toMillis() ?? 0,
             };
           })
-          .sort((a, b) => b.seq - a.seq)
-          .map(({ seq: _seq, ...row }) => row as PaymentRow);
+          .sort((a, b) => b.at - a.at)
+          .map(({ at: _at, ...row }) => row as PaymentRow);
       } catch {
         return OFFLINE;
       }
@@ -362,6 +371,63 @@ export function setupStore(orgId: string): SetupStore {
       call("recordPayment", { orgId, paymentId, ...payment, allocations: payment.allocations.map((a) => ({ ...a })), emailReceipt }, (r) => r.message ?? "Recorded."),
     undoPayment: (paymentId, reason) => call("undoPayment", { orgId, paymentId, reason }, (r) => r.message ?? "Undone."),
     resendReceipt: (paymentId) => call("resendReceipt", { orgId, paymentId }, (r) => r.message ?? "Emailed again."),
+
+    async credits() {
+      try {
+        const snap = await getDocs(collection(db, `${org}/credits`));
+        return new Map(snap.docs.map((d) => [d.id, d.get("balanceToea") as number] as const).filter(([, b]) => b > 0));
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    async creditNotes() {
+      try {
+        const snap = await getDocs(collection(db, `${org}/creditNotes`));
+        return snap.docs
+          .map((d) => {
+            const c = d.data();
+            const row: CreditNoteRow = {
+              id: d.id, number: c["number"], invoiceNumber: c["invoiceNumber"], customerName: c["customerName"], issueDate: c["issueDate"], reason: c["reason"],
+              totalToea: c["totalToea"], appliedToea: c["appliedToea"], creditToea: c["creditToea"],
+            };
+            return { row, seq: c["numberSeq"] as number };
+          })
+          .sort((a, b) => b.seq - a.seq)
+          .map((x) => x.row);
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    async creditable(invoiceId) {
+      try {
+        const d = await getDoc(ref(`invoices/${invoiceId}`));
+        if (!d.exists()) return null;
+        const i = d.data() as InvoiceDocument;
+        const row: CreditableRow = {
+          id: d.id, number: i.number, customerName: i.snapshot?.tenantName ?? i.tenantName, status: i.status, documentTitle: i.documentTitle,
+          lines: i.lines, totalToea: i.totalToea, ...moneyOf(i), ...(i.creditNotedLines === undefined ? {} : { creditNotedLines: i.creditNotedLines }),
+        };
+        return row;
+      } catch {
+        return OFFLINE;
+      }
+    },
+
+    issueCreditNote: (creditNoteId, input, emailIt) =>
+      call("issueCreditNote", { orgId, creditNoteId, ...input, lines: input.lines.map((l) => ({ ...l })), emailIt }, (r) => r.message ?? "Issued."),
+    resendCreditNote: (creditNoteId) => call("resendCreditNote", { orgId, creditNoteId }, (r) => r.message ?? "Emailed again."),
+
+    async openCreditNotePdf(creditNoteId) {
+      let file: { filename: string; base64: string } | undefined;
+      const outcome = await call("creditNotePdf", { orgId, creditNoteId }, (r) => {
+        file = r as unknown as { filename: string; base64: string };
+        return "";
+      });
+      if (file !== undefined) save(file.filename, new Blob([fromBase64(file.base64)], { type: "application/pdf" }));
+      return outcome;
+    },
 
     async setNextNumber(next) {
       try {

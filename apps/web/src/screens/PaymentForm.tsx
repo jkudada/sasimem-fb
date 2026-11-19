@@ -2,6 +2,7 @@
  * Recording a payment (docs/PLAN-GENERAL-INVOICING.md AR-5, AR-10; G2b): who paid, how
  * much, when and how; which invoices it pays, proposed oldest first and changeable; what
  * is left over is credit. Pressing Record is the say-so for the receipt email too.
+ * Credit they already have can pay invoices as well (G2c).
  */
 import { useSignal } from "@preact/signals";
 import {
@@ -39,6 +40,8 @@ export function PaymentForm(props: {
   const reference = useSignal("");
   const note = useSignal("");
   const emailReceipt = useSignal(true);
+  /** Use their credit as well (G2c): offered only when they have some. */
+  const useCredit = useSignal(false);
   /** What the owner typed per invoice; null until they change one, while it follows the amount oldest first. */
   const typed = useSignal<Readonly<Record<string, string>> | null>(null);
   const problems = useSignal<Problems>({});
@@ -49,9 +52,13 @@ export function PaymentForm(props: {
 
   const open = props.owed.map(asOpen).filter((i) => i.customerId === customerId.value && balanceOf(i) > 0)
     .sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.number.localeCompare(b.number)));
+  const held = (props.credit?.get(customerId.value) ?? 0) as Toea;
+  const usable = useCredit.value && held > 0 ? held : 0;
   const read = readKina(amount.value);
-  const amountToea = ("toea" in read ? read.toea : Number.NaN) as Toea;
-  const proposal = Number.isSafeInteger(amountToea) && amountToea > 0 ? oldestFirst(amountToea, open).allocations : [];
+  // Nothing typed is K0.00 when credit is being used: it can pay on its own.
+  const amountToea = (usable > 0 && amount.value.trim() === "" ? 0 : "toea" in read ? read.toea : Number.NaN) as Toea;
+  const pool = amountToea + usable;
+  const proposal = Number.isSafeInteger(amountToea) && pool > 0 ? oldestFirst(pool as Toea, open).allocations : [];
   const applied = (id: string): string => {
     if (typed.value !== null) return typed.value[id] ?? "";
     const a = proposal.find((x) => x.invoiceId === id);
@@ -74,7 +81,9 @@ export function PaymentForm(props: {
     return { list, bad };
   };
   const { list } = allocations();
-  const credit = Number.isSafeInteger(amountToea) ? creditOf({ amountToea, allocations: list }) : 0;
+  /** Credit is used before the money received: only what the invoices take. */
+  const creditUsed = (alloc: readonly { amountToea: number }[]) => Math.min(usable, alloc.reduce((t, a) => t + a.amountToea, 0)) as Toea;
+  const credit = Number.isSafeInteger(amountToea) ? creditOf({ amountToea, allocations: list, creditUsedToea: creditUsed(list) }) : 0;
 
   const choose = (id: string) => {
     customerId.value = id;
@@ -88,12 +97,13 @@ export function PaymentForm(props: {
     e.preventDefault();
     failure.value = null;
     const { list: allocated, bad } = allocations();
+    const used = creditUsed(allocated);
     const payment: PaymentInput = {
       customerId: customerId.value, receivedOn: receivedOn.value as CalendarDate, amountToea, method: method.value,
-      reference: reference.value.trim(), note: note.value.trim(), allocations: allocated,
+      reference: reference.value.trim(), note: note.value.trim(), allocations: allocated, ...(used > 0 ? { creditUsedToea: used } : {}),
     };
     unreadable.value = bad;
-    problems.value = { ...paymentProblems(payment, open, props.today), ...("problem" in read && amount.value.trim() !== "" ? { amountToea: read.problem } : {}) };
+    problems.value = { ...paymentProblems(payment, open, props.today, held), ...("problem" in read && amount.value.trim() !== "" ? { amountToea: read.problem } : {}) };
     if (Object.keys(problems.value).length > 0 || Object.keys(bad).length > 0) return;
     busy.value = true;
     const outcome = await props.onRecord(props.paymentId, payment, emailReceipt.value);
@@ -116,7 +126,6 @@ export function PaymentForm(props: {
 
   const p = problems.value;
   const customers = props.setup.tenants;
-  const held = props.credit?.get(customerId.value) ?? 0;
   return (
     <main class="narrow">
       <Back href="/owed" label="Still owed" />
@@ -128,8 +137,15 @@ export function PaymentForm(props: {
             {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
-        {held > 0 && <p class="note">They already have {formatKina(held as Toea)} in credit.</p>}
-        <Field label="Amount received" hint="Like K1,500.00." problem={p.amountToea}>
+        {held > 0 && <p class="note">They already have {formatKina(held)} in credit.</p>}
+        {held > 0 && (
+          <label class="check">
+            <input type="checkbox" checked={useCredit} onChange={(e) => { useCredit.value = (e.currentTarget as HTMLInputElement).checked; typed.value = null; }} />
+            Use their credit as well
+          </label>
+        )}
+        {p.creditUsedToea !== undefined && <p class="field-problem">{p.creditUsedToea}</p>}
+        <Field label="Amount received" hint={usable > 0 ? "Like K1,500.00. Leave it blank if their credit pays it all." : "Like K1,500.00."} problem={p.amountToea}>
           <input inputMode="decimal" value={amount} onInput={(e) => (amount.value = value(e))} />
         </Field>
         <Field label="Received on" problem={p.receivedOn}>
@@ -155,6 +171,7 @@ export function PaymentForm(props: {
             ))}
             {typed.value !== null && <button type="button" class="quiet small" onClick={() => (typed.value = null)}>Apply oldest first again</button>}
             {p.allocations !== undefined && <p class="field-problem">{p.allocations}</p>}
+            {usable > 0 && creditUsed(list) > 0 && <p class="note">{formatKina(creditUsed(list))} of their credit is used.</p>}
             {credit > 0 && <p class="note">{formatKina(credit as Toea)} is more than this pays. It will be kept as credit for them.</p>}
           </fieldset>
         )}
