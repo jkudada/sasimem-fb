@@ -1,8 +1,8 @@
 import { Timestamp } from "firebase-admin/firestore";
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import { makeCreateOrg } from "../src/callables/createOrg.js";
 import { makeOperatorCallables } from "../src/callables/operator.js";
-import { newUser, OPERATOR, request, typedOrg } from "./harness/callables.js";
+import { asStaff, newUser, OPERATOR, request, typedOrg } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer } from "./harness/mailer.js";
 
@@ -17,6 +17,9 @@ const signUp = async (email: string) => {
   const uid = await newUser({ email });
   return { uid, run: () => createOrg.run(request(uid, typedOrg)) };
 };
+
+// The single operator of PLAN-SUBSCRIBERS is now the console's Owner (PLAN-ADMIN-DASHBOARD §4).
+beforeAll(async () => { await asStaff("operator-joe", "owner"); });
 
 describe("inviting a subscriber (PLAN-SUBSCRIBERS S3)", () => {
   test("only an operator with their code can invite", async () => {

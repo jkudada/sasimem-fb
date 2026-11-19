@@ -1,23 +1,28 @@
 import { useSignal } from "@preact/signals";
+import { auditScope, can } from "@sasimem/core";
 import type { ConsoleData } from "../data.js";
 import { day, kina, STATUS_WORDS, when } from "../format.js";
 import { subscriberRow } from "../rows.js";
 import { SubscriberActions } from "./SubscriberActions.js";
+import type { Access } from "../types.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
 
 const shown = (v: unknown): string => (v === null || v === undefined ? "-" : String(v));
 
 /**
  * One subscriber: what they see is read-only ("view as", D11); the operator's changes
- * are the Actions forms, each an audited callable (S3). A change reloads the page.
+ * are the Actions forms, each an audited callable (S3). A change reloads the page. Each
+ * section shows only to the roles that may see it (PLAN-ADMIN-DASHBOARD §4).
  */
-export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleData>; operate: (orgId: string, action: unknown) => Promise<string | null>; now: () => Date }) {
+export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleData>; access: Access; operate: (orgId: string, action: unknown) => Promise<string | null>; now: () => Date }) {
   const version = useSignal(0);
-  const loaded = useLoad(props.data, (d) => d.subscriber(props.orgId), `${props.orgId}:${version.value}`);
+  const loaded = useLoad(props.data, (d) => d.subscriber(props.orgId, props.access), `${props.orgId}:${version.value}`);
+  const { role, settings } = props.access;
+  const may = (c: Parameters<typeof can>[1]) => can(role, c, settings);
   if (loaded.state === "loading") return <main><p>Loading…</p></main>;
   if (loaded.state === "failed") return <main><p role="alert">{LOAD_FAILED}</p></main>;
   const d = loaded.value;
-  if (d === null) return <main><h1>Not found</h1><p>No organisation with that ID. <a href="/">Back to subscribers</a></p></main>;
+  if (d === null) return <main><h1>Not found</h1><p>No subscriber with that ID. <a href="/">Back to subscribers</a></p></main>;
 
   const row = subscriberRow({ org: d.org, sub: d.sub, runs: d.runs, emails: d.emails }, props.now());
   const { org, sub } = d;
@@ -27,7 +32,7 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
       <h1>{org.name}</h1>
       {row.problems.length > 0 && <p class="problem">Needs a look: {row.problems.join(", ")}</p>}
 
-      <section aria-label="Organisation" class="card">
+      {may("names") && <section aria-label="Organisation" class="card">
         <h2>Organisation</h2>
         <dl>
           <dt>Email</dt><dd>{org.email}</dd>
@@ -36,7 +41,7 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
           <dt>Signed up</dt><dd>{when(org.createdAt)}</dd>
           <dt>ID</dt><dd><code>{org.id}</code></dd>
         </dl>
-      </section>
+      </section>}
 
       <section aria-label="Subscription" class="card">
         <h2>Subscription</h2>
@@ -52,25 +57,25 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
         )}
       </section>
 
-      {sub !== null && (
+      {sub !== null && may("notes") && (
         <SubscriberActions key={version.value} sub={sub} status={row.status === "none" ? sub.status : row.status} now={props.now}
-          operate={(action) => props.operate(org.id, action)} onDone={() => (version.value += 1)} />
+          operate={(action) => props.operate(org.id, action)} onDone={() => (version.value += 1)} notesOnly={!may("billing")} />
       )}
 
-      <section aria-label="Payments" class="card">
+      {may("billing") && <section aria-label="Payments" class="card">
         <h2>Payments</h2>
         {d.payments.length === 0 ? <p>None recorded.</p> : (
           <ul>{d.payments.map((p) => <li key={p.id}>{day(p.receivedOn)}: {kina(p.amountToea)}, {p.bankReference}</li>)}</ul>
         )}
-      </section>
+      </section>}
 
       <section aria-label="Notes" class="card">
         <h2>Notes</h2>
         {d.notes.length === 0 ? <p>None.</p> : <ul>{d.notes.map((n) => <li key={n.id}>{when(n.at)}, {n.by}: {n.text}</li>)}</ul>}
       </section>
 
-      <section aria-label="Audit trail" class="card">
-        <h2>Audit trail</h2>
+      {auditScope(role) !== "none" && <section aria-label="Audit trail" class="card">
+        <h2>{auditScope(role) === "all" ? "Audit trail" : auditScope(role) === "team" ? "Audit trail: your team's changes" : "Audit trail: your changes"}</h2>
         {d.events.length === 0 ? <p>No operator changes yet.</p> : (
           <ul>{d.events.map((e) => (
             <li key={e.id}>
@@ -79,8 +84,9 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
             </li>
           ))}</ul>
         )}
-      </section>
+      </section>}
 
+      {may("orgRecords") && <>
       <section aria-label="Runs" class="card">
         <h2>Runs</h2>
         {d.runs.length === 0 ? <p>None yet.</p> : (
@@ -118,6 +124,7 @@ export function Subscriber(props: { orgId: string; data: () => Promise<ConsoleDa
           </table></div>
         )}
       </section>
+      </>}
     </main>
   );
 }

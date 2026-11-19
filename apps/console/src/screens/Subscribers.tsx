@@ -2,10 +2,11 @@ import { useSignal } from "@preact/signals";
 import type { ConsoleData } from "../data.js";
 import { day, STATUS_WORDS, when } from "../format.js";
 import { FILTERS, type Filter, filterRows, subscriberRows } from "../rows.js";
+import type { Access } from "../types.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
 
-export function Subscribers(props: { data: () => Promise<ConsoleData>; now: () => Date }) {
-  const loaded = useLoad(props.data, (d) => d.subscribers());
+export function Subscribers(props: { data: () => Promise<ConsoleData>; access: Access; now: () => Date }) {
+  const loaded = useLoad(props.data, (d) => d.subscribers(props.access));
   const filter = useSignal<Filter>("all");
   if (loaded.state === "loading") return <main><h1>Subscribers</h1><p>Loading…</p></main>;
   if (loaded.state === "failed") return <main><h1>Subscribers</h1><p role="alert">{LOAD_FAILED}</p></main>;

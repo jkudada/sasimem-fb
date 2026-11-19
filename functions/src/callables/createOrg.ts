@@ -12,6 +12,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { auth } from "../admin.js";
 import { SIGNUP_MODE, type SignupMode, signupModeOf } from "../params.js";
 import { createOrgFor } from "../store/orgs.js";
+import { consoleSettings, staffMember } from "../store/staff.js";
 
 export interface CreateOrgDeps {
   readonly now: () => Date;
@@ -19,6 +20,7 @@ export interface CreateOrgDeps {
 }
 
 export const NOT_VERIFIED = "Confirm your email address first: open the link we emailed you, then try again.";
+export const STAFF_EMAIL = "This email is a Sasimem staff account. Sign up with a different email address.";
 export const NOT_INVITED = "Sign-up is by invitation for now. Ask Sasimem for an invitation for this email address.";
 
 export function makeCreateOrg(deps: CreateOrgDeps) {
@@ -31,6 +33,9 @@ export function makeCreateOrg(deps: CreateOrgDeps) {
     if (first !== undefined) throw new HttpsError("invalid-argument", first, { problems });
     const user = await auth().getUser(uid);
     if (!user.emailVerified || user.email === undefined) throw new HttpsError("failed-precondition", NOT_VERIFIED);
+    // Staff and landlord accounts stay apart while the setting says so (PLAN-ADMIN-DASHBOARD §5, S5).
+    const staff = await staffMember(uid);
+    if (staff !== null && staff.status !== "removed" && (await consoleSettings()).staffEmailSeparate) throw new HttpsError("failed-precondition", STAFF_EMAIL);
     const orgId = await createOrgFor(uid, setup, deps.now(), deps.signupMode() === "invite" ? user.email : null);
     if (orgId === null) throw new HttpsError("permission-denied", NOT_INVITED);
     await auth().setCustomUserClaims(uid, { orgIds: [orgId] });

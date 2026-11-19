@@ -6,7 +6,7 @@
  */
 import { parsePeriod } from "@sasimem/core";
 import { getAuth } from "firebase-admin/auth";
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import { bucket, retentionBucket } from "../src/admin.js";
 import { makeBillingCallables } from "../src/callables/billing.js";
 import { makeOperatorCallables } from "../src/callables/operator.js";
@@ -18,7 +18,7 @@ import { draftRun } from "../src/store/runs.js";
 import { storeOperatorAction } from "../src/store/subscriptions.js";
 import { runSubscriptionTick, type SubscriptionTickDeps } from "../src/subscriptionTick.js";
 import { runTick } from "../src/tick.js";
-import { OPERATOR, request } from "./harness/callables.js";
+import { asStaff, OPERATOR, request } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer, tokens } from "./harness/mailer.js";
 import { anOrgWith, aSentMonth } from "./harness/seed.js";
@@ -61,6 +61,9 @@ const eventsOf = async (orgId: string) => (await adminDb().collection("operatorE
 const invoicesOf = async (orgId: string) => (await adminDb().collection(`orgs/${orgId}/invoices`).get()).docs;
 const files = async (prefix: string) => (await bucket().getFiles({ prefix }))[0].map((f) => f.name);
 const cancelOn = (orgId: string, day: string) => storeOperatorAction(orgId, { kind: "cancelSubscription" }, { uid: "op-uid", email: "joe@sasimem.example" }, new Date(`${day}T00:00:00Z`));
+
+// The single operator of PLAN-SUBSCRIBERS is now the console's Owner (PLAN-ADMIN-DASHBOARD §4).
+beforeAll(async () => { await asStaff("op-uid", "owner"); });
 
 describe("export everything (PLAN-SUBSCRIBERS §11)", () => {
   test("contains every CSV and every invoice PDF of the org, and nothing of another org", async () => {

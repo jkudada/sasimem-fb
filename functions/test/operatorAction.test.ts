@@ -1,8 +1,8 @@
 import { canAddTenancy } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import { makeOperatorCallables } from "../src/callables/operator.js";
-import { OPERATOR, request } from "./harness/callables.js";
+import { asStaff, OPERATOR, request } from "./harness/callables.js";
 import { adminDb } from "./harness/index.js";
 import { FakeMailer } from "./harness/mailer.js";
 import { addTenancy, anOrgWith } from "./harness/seed.js";
@@ -25,18 +25,45 @@ async function paidOrg(o: Record<string, unknown> = {}) {
 const payment = (o: Record<string, unknown> = {}) =>
   ({ kind: "recordPayment", amountToea: 40_000, receivedOn: "2027-03-08", bankReference: `BSP ${crypto.randomUUID().slice(0, 8)}`, months: 12, ...o });
 
+// The single operator of PLAN-SUBSCRIBERS is now the console's Owner (PLAN-ADMIN-DASHBOARD §4).
+beforeAll(async () => { await asStaff("operator-joe", "owner"); });
+
 describe("who may act (PLAN-SUBSCRIBERS D10)", () => {
-  test("refuses a caller without the operator claim, and one with it but no second factor; writes nothing", async () => {
+  test("refuses a landlord, and staff signed in without their code; writes nothing", async () => {
     const orgId = await paidOrg();
     const before = await subOf(orgId);
     const landlord = { email: "mary@wari.example", firebase: { sign_in_provider: "password" } };
     const noCode = { ...OPERATOR, firebase: { sign_in_provider: "password" } };
     for (const claims of [landlord, noCode]) {
-      await expect(act(orgId, payment(), claims)).rejects.toMatchObject({ code: "permission-denied", message: "Only a Sasimem operator, signed in with their code, can do this." });
+      await expect(act(orgId, payment(), claims)).rejects.toMatchObject({ code: "permission-denied", message: "Only Sasimem staff, signed in with their code, can do this." });
     }
     await expect(operatorAction.run(request(null, { orgId, action: payment() }))).rejects.toMatchObject({ code: "unauthenticated" });
     expect(await subOf(orgId)).toEqual(before);
     expect(await eventsOf(orgId)).toEqual([]);
+  });
+
+  test("by role (PLAN-ADMIN-DASHBOARD §4): billing roles change subscriptions; Support only adds notes; Viewers nothing; the role is audited", async () => {
+    const orgId = await paidOrg();
+    const as = async (role: string, action: Record<string, unknown>, status = "active") => {
+      const uid = `${role}-${crypto.randomUUID().slice(0, 8)}`;
+      return operatorAction.run(request(uid, { orgId, action }, await asStaff(uid, role, status)));
+    };
+    const note = { kind: "addNote", text: "Rang them" };
+    await expect(as("supervisor", payment())).resolves.toMatchObject({ duplicate: false });
+    await expect(as("manager", { kind: "extendTrial", days: 5 })).resolves.toBeDefined();
+    await expect(as("support", note)).resolves.toBeDefined();
+    await expect(as("support", payment())).rejects.toMatchObject({ code: "permission-denied", message: "Only an Owner, a Manager or a Supervisor can change a subscription." });
+    await expect(as("viewer", note)).rejects.toMatchObject({ code: "permission-denied", message: "Viewers cannot add notes." });
+    await expect(as("owner", note, "suspended")).rejects.toMatchObject({ code: "permission-denied", message: "Only Sasimem staff, signed in with their code, can do this." });
+    await expect(as("owner", note, "removed")).rejects.toMatchObject({ code: "permission-denied" });
+    const roles = (await eventsOf(orgId)).map((e) => e["actorRole"]).sort();
+    expect(roles).toEqual(["manager", "supervisor", "support"]);
+  });
+
+  test("the old operator claim alone, with no staff record, is refused", async () => {
+    const orgId = await paidOrg();
+    await expect(operatorAction.run(request("old-operator", { orgId, action: payment() }, { ...OPERATOR, operator: true })))
+      .rejects.toMatchObject({ code: "permission-denied" });
   });
 
   test("an unknown org, or one with no subscription, is refused plainly", async () => {
@@ -62,7 +89,7 @@ describe("recording a payment", () => {
       coversFrom: "2027-03-08", coversTo: "2028-03-07", recordedBy: OP_UID, at: Timestamp.fromDate(now),
     }]);
     expect(await eventsOf(orgId)).toEqual([{
-      kind: "recordPayment", orgId, actor: OP_UID, actorEmail: OPERATOR.email, at: Timestamp.fromDate(now),
+      kind: "recordPayment", orgId, actor: OP_UID, actorEmail: OPERATOR.email, actorRole: "owner", at: Timestamp.fromDate(now),
       before: { status: "restricted", paidThrough: "2026-12-31" }, after: { status: "active", paidThrough: "2028-03-07" },
       detail: { amountToea: 40_000, bankReference: p.bankReference, months: 12, receivedOn: "2027-03-08" },
     }]);

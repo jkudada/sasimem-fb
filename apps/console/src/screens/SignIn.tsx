@@ -3,7 +3,7 @@ import type { SignInResult } from "../app.js";
 import { Field, value } from "./Field.js";
 
 /** Password first; then the authenticator code when Firebase asks for it. */
-export function SignIn(props: { onSignIn: (email: string, password: string) => Promise<SignInResult>; onCode: (code: string) => Promise<string | null> }) {
+export function SignIn(props: { onSignIn: (email: string, password: string) => Promise<SignInResult>; onCode: (code: string) => Promise<string | null>; notice?: string | undefined }) {
   const email = useSignal("");
   const password = useSignal("");
   const code = useSignal("");
@@ -29,6 +29,7 @@ export function SignIn(props: { onSignIn: (email: string, password: string) => P
   return (
     <main class="narrow">
       <h1>Sasimem console</h1>
+      {props.notice !== undefined && <p role="status">{props.notice}</p>}
       {askCode.value ? (
         <form onSubmit={submitCode}>
           <Field label="Code from your authenticator app">

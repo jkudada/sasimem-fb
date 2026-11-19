@@ -1,5 +1,5 @@
 /** What the console reads, as plain data. data.ts turns Firestore documents into these. */
-import type { CalendarDate, PlanId, RunStatus, SubscriptionFields } from "@sasimem/core";
+import type { CalendarDate, ConsoleSettings, PlanId, RunStatus, StaffRole, StaffStatus, SubscriptionFields } from "@sasimem/core";
 
 export interface OrgSummary {
   readonly id: string;
@@ -112,4 +112,36 @@ export interface SubscriberDetail {
 export interface TickBeat {
   readonly lastSuccessAt: Date;
   readonly tally: Readonly<Record<string, number>>;
+}
+
+/**
+ * Who is looking (PLAN-ADMIN-DASHBOARD §4): their role and the settings that widen or
+ * narrow it. Screens show what core's `can` allows; the rules refuse the rest anyway.
+ */
+export interface Access {
+  readonly uid: string;
+  readonly email: string;
+  readonly role: StaffRole;
+  readonly settings: ConsoleSettings;
+}
+
+/** A row of the Staff page, from the manageStaff callable's list. */
+export interface StaffListing {
+  readonly uid: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly role: StaffRole;
+  readonly status: StaffStatus;
+  readonly lastSeenAt: string | null;
+  readonly codeSetUp: boolean;
+  readonly lastSignInAt: string | null;
+}
+
+/** The manageStaff callable's answer: the list when asked for, or its refusal. */
+export type StaffResult = { readonly ok: true; readonly staff?: readonly StaffListing[] } | { readonly ok: false; readonly problem: string };
+
+/** The signed-in person's own staff record (My account). */
+export interface OwnRecord {
+  readonly displayName: string;
+  readonly lastSeenAt: Date | null;
 }

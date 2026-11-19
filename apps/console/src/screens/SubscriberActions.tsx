@@ -40,7 +40,11 @@ function ActionForm(props: { title: string; button: string; operate: Operate; ac
 
 const whole = (text: string): number => (/^\d+$/.test(text.trim()) ? Number(text.trim()) : NaN);
 
-export function SubscriberActions(props: { sub: SubscriptionFields; status: SubscriptionStatus; operate: Operate; onDone: () => void; now: () => Date }) {
+export function SubscriberActions(props: {
+  sub: SubscriptionFields; status: SubscriptionStatus; operate: Operate; onDone: () => void; now: () => Date;
+  /** Support adds notes and changes nothing else (PLAN-ADMIN-DASHBOARD §4). */
+  notesOnly?: boolean;
+}) {
   const { sub, status, onDone } = props;
   const operate = props.operate;
   const today = localDate(props.now(), SUBSCRIPTION_TIMEZONE);
@@ -67,6 +71,14 @@ export function SubscriberActions(props: { sub: SubscriptionFields; status: Subs
     return { kind: "recordPayment", amountToea: toea, receivedOn: receivedOn.value as CalendarDate, bankReference: bankReference.value, months: whole(months.value) };
   };
 
+  if (props.notesOnly === true) {
+    return (
+      <section aria-label="Actions">
+        <h2>Add a note</h2>
+        <NoteForm note={note} operate={operate} onDone={onDone} />
+      </section>
+    );
+  }
   if (cancelled) {
     return (
       <section aria-label="Actions">

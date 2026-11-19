@@ -1,7 +1,7 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { afterAll, beforeAll, test } from "vitest";
-import { seedOrg } from "./fixtures.js";
+import { seedOrg, staffDb } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
 
 let env: RulesTestEnvironment;
@@ -20,13 +20,13 @@ test("the browser can neither read nor write sign-up invitations, not even its o
   }
 });
 
-test("an operator with a second factor reads invitations, for the console's Invites page, and still writes none (PLAN-SUBSCRIBERS S3)", async () => {
+test("staff with a second factor (here Support) read invitations, for the console's Invites page, and still writes none (PLAN-SUBSCRIBERS S3)", async () => {
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "signupInvites/ann@wari.example"), { invitedAt: new Date() }));
-  const operator = env.authenticatedContext("op", { operator: true, firebase: { sign_in_provider: "password", sign_in_second_factor: "totp" } } as never).firestore();
+  const operator = (await staffDb(env, "support")).db;
   await assertSucceeds(getDoc(doc(operator, "signupInvites/ann@wari.example")));
   await assertSucceeds(getDocs(collection(operator, "signupInvites")));
   await assertFails(setDoc(doc(operator, "signupInvites/new@wari.example"), { invitedAt: new Date() }));
   await assertFails(deleteDoc(doc(operator, "signupInvites/ann@wari.example")));
-  const noCode = env.authenticatedContext("op", { operator: true, firebase: { sign_in_provider: "password" } } as never).firestore();
+  const noCode = (await staffDb(env, "owner", { code: false })).db;
   await assertFails(getDoc(doc(noCode, "signupInvites/ann@wari.example")));
 });

@@ -16,7 +16,7 @@ test("the subscription tick runs daily at 06:00 Port Moresby time, retried (PLAN
 });
 
 const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite", "requestPlanChange", "subscriptionTick", "onSubscriptionCreated",
-  "operatorAction", "cancelSubscription"] as const;
+  "operatorAction", "cancelSubscription", "manageStaff"] as const;
 
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
@@ -44,6 +44,12 @@ test("the template preview is capped at 5 instances: it renders a PDF on every c
 test("the operator's callables are capped at 2 instances: one person uses them (PLAN-SUBSCRIBERS S3)", () => {
   expect(endpoint("operatorAction")).toMatchObject({ maxInstances: 2 });
   expect(endpoint("invite")).toMatchObject({ maxInstances: 2 });
+});
+
+test("staff management and settings are capped at 2 instances: a few people use them (PLAN-ADMIN-DASHBOARD A1)", () => {
+  expect(endpoint("manageStaff")).toMatchObject({ maxInstances: 2 });
+  expect(endpoint("updateSettings")).toMatchObject({ maxInstances: 2 });
+  expect(secrets("updateSettings")).toEqual([]);
 });
 
 test("asking to change plan is capped at 2 instances: it emails Sasimem (PLAN-SUBSCRIBERS S4)", () => {

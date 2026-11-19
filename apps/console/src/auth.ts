@@ -9,23 +9,44 @@ import {
 } from "firebase/auth";
 import type { Actions, SignInResult } from "./app.js";
 import { auth } from "./firebase.js";
-import { type ConsoleSession, sessionFrom } from "./session.js";
+import { type ConsoleSession, sessionEnd, sessionFrom } from "./session.js";
 
 export const session = signal<ConsoleSession>({ status: "loading" });
 
+/** Why the last session ended on its own, shown once on the sign-in screen. */
+let notice: string | null = null;
+/** When this session was signed in (the token's auth_time), for the 12-hour limit. */
+let signedInAt = Date.now();
+let lastActivity = Date.now();
+
 onIdTokenChanged(auth, async (user) => {
   if (user === null) {
-    session.value = sessionFrom(null);
+    session.value = notice === null ? sessionFrom(null) : { status: "signedOut", notice };
+    notice = null;
     return;
   }
   const token = await user.getIdTokenResult();
+  signedInAt = Date.parse(token.authTime) || Date.now();
+  lastActivity = Date.now();
   session.value = sessionFrom({
+    uid: user.uid,
     email: user.email ?? "",
-    operator: token.claims["operator"] === true,
+    staffRole: token.claims["staffRole"],
     secondFactor: token.signInSecondFactor,
     enrolledFactors: multiFactor(user).enrolledFactors.length,
   });
 });
+
+// Sign out after 30 idle minutes, or 12 hours signed in (PLAN-ADMIN-DASHBOARD §8).
+for (const kind of ["pointerdown", "keydown"]) addEventListener(kind, () => { lastActivity = Date.now(); }, { passive: true });
+setInterval(() => {
+  if (auth.currentUser === null) return;
+  const why = sessionEnd({ lastActivity, signedInAt, now: Date.now() });
+  if (why !== null) {
+    notice = why;
+    void signOut(auth);
+  }
+}, 30_000);
 
 const codeOf = (e: unknown): string => (typeof e === "object" && e !== null && "code" in e ? String(e.code) : "");
 
@@ -48,6 +69,8 @@ let secret: TotpSecret | null = null;
 export const actions: Actions = {
   operate: (orgId, action) => import("./callables.js").then((c) => c.operate(orgId, action)),
   invite: (request) => import("./callables.js").then((c) => c.invite(request)),
+  staff: (action) => import("./callables.js").then((c) => c.manageStaff(action)),
+  updateSettings: (change) => import("./callables.js").then((c) => c.updateSettings(change)),
   async signIn(email, password): Promise<SignInResult> {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -75,7 +98,7 @@ export const actions: Actions = {
     if (user === null) return { problem: "Sign in first." };
     try {
       secret = await TotpMultiFactorGenerator.generateSecret(await multiFactor(user).getSession());
-      return { key: secret.secretKey, url: secret.generateQrCodeUrl(user.email ?? "operator", "Sasimem console") };
+      return { key: secret.secretKey, url: secret.generateQrCodeUrl(user.email ?? "staff", "Sasimem console") };
     } catch (e) {
       return { problem: message(e) };
     }

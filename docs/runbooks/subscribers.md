@@ -24,14 +24,16 @@ first, or landlords cannot add tenancies until you do.
    ```sh
    firebase deploy --only functions,firestore:rules --project sasimem-dev
    ```
-4. **Operators** (when the console arrives in S2): turn on TOTP multi-factor first
-   (Identity Platform; Authentication → Settings → Multi-factor authentication), then
+4. **The first Owner** (PLAN-ADMIN-DASHBOARD A1; this replaced `ops/grant-operator.ts`): turn
+   on TOTP multi-factor first (Identity Platform; Authentication → Settings → Multi-factor
+   authentication), then
    ```sh
-   node ops/grant-operator.ts --project sasimem-dev --email you@example.com
-   node ops/grant-operator.ts --project sasimem-dev --email them@example.com --revoke
+   node ops/grant-staff.ts --project sasimem-dev --email you@example.com --role owner
+   node ops/grant-staff.ts --project sasimem-dev --email them@example.com --revoke   # break-glass
    ```
-   The claim takes effect at the user's next sign-in, and only for a session signed in
-   with a second factor.
+   Everyone else is invited from the console's Staff page. Access follows the `staff/{uid}`
+   record at once; the role claim (which pages show) at the next sign-in, which must be with
+   the code. The old `operator` claim no longer grants anything.
 
 ## Changing a price
 
@@ -71,7 +73,12 @@ Once per project, in this order:
    pnpm --filter @sasimem/console build
    firebase deploy --config firebase.console.json --only hosting:console --project sasimem-dev
    ```
-5. **Make yourself an operator** (step 4 of the rollout above), sign in to the console, and
+5. **Staff invitations' links** (A1): the `manageStaff` callable emails a set-password link
+   that returns to `CONSOLE_URL` (dev's is in `functions/.env.sasimem-dev`; prod's goes in
+   the owner's `functions/.env.sasimem-prod`, e.g. `CONSOLE_URL=https://sasimem-ops.web.app`).
+   Add the console's domain under Authentication → Settings → **Authorized domains**, or
+   the link's "continue" step is refused.
+6. **Make yourself the Owner** (step 4 of the rollout above), sign in to the console, and
    set up your code when it asks. You are then signed out: sign in again with the code.
 
 The tick writes `system/tick` after each successful hourly run; Health shows it. The

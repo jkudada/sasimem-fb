@@ -3,13 +3,14 @@ import { defaultPlan, type PlanId, type SubscriptionStatus } from "@sasimem/core
 import type { ConsoleData } from "../data.js";
 import { kina, STATUS_WORDS } from "../format.js";
 import { metricsView } from "../reports.js";
+import type { Access } from "../types.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
 
 const PLANS: readonly PlanId[] = ["free", "standard", "plus"];
 const STATUSES: readonly SubscriptionStatus[] = ["trial", "free", "active", "past_due", "restricted", "cancelled"];
 
-export function Metrics(props: { data: () => Promise<ConsoleData>; now: () => Date }) {
-  const loaded = useLoad(props.data, (d) => d.subscribers());
+export function Metrics(props: { data: () => Promise<ConsoleData>; access: Access; now: () => Date }) {
+  const loaded = useLoad(props.data, (d) => d.subscribers(props.access));
   if (loaded.state === "loading") return <main><h1>Metrics</h1><p>Loading…</p></main>;
   if (loaded.state === "failed") return <main><h1>Metrics</h1><p role="alert">{LOAD_FAILED}</p></main>;
   const m = metricsView(loaded.value, props.now());

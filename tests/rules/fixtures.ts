@@ -70,3 +70,22 @@ export const subscriptionDoc = (overrides: Record<string, unknown> = {}): Record
   createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z"),
   ...overrides,
 });
+
+/** The token of someone signed in with their authenticator code (the console's sign-in). */
+export const WITH_CODE = { firebase: { sign_in_provider: "password", sign_in_second_factor: "totp" } };
+
+/**
+ * A member of Sasimem's staff (docs/PLAN-ADMIN-DASHBOARD.md §4): their staff document,
+ * written with rules off, and their Firestore as the console signs in, with the code
+ * unless `code: false`.
+ */
+export async function staffDb(
+  env: RulesTestEnvironment, role: string, opts: { status?: string; code?: boolean; uid?: string } = {},
+) {
+  const uid = opts.uid ?? `staff-${role}-${crypto.randomUUID()}`;
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `staff/${uid}`), {
+    role, status: opts.status ?? "active", email: `${uid}@sasimem.example`, displayName: "Staff", lastSeenAt: null,
+  }));
+  const token = { email: `${uid}@sasimem.example`, staffRole: role, ...(opts.code === false ? { firebase: { sign_in_provider: "password" } } : WITH_CODE) };
+  return { uid, db: env.authenticatedContext(uid, token as never).firestore() };
+}
