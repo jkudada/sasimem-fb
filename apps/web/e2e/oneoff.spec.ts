@@ -93,3 +93,46 @@ test("payments: part pay a one-off invoice, then the rest; the customer gets two
   await page.goto("/one-off");
   await expect(page.getByText(/K100.00 · due .* · Paid/)).toBeVisible();
 });
+
+test("credit notes: credit part of a one-off invoice, then pay the rest; the customer gets the credit note and a receipt, and the invoice ends paid", async ({ page }) => {
+  test.slow(); // onboarding, then three cold callables
+  const start = new Date();
+  const email = await onboard(page);
+  await switchOn(email, ["rentals", "repeating", "oneOff"]);
+  await page.goto("/tenants/new");
+  await page.getByLabel("Customer's name").fill("Kila Trading");
+  await page.getByLabel("Customer's email").fill("accounts@kila.example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("link", { name: "Kila Trading" })).toBeVisible();
+
+  await page.goto("/one-off/new");
+  await page.getByRole("combobox", { name: "Customer" }).selectOption({ label: "Kila Trading" });
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("What for").fill("Repair switchboard");
+  await page.getByRole("group", { name: "Line 1" }).getByLabel("Price each").fill("K100");
+  await page.getByRole("button", { name: "Send invoice" }).click();
+  await expect(page.getByText("Sent INV-0001 to Kila Trading.")).toBeVisible({ timeout: 30_000 });
+
+  await page.goto("/one-off");
+  await page.getByRole("link", { name: "Credit note for INV-0001" }).click();
+  await page.getByLabel(/^Credit on Repair switchboard/).fill("K30");
+  await expect(page.getByText("K30.00 comes off what INV-0001 owes.")).toBeVisible();
+  await page.getByLabel(/^Reason/).fill("One breaker supplied by the customer");
+  await page.getByRole("button", { name: "Issue credit note" }).click();
+  await expect(page.getByText("Issued CN-0001 for INV-0001, crediting Kila Trading. Emailed to accounts@kila.example.")).toBeVisible({ timeout: 30_000 });
+  const mail = await mailTo("accounts@kila.example", start, /^Credit note CN-0001 from Wari Holdings - K30.00 off invoice INV-0001$/);
+  expect(mail.attachments).toEqual([{ filename: "CN-0001.pdf", bytes: expect.any(Number) }]);
+
+  await page.goto("/owed");
+  await expect(page.getByText("K30.00 credited · K70.00 left")).toBeVisible();
+  await page.getByRole("link", { name: "Record a payment from Kila Trading" }).click();
+  await page.getByLabel(/^Amount received/).fill("K70");
+  await expect(page.getByLabel(/^Apply to INV-0001/)).toHaveValue("K70.00");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByText(/receipt RCT-0001/)).toBeVisible({ timeout: 30_000 });
+  await mailTo("accounts@kila.example", start, /^Receipt RCT-0001 /);
+
+  await page.goto("/one-off");
+  await expect(page.getByText(/K100.00 · K30.00 credited · due .* · Paid/)).toBeVisible();
+  await page.goto("/credit-notes");
+  await expect(page.getByText("CN-0001 · Kila Trading")).toBeVisible();
+});

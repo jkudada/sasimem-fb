@@ -1,11 +1,12 @@
 import { useSignal } from "@preact/signals";
-import { type Arrears, type CalendarDate, balanceOf, dateLabel, formatKina, hasPayments, invoiceChip, owedTotal, paidSoFar, periodLabel, type Toea } from "@sasimem/core";
+import { type Arrears, type CalendarDate, balanceOf, dateLabel, formatKina, hasCreditNotes, hasPayments, invoiceChip, owedTotal, paidSoFar, periodLabel, type Toea } from "@sasimem/core";
 import type { Outcome, OwedInvoice } from "../setup.js";
 import { Back } from "./Back.js";
 
 /**
  * Owed (plan §7, screen 6): arrears across months, oldest debt first, grouped by tenant.
  * With payments (G2b): balances, part payments, credit, and Record a payment per customer.
+ * With credit notes (G2c): what was credited, and a Credit note link per invoice.
  */
 export function Owed(props: {
   groups: readonly Arrears<OwedInvoice>[];
@@ -38,10 +39,15 @@ export function Owed(props: {
             {g.invoices.map((i) => (
               <li key={i.id} class="card">
                 <p><strong>{i.number} · {periodLabel(i.period)}</strong> · {formatKina(i.totalToea)}</p>
-                {hasPayments(i) && <p class="note">{formatKina(paidSoFar(i))} paid · {formatKina(balanceOf(i))} left</p>}
+                {(hasPayments(i) || hasCreditNotes(i)) && (
+                  <p class="note">
+                    {[...(hasPayments(i) ? [`${formatKina(paidSoFar(i))} paid`] : []), ...(hasCreditNotes(i) ? [`${formatKina(i.creditedToea ?? (0 as Toea))} credited`] : []), `${formatKina(balanceOf(i))} left`].join(" · ")}
+                  </p>
+                )}
                 <p class="note">due {dateLabel(i.dueDate)} · {invoiceChip(i, props.today)}</p>
-                {/* Part paid: the rest is recorded as a payment, so the receipt and balance stay right. */}
-                {!hasPayments(i) && <button type="button" class={props.payments === true ? "quiet" : ""} aria-label={`Mark ${i.number ?? ""} paid`} disabled={busy} onClick={() => void tick(i.id)}>Mark paid</button>}
+                {props.payments === true && <a class="quiet small" href={`/credit-notes/new?invoice=${encodeURIComponent(i.id)}`} aria-label={`Credit note for ${i.number ?? ""}`}>Credit note</a>}
+                {/* Part paid or credited: the rest is recorded as a payment, so the receipt and balance stay right. */}
+                {!hasPayments(i) && !hasCreditNotes(i) && <button type="button" class={props.payments === true ? "quiet" : ""} aria-label={`Mark ${i.number ?? ""} paid`} disabled={busy} onClick={() => void tick(i.id)}>Mark paid</button>}
               </li>
             ))}
           </ul>

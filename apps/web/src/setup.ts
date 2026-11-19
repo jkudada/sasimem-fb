@@ -5,7 +5,7 @@
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
 import { customerOf } from "@sasimem/core";
-import type { Arrears, BankDetails, CalendarDate, Customer, Interval, Item, OneOffDraft, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, CreditableInvoice, CreditNoteInput, Customer, Interval, Item, OneOffDraft, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -136,11 +136,42 @@ export interface SetupStore {
   recordPayment(paymentId: string, payment: PaymentInput, emailReceipt: boolean): Promise<Outcome>;
   undoPayment(paymentId: string, reason: string): Promise<Outcome>;
   resendReceipt(paymentId: string): Promise<Outcome>;
+  /** Each customer's unused credit, by customer ID (G2c); customers with none are left out. A string is a problem. */
+  credits(): Promise<ReadonlyMap<string, number> | string>;
+  /** Every credit note, newest first (G2c). A string is a problem. */
+  creditNotes(): Promise<readonly CreditNoteRow[] | string>;
+  /** An invoice as the credit note form needs it; null when it is not there. A string is a problem. */
+  creditable(invoiceId: string): Promise<CreditableRow | null | string>;
+  /** Issue a credit note under the ID the screen made, so a retry issues it once (the issueCreditNote callable). */
+  issueCreditNote(creditNoteId: string, input: CreditNoteInput, emailIt: boolean): Promise<Outcome>;
+  resendCreditNote(creditNoteId: string): Promise<Outcome>;
+  /** Fetch a credit note's PDF and hand it to the browser; only a failure has a message. */
+  openCreditNotePdf(creditNoteId: string): Promise<Outcome>;
+}
+
+/** An invoice as the credit note form sees it (G2c). */
+export interface CreditableRow extends CreditableInvoice {
+  readonly id: string;
+  readonly customerName: string;
+}
+
+/** A credit note as the list shows it (G2c). */
+export interface CreditNoteRow {
+  readonly id: string;
+  readonly number: string;
+  readonly invoiceNumber: string;
+  readonly customerName: string;
+  readonly issueDate: CalendarDate;
+  readonly reason: string;
+  readonly totalToea: Toea;
+  readonly appliedToea: Toea;
+  readonly creditToea: Toea;
 }
 
 /** A payment as the screens show it (G2b). */
 export interface PaymentRow {
   readonly id: string;
+  /** "" when nothing was received: it only used credit (G2c). */
   readonly receiptNumber: string;
   readonly customerId: string;
   readonly customerName: string;
@@ -150,16 +181,11 @@ export interface PaymentRow {
   readonly reference: string;
   readonly allocations: readonly { readonly number: string; readonly amountToea: Toea }[];
   readonly creditToea: Toea;
+  /** Their credit it used as well (G2c). */
+  readonly creditUsedToea?: Toea;
   readonly status: "recorded" | "undone";
   readonly undoReason: string;
 }
-
-/** A customer's unused credit: what their recorded payments did not apply (G2b). */
-export const creditByCustomer = (payments: readonly PaymentRow[]): ReadonlyMap<string, number> => {
-  const m = new Map<string, number>();
-  for (const p of payments) if (p.status === "recorded" && p.creditToea > 0) m.set(p.customerId, (m.get(p.customerId) ?? 0) + p.creditToea);
-  return m;
-};
 
 export interface OneOffs {
   /** Drafts, in the order the store found them. */
@@ -178,6 +204,9 @@ export interface OneOffInvoice {
   readonly status: InvoiceStatus;
   /** Recorded payments (G2b); absent before any. */
   readonly amountPaidToea?: Toea;
+  /** Credit notes (G2c): off the balance, and in all; absent before any. */
+  readonly creditedToea?: Toea;
+  readonly creditNotedToea?: Toea;
 }
 
 /** An export's outcome: when it worked, the hour-long link to download it again. */
@@ -226,6 +255,9 @@ export interface MonthInvoice {
   readonly remindersPaused?: boolean;
   /** Recorded payments (G2b); absent before any. */
   readonly amountPaidToea?: Toea;
+  /** Credit notes (G2c): off the balance, and in all; absent before any. */
+  readonly creditedToea?: Toea;
+  readonly creditNotedToea?: Toea;
 }
 
 export interface Month {

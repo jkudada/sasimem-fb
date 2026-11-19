@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import { type CalendarDate, dateLabel, formatKina, invoiceChip, paidNoteProblem, paidSummary, periodLabel, type Toea, voidReasonProblem } from "@sasimem/core";
+import { type CalendarDate, dateLabel, formatKina, hasCreditNotes, hasPayments, invoiceChip, paidNoteProblem, paidSummary, periodLabel, type Toea, voidReasonProblem } from "@sasimem/core";
 import { emailProblem } from "../email-problem.js";
 import type { EmailEntry, Month, MonthInvoice, Outcome } from "../setup.js";
 import { Back } from "./Back.js";
@@ -13,6 +13,8 @@ interface Props {
   onVoid: (invoiceId: string, reason: string) => Promise<Outcome>;
   onResend: (invoiceId: string) => Promise<Outcome>;
   onOpenPdf: (invoiceId: string) => Promise<Outcome>;
+  /** True when the org can issue credit notes (G2c, behind `oneOff`). */
+  creditNotes?: boolean;
 }
 
 type Act = (run: () => Promise<Outcome>) => Promise<void>;
@@ -46,7 +48,9 @@ export function Tracking(props: Props) {
 function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
   const { inv, act } = props;
   const n = inv.number ?? "";
-  const chip = invoiceChip({ status: inv.status, dueDate: inv.dueDate ?? props.today, ...(inv.amountPaidToea === undefined ? {} : { amountPaidToea: inv.amountPaidToea }) }, props.today);
+  const chip = invoiceChip({ ...inv, dueDate: inv.dueDate ?? props.today }, props.today);
+  /** Paid or credited by records (G2b, G2c): the ticks and void would contradict them, so they are not offered. */
+  const recorded = hasPayments(inv) || hasCreditNotes(inv);
   const note = useSignal("");
   const noteProblem = useSignal<string | null>(null);
   const voiding = useSignal(false);
@@ -67,7 +71,7 @@ function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
     <li class="card">
       <p><strong>{n} · {inv.tenantName}</strong> · {formatKina(inv.totalToea)}</p>
       <p class="note">{inv.dueDate !== undefined && <>due {dateLabel(inv.dueDate)} · </>}<span class={`chip chip-${chip.toLowerCase().replace(" ", "-")}`}>{chip}</span>{inv.paidNote !== undefined && inv.paidNote !== "" && <> · {inv.paidNote}</>}</p>
-      {inv.status === "sent" && (
+      {inv.status === "sent" && !recorded && (
         <>
           <label class="field">
             <span class="field-label">Note for {n} (optional)</span>
@@ -77,7 +81,7 @@ function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
           <button type="button" aria-label={`Mark ${n} paid`} disabled={props.busy} onClick={markPaid}>Mark paid</button>
         </>
       )}
-      {inv.status === "paid" && <button type="button" class="quiet" aria-label={`${n} not paid after all`} disabled={props.busy} onClick={() => void act(() => props.onMarkUnpaid(inv.id))}>Not paid after all</button>}
+      {inv.status === "paid" && !recorded && <button type="button" class="quiet" aria-label={`${n} not paid after all`} disabled={props.busy} onClick={() => void act(() => props.onMarkUnpaid(inv.id))}>Not paid after all</button>}
       <div class="actions">
         <button type="button" class="quiet small" aria-label={`PDF of ${n}`} disabled={props.busy} onClick={() => void act(() => props.onOpenPdf(inv.id))}>PDF</button>
         {live && <button type="button" class="quiet small" aria-label={`Email ${n} again`} disabled={props.busy} onClick={() => void act(() => props.onResend(inv.id))}>Email again</button>}
@@ -87,7 +91,10 @@ function Row(props: Props & { inv: MonthInvoice; busy: boolean; act: Act }) {
             {inv.remindersPaused === true ? "Resume reminders" : "Pause reminders"}
           </button>
         )}
-        {inv.status !== "void" && !voiding.value && <button type="button" class="quiet small" aria-label={`Void ${n}…`} disabled={props.busy} onClick={() => (voiding.value = true)}>Void…</button>}
+        {live && props.creditNotes === true && (inv.creditNotedToea ?? 0) < inv.totalToea && (
+          <a class="quiet small" href={`/credit-notes/new?invoice=${encodeURIComponent(inv.id)}`} aria-label={`Credit note for ${n}`}>Credit note</a>
+        )}
+        {inv.status !== "void" && !recorded && !voiding.value && <button type="button" class="quiet small" aria-label={`Void ${n}…`} disabled={props.busy} onClick={() => (voiding.value = true)}>Void…</button>}
       </div>
       {voiding.value && (
         <div class="card">
