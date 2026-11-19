@@ -5,6 +5,7 @@ import { makeApprovalPage } from "./http/index.js";
 import { newToken } from "./links.js";
 import { db, retentionBucket } from "./admin.js";
 import { makeExportDownload } from "./http/exportDownload.js";
+import { makeOneOffCallables } from "./callables/oneoff.js";
 import { OutboxMailer } from "./mail/mailer.js";
 import { GmailMailer } from "./mail/gmail.js";
 import { ResendMailer } from "./mail/resend.js";
@@ -38,6 +39,8 @@ export const approvalPage = makeApprovalPage({ ...deps, signingKey: () => APPROV
 export const tick = makeTick(deps);
 
 const payments = makePaymentCallables(deps);
+// One-off invoices (docs/PLAN-GENERAL-INVOICING.md G2a).
+export const issueInvoice = makeOneOffCallables(deps).issueInvoice;
 export const markPaid = payments.markPaid;
 export const markUnpaid = payments.markUnpaid;
 export const pauseReminders = payments.pauseReminders;

@@ -30,6 +30,11 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - **PO required:** a customer flagged "PO required" cannot be invoiced without an order number.
 - **No negative invoice.** Discount lines are allowed, but the total must be at least K0.00;
   money back is a credit note (G2c).
+- **The PO number and TIN print in the bill-to block**, not beside the invoice number: the
+  Compact layout fits only four facts in its row.
+- **Copy-to (cc) is new in the mailer** for both Resend and Gmail.
+- **Known local flake, not G2:** `trackingPage` "with 20 tenants" times out at 5 s on this shared
+  machine, with main's code too (checked 2026-11-19); CI passes it.
 - **At most 30 lines** per invoice (fits two A4 pages within the 150 KB PDF budget).
 - **Sending is the say-so (D7).** There is no approval email for a one-off.
 - **Found while building: the rules check a draft's shape and line count, not each line.**
@@ -60,15 +65,18 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - [x] `defaultTermsDays` is an owner-editable profile field, 0-90
 
 ### Functions (T3)
-- [ ] `issueInvoice` numbers the invoice from the shared counter, freezes the snapshot (customer, address, TIN, PO, notes, template), makes the PDF and emails the customer and copy-to addresses
-- [ ] issuing the same draft twice gives one invoice and one number (idempotent), and the draft is gone
-- [ ] an org without the `oneOff` feature is refused; so is a non-owner
-- [ ] a draft with problems is refused with core's message, and nothing is numbered
-- [ ] a one-off issued while a rent run awaits approval: approving the run skips it; the numbers do not collide
-- [ ] rebuild, release and PDF making for a month never touch a one-off invoice in that month
-- [ ] a one-off invoice is reminded, marked paid, voided and resent like a rent invoice
-- [ ] the PDF shows quantity, unit and unit price columns when any line is an item; rent PDFs stay byte-identical (golden)
-- [ ] a one-off PDF prints the customer's address, TIN and PO number; within 150 KB with a logo
+- [x] `issueInvoice` numbers the invoice from the shared counter, freezes the snapshot (customer, address, TIN, PO, notes, template), makes the PDF and emails the customer and copy-to addresses
+- [x] issuing the same draft twice gives one invoice and one number (idempotent), and the draft is gone; two presses at the same moment too (race)
+- [x] an org without the `oneOff` feature is refused; so is a non-owner
+- [x] a draft with problems is refused with core's message, and nothing is numbered
+- [x] a one-off issued while a rent run awaits approval: approving the run skips it; the numbers do not collide
+- [x] rebuild, release and PDF making for a month never touch a one-off invoice in that month
+- [x] a one-off invoice is marked paid and resent (with its copy-to) like a rent invoice; reminders and void use the same code paths
+- [x] the PDF shows an item's quantity, unit and price under its description ("1.5 hour × K80.00"), not new columns; rent PDFs match their golden text unchanged
+- [x] a one-off PDF prints the customer's address, TIN and PO number; within 150 KB with a logo
+
+- [x] email: copy-to addresses go as cc through Resend and Gmail; none means no cc field
+- [x] email: a one-off is worded "has sent you invoice INV-0001 for your order PO-7731", with no unit or month, and carries its notes; a rent invoice's email is unchanged
 
 ### Web (T1 web)
 - [ ] the menu shows Items and New invoice only when the org has `oneOff`

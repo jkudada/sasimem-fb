@@ -9,7 +9,7 @@
  * arrangement. Classic is exactly the layout from before templates: a snapshot with
  * no template, or the default Classic one, renders to the same bytes as it always did.
  */
-import { CLASSIC, type CalendarDate, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, type Toea, dateLabel, formatKina, initials } from "@sasimem/core";
+import { CLASSIC, type CalendarDate, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, type Line, type Toea, dateLabel, formatKina, formatQuantity, initials } from "@sasimem/core";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import { fitInside } from "./png.js";
@@ -77,6 +77,30 @@ export async function renderInvoicePdf(invoice: InvoiceDocument, logo: Buffer | 
   return done;
 }
 
+/**
+ * The bill-to lines under the customer's name. A rent invoice has unit and address only,
+ * printed in the one call it always was (golden bytes); a one-off adds TIN, GST number and
+ * the customer's order number for their accounts payable (docs/PLAN-GENERAL-INVOICING.md §6.1).
+ */
+function billTo(snap: InvoiceSnapshot): { readonly where: string; readonly extra: readonly string[] } {
+  const extra = [
+    ...(snap.customer?.tin ? [`TIN ${snap.customer.tin}`] : []),
+    ...(snap.customer?.gstNumber ? [`GST number ${snap.customer.gstNumber}`] : []),
+    ...(snap.poNumber ? [`Your order ${snap.poNumber}`] : []),
+  ];
+  return { where: [snap.unitLabel, snap.propertyAddress].filter((x) => x !== "").join(", "), extra };
+}
+
+/** The small line under a description: an item's quantity and price, then its own detail. Rent lines print their detail as before. */
+function detailOf(l: Line): string {
+  if (l.kind !== "item" || l.quantityMilli === undefined || l.unitPriceToea === undefined) return l.detail;
+  const each = `${formatQuantity(l.quantityMilli)}${l.unit ? ` ${l.unit}` : ""} × ${k(l.unitPriceToea)}`;
+  return [each, l.detail].filter((x) => x !== "").join("  ·  ");
+}
+
+/** The note beside the totals: the template's footer, then a one-off's own notes. */
+const noteOf = (p: Page): string => [p.t.footer, p.snap.notes ?? ""].filter((x) => x !== "").join("\n\n");
+
 /** The letterhead mark's kind for this page: a logo, the initials, or nothing. */
 const markOf = (p: Page): "logo" | "monogram" | "none" => (p.logo !== null ? "logo" : p.t.mark === "none" ? "none" : "monogram");
 
@@ -125,7 +149,9 @@ function titleFactsBillTo(p: Page, colours: { title: string }): void {
   }
   doc.fillColor(MUTED).text("Bill to", left + 300, 172);
   doc.fillColor(INK).font(f.bold).text(snap.tenantName, left + 300, 187);
-  doc.font(f.regular).text(`${snap.unitLabel}, ${snap.propertyAddress}`, left + 300, doc.y, { width: width - 300 });
+  const to = billTo(snap);
+  if (to.where !== "") doc.font(f.regular).text(to.where, left + 300, doc.y, { width: width - 300 });
+  for (const line of to.extra) doc.font(f.regular).text(line, left + 300, doc.y, { width: width - 300 });
 }
 
 /** Type sizes and spacing for the table, totals and payment block. */
@@ -147,13 +173,13 @@ const TIGHT: Scale = { head: 8, body: 9, detail: 8, row: 12, detailRow: 11, gap:
  */
 function fitting(p: Page, top: number): Scale {
   const s = ROOMY;
-  const lines = p.invoice.lines.reduce((h, l) => h + s.row + (l.detail === "" ? 0 : s.detailRow) + s.gap, 0);
+  const lines = p.invoice.lines.reduce((h, l) => h + s.row + (detailOf(l) === "" ? 0 : s.detailRow) + s.gap, 0);
   const totalsHeight = (p.showGst ? 2 : 1) * s.totalRow + s.afterTotals;
   let note = 0;
-  if (p.t.footer !== "") {
+  if (noteOf(p) !== "") {
     const { gstX } = columns(p);
     p.doc.font(p.f.regular).fontSize(s.detail);
-    note = Math.max(0, p.doc.heightOfString(p.t.footer, { width: gstX - 60 - p.left - 20 }) + 16 - totalsHeight);
+    note = Math.max(0, p.doc.heightOfString(noteOf(p), { width: gstX - 60 - p.left - 20 }) + 16 - totalsHeight);
   }
   const pay = s.body * 2 + s.payRow * 3 + 8 + 14 + s.reference * 1.2;
   return top + s.row + 8 + lines + 10 + totalsHeight + note + pay <= p.doc.page.maxY() ? ROOMY : SNUG;
@@ -182,8 +208,9 @@ function table(p: Page, top: number, s: Scale, headColour: string = MUTED): numb
     if (showGst) doc.text(l.gstApplicable ? k(l.gstToea) : "-", gstX, y, { width: 80, align: "right" });
     doc.text(k(l.amountToea), amountX, y, { width: 100, align: "right" });
     y = Math.max(y + s.row, below + 2);
-    if (l.detail !== "") {
-      doc.fillColor(MUTED).fontSize(s.detail).text(l.detail, left, y);
+    const detail = detailOf(l);
+    if (detail !== "") {
+      doc.fillColor(MUTED).fontSize(s.detail).text(detail, left, y);
       doc.fontSize(s.body);
       y += s.detailRow;
     }
@@ -198,7 +225,7 @@ function table(p: Page, top: number, s: Scale, headColour: string = MUTED): numb
  * printed as stored; the template's note sits beside them. Returns where payment starts.
  */
 function totals(p: Page, top: number, s: Scale, totalColour: string | null): number {
-  const { doc, invoice, f, left, showGst, t } = p;
+  const { doc, invoice, f, left, showGst } = p;
   const { amountX, gstX } = columns(p);
   let y = top;
   const rows: [string, number][] = [["Subtotal", invoice.subtotalToea], ...(showGst ? [["GST", invoice.gstToea] as [string, number]] : [])];
@@ -211,9 +238,10 @@ function totals(p: Page, top: number, s: Scale, totalColour: string | null): num
   doc.font(f.bold).fontSize(s.total).text("Total", gstX - 60, y, { width: 140, align: "right" });
   doc.text(k(invoice.totalToea), amountX, y, { width: 100, align: "right" });
   y += s.afterTotals;
-  if (t.footer === "") return y;
+  const note = noteOf(p);
+  if (note === "") return y;
   // The note, to the left of the totals; payment waits below it if it runs long.
-  doc.font(f.regular).fontSize(s.detail).fillColor(MUTED).text(t.footer, left, top, { width: gstX - 60 - left - 20 });
+  doc.font(f.regular).fontSize(s.detail).fillColor(MUTED).text(note, left, top, { width: gstX - 60 - left - 20 });
   return Math.max(y, doc.y + 16);
 }
 
@@ -294,7 +322,9 @@ function compact(p: Page): void {
   });
   doc.fontSize(8).fillColor(MUTED).text("Bill to", left, 146);
   doc.font(f.bold).fontSize(9).fillColor(INK).text(snap.tenantName, left, 157);
-  doc.font(f.regular).text(`${snap.unitLabel}, ${snap.propertyAddress}`, left, doc.y, { width });
+  const to = billTo(snap);
+  if (to.where !== "") doc.font(f.regular).text(to.where, left, doc.y, { width });
+  for (const line of to.extra) doc.font(f.regular).text(line, left, doc.y, { width });
 
   const y = table(p, doc.y + 18, TIGHT);
   payment(p, totals(p, y, TIGHT, null), TIGHT, null);

@@ -43,6 +43,7 @@ export class GmailMailer implements Mailer {
     const message: SendMailOptions = {
       from: name === "" ? this.config.user() : { name, address: this.config.user() },
       to: mail.to,
+      ...(mail.cc === undefined || mail.cc.length === 0 ? {} : { cc: [...mail.cc] }),
       ...(mail.replyTo === undefined ? {} : { replyTo: mail.replyTo }),
       subject: mail.subject,
       text: mail.text,

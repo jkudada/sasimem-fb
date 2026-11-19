@@ -120,3 +120,15 @@ describe("reading a stored draft (the rules check its shape, not each line)", ()
     expect(oneOff.draftOf({})).toEqual({ customerId: "", lines: [], poNumber: "", notes: "", dueDays: null });
   });
 });
+
+test("a one-off's snapshot: the customer as bill-to, with TIN, GST number, copy-to, order number and notes", () => {
+  const org = { name: "Wari Electrical", address: "Boroko", email: "jo@wari.example", gstRegistered: true, gstNumber: "G-1", bankName: "BSP", bankAccount: "1000",
+    invoicePrefix: "INV-", timezone: "Pacific/Port_Moresby", approvalLeadDays: 3, sendHour: 8, reminderAfterDays: 7, reminderMode: "auto" as const };
+  const who = { ...customer, address: "Section 5, Gordons", tin: "500012345", gstNumber: "G-9", ccEmails: ["boss@kila.example"] };
+  const snap = oneOff.oneOffSnapshot(org, who, { ...draft, poNumber: "PO-7731", notes: "Thanks" }, { name: "Classic", layout: "classic", accent: "#0d6b4f", font: "helvetica", mark: "monogram", footer: "" });
+  expect(snap).toMatchObject({
+    tenantName: "Kila Trading", tenantEmail: "accounts@kila.example", unitLabel: "", propertyAddress: "Section 5, Gordons",
+    customer: { tin: "500012345", gstNumber: "G-9", ccEmails: ["boss@kila.example"] }, poNumber: "PO-7731", notes: "Thanks",
+    org: { name: "Wari Electrical", gstNumber: "G-1" },
+  });
+});

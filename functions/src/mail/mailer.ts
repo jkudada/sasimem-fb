@@ -14,6 +14,8 @@ export interface Attachment {
 
 export interface Mail {
   readonly to: string;
+  /** Copy-to addresses (a customer's ccEmails, G2a); absent or empty sends none. */
+  readonly cc?: readonly string[];
   /** The landlord's name, shown as the sender's display name. */
   readonly fromName?: string;
   readonly replyTo?: string;
@@ -36,7 +38,8 @@ export class ConsoleMailer implements Mailer {
   async send(mail: Mail): Promise<{ id: string }> {
     const files = (mail.attachments ?? []).map((a) => ` [${a.filename}, ${a.content.length} bytes${a.contentId === undefined ? "" : `, inline as cid:${a.contentId}`}]`).join("");
     const html = mail.html === undefined ? "" : ` [HTML, ${Buffer.byteLength(mail.html)} bytes]`;
-    console.log(`[mail] to ${mail.to}: ${mail.subject}${files}${html}\n${mail.text}`);
+    const cc = mail.cc === undefined || mail.cc.length === 0 ? "" : ` (cc ${mail.cc.join(", ")})`;
+    console.log(`[mail] to ${mail.to}${cc}: ${mail.subject}${files}${html}\n${mail.text}`);
     return { id: `console-${++this.n}` };
   }
 }

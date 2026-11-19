@@ -3,6 +3,7 @@
  * owner writes, and the invoice issuing makes of it. Pure; Functions number, freeze,
  * render and send. A one-off is never a draft inside invoices/ (test list G2, choices).
  */
+import { invoiceSnapshot } from "./approval.js";
 import { totals } from "./billing.js";
 import type { Customer } from "./customers.js";
 import { documentTitle } from "./gst.js";
@@ -10,7 +11,8 @@ import { itemLine, itemLineProblems } from "./lines.js";
 import { MAX_EDITABLE_TOEA, type Toea, formatKina, toea } from "./money.js";
 import { addDays, type CalendarDate, periodOf } from "./period.js";
 import { wholeIn } from "./setup.js";
-import type { DraftInvoice, InvoiceSource, ItemLineInput, Problems, TaxCode } from "./types.js";
+import type { InvoiceTemplate } from "./templates.js";
+import type { DraftInvoice, InvoiceSnapshot, InvoiceSource, ItemLineInput, OrgProfile, Problems, TaxCode } from "./types.js";
 
 // ---------------------------------------------------------------- the price list
 
@@ -141,3 +143,21 @@ export function issuedOneOff(req: {
 
 /** The invoice with its number, which is also what the customer writes on the transfer. */
 export const numbered = (invoice: IssuedOneOff, number: string): IssuedOneOff => ({ ...invoice, paymentReference: number });
+
+/**
+ * What a one-off prints, frozen at issuing (I5): the customer is the bill-to (no unit; their
+ * address in the address slot), with what their accounts payable needs (§6.1).
+ */
+export function oneOffSnapshot(
+  org: OrgProfile & { readonly logoPath?: string | undefined },
+  customer: Customer,
+  draft: Pick<OneOffDraft, "poNumber" | "notes">,
+  template: InvoiceTemplate,
+): InvoiceSnapshot {
+  return {
+    ...invoiceSnapshot(org, { tenantName: customer.name, unitLabel: "", propertyAddress: customer.address }, customer.email, template),
+    customer: { tin: customer.tin, gstNumber: customer.gstNumber, ccEmails: [...customer.ccEmails] },
+    poNumber: draft.poNumber.trim(),
+    notes: draft.notes.trim(),
+  };
+}

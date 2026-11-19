@@ -39,6 +39,15 @@ describe("the Gmail adapter (testing phase)", () => {
     }]);
   });
 
+  test("copy-to addresses go as cc (G2a); none means no cc field at all", async () => {
+    const t = fakeTransport(async () => ({ messageId: "<cc@gmail.com>" }));
+    const mailer = new GmailMailer(config(t));
+    await mailer.send({ ...mail, cc: ["boss@kila.example"] });
+    await mailer.send({ ...mail, cc: [] });
+    expect(t.sent[0]).toMatchObject({ to: "peter@kila.example", cc: ["boss@kila.example"] });
+    expect(t.sent[1]).not.toHaveProperty("cc");
+  });
+
   test("sends the HTML part and the logo inline by its content ID (docs/PLAN-TEMPLATES.md §6)", async () => {
     const t = fakeTransport(async () => ({ messageId: "<def@gmail.com>" }));
     const logo = Buffer.from("\x89PNG tiny");
