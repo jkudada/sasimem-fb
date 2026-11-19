@@ -160,3 +160,15 @@ describe("templates (docs/PLAN-TEMPLATES.md §4)", () => {
     expect(pdf).not.toMatch(/\/FontFile/);
   });
 });
+
+describe("a credit note's PDF (G2c)", () => {
+  const credit = { invoiceNumber: "INV-0142", reason: "Water charged twice", appliedToea: 3_000, creditToea: 2_500 };
+  test.each(LAYOUTS.map((l) => l.id))("%s prints its title, the invoice it credits and the reason, and no bank details or due date", async (layout) => {
+    const cn = withTemplate({ layout }, { documentTitle: "TAX CREDIT NOTE" as never, number: "CN-0001", paymentReference: "" });
+    const text = pdfText(await renderInvoicePdf(cn, null, { compress: false, credit })).join("\n");
+    for (const s of ["TAX CREDIT NOTE", "CN-0001", "For invoice", "INV-0142", "Reason", "Water charged twice", "Taken off what you owe on INV-0142", "K30.00", "Kept as credit for you", "K25.00"]) {
+      expect(text, s).toContain(s);
+    }
+    for (const s of ["Due", "Pay by bank deposit", "Write this reference"]) expect(text, s).not.toContain(s);
+  });
+});

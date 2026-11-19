@@ -37,6 +37,8 @@ function paymentOf(request: CallableRequest<unknown>): PaymentInput {
     return v;
   };
   const allocations = d["allocations"];
+  const used = d["creditUsedToea"];
+  if (used !== undefined && typeof used !== "number") throw new HttpsError("invalid-argument", UNREADABLE);
   if (!Array.isArray(allocations) || allocations.length > 50) throw new HttpsError("invalid-argument", UNREADABLE);
   return {
     customerId: text("customerId"),
@@ -52,6 +54,7 @@ function paymentOf(request: CallableRequest<unknown>): PaymentInput {
       }
       return { invoiceId: x["invoiceId"], amountToea: x["amountToea"] as PaymentInput["amountToea"] };
     }),
+    ...(used === undefined ? {} : { creditUsedToea: used as PaymentInput["amountToea"] }),
   };
 }
 
@@ -70,10 +73,16 @@ export function makeReceiptCallables(deps: NotifyDeps) {
         case "refused":
           throw new HttpsError("invalid-argument", outcome.message);
         case "alreadyRecorded":
-          return { receiptNumber: outcome.payment.receiptNumber, message: `That payment was already recorded: receipt ${outcome.payment.receiptNumber}.` };
+          return {
+            receiptNumber: outcome.payment.receiptNumber,
+            message: outcome.payment.receiptNumber === "" ? "That was already recorded." : `That payment was already recorded: receipt ${outcome.payment.receiptNumber}.`,
+          };
         case "recorded": {
           const p = outcome.payment;
-          const recorded = `Recorded ${formatKina(p.amountToea)} from ${p.customerName}: receipt ${p.receiptNumber}.`;
+          const used = p.creditUsedToea === undefined ? "" : ` and ${formatKina(p.creditUsedToea)} of their credit`;
+          // Credit used, nothing received: no receipt, nobody emailed.
+          if (p.receiptNumber === "") return { receiptNumber: "", message: `Used ${formatKina(p.creditUsedToea ?? (0 as PaymentInput["amountToea"]))} of ${p.customerName}'s credit. No money was received, so there is no receipt.` };
+          const recorded = `Recorded ${formatKina(p.amountToea)}${used} from ${p.customerName}: receipt ${p.receiptNumber}.`;
           if (!emailIt) return { receiptNumber: p.receiptNumber, message: recorded };
           // Only the call that recorded it emails. The payment stands whatever the email does.
           try {
@@ -103,6 +112,7 @@ export function makeReceiptCallables(deps: NotifyDeps) {
       const payment = await storedPayment(orgId, paymentId);
       if (payment === null) throw new HttpsError("not-found", "That payment is not there any more. Reload and try again.");
       if (payment.status === "undone") throw new HttpsError("failed-precondition", "That payment was undone, so it has no receipt to send.");
+      if (payment.receiptNumber === "") throw new HttpsError("failed-precondition", "That only used credit, so it has no receipt to send.");
       const to = await orRefused(sendReceipt(deps, orgId, paymentId, payment, true));
       return { ok: true, message: `Emailed receipt ${payment.receiptNumber} to ${to} again.` };
     }),

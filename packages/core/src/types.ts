@@ -232,4 +232,9 @@ export interface InvoiceDocument extends DraftInvoice {
   readonly source?: InvoiceSource;
   /** Payments recorded against it (G2b), server-written; absent means none. */
   readonly amountPaidToea?: Toea;
+  /** Credit notes (G2c), server-written; absent means none. The part taken off the balance, */
+  readonly creditedToea?: Toea;
+  /** and what was credited in all, and per line (for the limits). */
+  readonly creditNotedToea?: Toea;
+  readonly creditNotedLines?: readonly { readonly amountToea: Toea; readonly gstToea: Toea }[];
 }

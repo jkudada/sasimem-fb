@@ -10,8 +10,9 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, dispatchNotice, freshLink, freshTrackingLink, heldNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, receipt, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
+import type { StoredCreditNote } from "./store/creditNotes.js";
 import type { StoredPayment } from "./store/receipts.js";
 import { type OrgDoc, refs } from "./store/runs.js";
 
@@ -84,6 +85,7 @@ async function invoiceMail(invoice: InvoiceDocument, make: typeof tenantInvoice)
     logo: await emailLogo(invoice.snapshot),
     oneOff: sourceOf(invoice).kind !== "rent",
     ...(invoice.amountPaidToea === undefined ? {} : { amountPaidToea: invoice.amountPaidToea }),
+    ...(invoice.creditedToea === undefined ? {} : { creditedToea: invoice.creditedToea }),
   });
 }
 
@@ -132,6 +134,22 @@ export async function sendReceipt(deps: NotifyDeps, orgId: string, paymentId: st
     customerName: customer.name, receiptNumber: payment.receiptNumber, receivedOn: payment.receivedOn, amountToea: payment.amountToea,
     method: METHOD_LABELS[payment.method], reference: payment.reference,
     applied: payment.allocations.map((a) => ({ number: a.number, amountToea: a.amountToea, balanceToea: a.balanceAfterToea })), creditToea: payment.creditToea,
+    ...(payment.creditUsedToea === undefined ? {} : { creditUsedToea: payment.creditUsedToea }),
   }));
   return customer.email;
+}
+
+/**
+ * A credit note (G2c), to the customer and copy-to on the invoice it credits, from its
+ * frozen snapshot and stored PDF only. `again`: the owner asked. Returns the address.
+ */
+export async function sendCreditNote(deps: NotifyDeps, orgId: string, creditNoteId: string, cn: StoredCreditNote, again = false): Promise<string> {
+  if (cn.pdfPath === "") throw new Error("a credit note is emailed only once it has its PDF");
+  const [pdf] = await bucket().file(cn.pdfPath).download();
+  await sendLogged(logged(deps), { orgId, kind: again ? "creditNoteAgain" : "creditNote", creditNoteId }, creditNote({
+    snapshot: cn.snapshot, number: cn.number, documentTitle: cn.documentTitle, invoiceNumber: cn.invoiceNumber, reason: cn.reason,
+    totalToea: cn.totalToea, appliedToea: cn.appliedToea, balanceAfterToea: cn.balanceAfterToea, creditToea: cn.creditToea,
+    pdf, logo: await emailLogo(cn.snapshot),
+  }));
+  return cn.snapshot.tenantEmail;
 }

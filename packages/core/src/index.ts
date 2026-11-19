@@ -22,3 +22,4 @@ export * from "./modules.js";
 export * from "./customers.js";
 export * from "./oneoff.js";
 export * from "./receipts.js";
+export * from "./credit-notes.js";

@@ -244,6 +244,14 @@ service cloud.firestore {
       match /payments/{paymentId} {
         allow read: if canRead(orgId);
       }
+      // Credit notes and each customer's credit (G2c): written only by issueCreditNote and
+      // the payment functions (I9).
+      match /creditNotes/{creditNoteId} {
+        allow read: if canRead(orgId);
+      }
+      match /credits/{customerId} {
+        allow read: if canRead(orgId);
+      }
       // The email log: members read it so a missing email shows up; it holds no bodies.
       match /emails/{emailId} {
         allow read: if canRead(orgId);

@@ -20,20 +20,25 @@ export interface IssuedInvoice {
   readonly totalToea: Toea;
   /** Recorded payments (G2b); absent before any, and on invoices from before G2b. */
   readonly amountPaidToea?: Toea;
+  /** Credit notes (G2c): off the balance, and in all. Absent before any. */
+  readonly creditedToea?: Toea;
+  readonly creditNotedToea?: Toea;
 }
 
-export type Chip = "Paid" | "Part paid" | "Not paid" | "Overdue" | "Void" | "Left out" | "Draft" | "Approved";
+export type Chip = "Credited" | "Paid" | "Part paid" | "Not paid" | "Overdue" | "Void" | "Left out" | "Draft" | "Approved";
 
 const CHIPS: Record<Exclude<InvoiceStatus, "sent">, Chip> = { paid: "Paid", void: "Void", excluded: "Left out", draft: "Draft", approved: "Approved" };
 
 /**
  * Where an invoice stands, in the landlord's words. Overdue is after the due date, on the
  * landlord's calendar, and wins over Part paid (G2b): the balance is late either way.
+ * Credited in full (G2c) says so, paid or not.
  */
-export function invoiceChip(invoice: Pick<IssuedInvoice, "status" | "dueDate" | "amountPaidToea">, today: CalendarDate): Chip {
+export function invoiceChip(invoice: Pick<IssuedInvoice, "status" | "dueDate"> & Partial<Pick<IssuedInvoice, "amountPaidToea" | "creditedToea" | "totalToea" | "creditNotedToea">>, today: CalendarDate): Chip {
+  if (invoice.status !== "void" && invoice.creditNotedToea !== undefined && invoice.creditNotedToea === invoice.totalToea) return "Credited";
   if (invoice.status !== "sent") return CHIPS[invoice.status];
   if (today > invoice.dueDate) return "Overdue";
-  return hasPayments(invoice) ? "Part paid" : "Not paid";
+  return hasPayments(invoice) || (invoice.creditedToea ?? 0) > 0 ? "Part paid" : "Not paid";
 }
 
 export interface Arrears<I extends IssuedInvoice = IssuedInvoice> {

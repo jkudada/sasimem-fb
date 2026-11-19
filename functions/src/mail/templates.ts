@@ -115,10 +115,12 @@ export interface TenantInvoiceFacts {
   readonly oneOff?: boolean;
   /** Payments recorded so far (G2b); above 0, the email asks for the balance. */
   readonly amountPaidToea?: Toea;
+  /** Taken off by credit notes (G2c); above 0, likewise. */
+  readonly creditedToea?: Toea;
 }
 
-/** What is still to pay: the total, less what was recorded (G2b). */
-const stillToPay = (i: TenantInvoiceFacts): Toea => (i.totalToea - (i.amountPaidToea ?? 0)) as Toea;
+/** What is still to pay: the total, less what was recorded (G2b) and credited (G2c). */
+const stillToPay = (i: TenantInvoiceFacts): Toea => (i.totalToea - (i.amountPaidToea ?? 0) - (i.creditedToea ?? 0)) as Toea;
 
 /** INV/0142 → INV-0142.pdf: a prefix can hold characters a file name cannot. */
 export const pdfFilename = (number: string): string => `${number.replace(/[^A-Za-z0-9._-]+/g, "-")}.pdf`;
@@ -126,7 +128,7 @@ export const pdfFilename = (number: string): string => `${number.replace(/[^A-Za
 const LOGO_CID = "logo";
 
 /** The invoice's frozen template as an email's look; invoices from before templates are Classic. */
-function brandOf(i: TenantInvoiceFacts): Brand {
+function brandOf(i: Pick<TenantInvoiceFacts, "snapshot" | "logo">): Brand {
   const t = i.snapshot.template ?? CLASSIC;
   const mark: Brand["mark"] = t.mark === "none" ? { kind: "none" }
     : t.mark === "logo" && i.logo !== null ? { kind: "logo", cid: LOGO_CID, ...size(fitInside(i.logo, 160, 60)) }
@@ -142,8 +144,13 @@ function tenantMail(i: TenantInvoiceFacts, subject: string, opening: readonly st
     greeting: `Hello ${i.snapshot.tenantName},`,
     blocks: [
       ...opening.map((p) => ({ p })),
-      { rows: (i.amountPaidToea ?? 0) > 0
-        ? [["Invoice total", formatKina(i.totalToea)], ["Paid so far", formatKina(i.amountPaidToea as Toea)], ["Still to pay", formatKina(stillToPay(i))], ["Due", dateLabel(i.dueDate)]]
+      { rows: (i.amountPaidToea ?? 0) > 0 || (i.creditedToea ?? 0) > 0
+        ? [
+          ["Invoice total", formatKina(i.totalToea)],
+          ...((i.amountPaidToea ?? 0) > 0 ? [["Paid so far", formatKina(i.amountPaidToea as Toea)] as const] : []),
+          ...((i.creditedToea ?? 0) > 0 ? [["Credited", formatKina(i.creditedToea as Toea)] as const] : []),
+          ["Still to pay", formatKina(stillToPay(i))], ["Due", dateLabel(i.dueDate)],
+        ]
         : [["Amount", formatKina(i.totalToea)], ["Due", dateLabel(i.dueDate)]] },
       { rows: [["Pay to", `${i.snapshot.org.bankName}, account ${i.snapshot.org.bankAccount}`], ["Payment reference", i.paymentReference]] },
       ...(footer === "" ? [] : [{ note: footer }]),
@@ -183,6 +190,12 @@ export function tenantInvoice(i: TenantInvoiceFacts): Mail {
 
 export function tenantReminder(i: TenantInvoiceFacts): Mail {
   const partPaid = (i.amountPaidToea ?? 0) > 0;
+  if (!partPaid && (i.creditedToea ?? 0) > 0) {
+    return tenantMail(i, reminderSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: stillToPay(i), dueDate: i.dueDate }), [
+      `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. After the credit of ${formatKina(i.creditedToea as Toea)}, ${formatKina(stillToPay(i))} is still to pay. The PDF is attached again.`,
+      "If you have already paid, thank you, and please ignore this email.",
+    ]);
+  }
   return tenantMail(i, reminderSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: stillToPay(i), dueDate: i.dueDate }), [
     partPaid
       ? `This is a reminder that invoice ${i.number} from ${i.snapshot.org.name} was due on ${dateLabel(i.dueDate)}. Thank you for the ${formatKina(i.amountPaidToea as Toea)} paid so far; ${formatKina(stillToPay(i))} is still to pay. The PDF is attached again.`
@@ -208,6 +221,8 @@ export interface ReceiptFacts {
   readonly reference: string;
   readonly applied: readonly { readonly number: string; readonly amountToea: Toea; readonly balanceToea: Toea }[];
   readonly creditToea: Toea;
+  /** Their credit used on these invoices as well (G2c). */
+  readonly creditUsedToea?: Toea;
 }
 
 export const receiptSubject = (r: Pick<ReceiptFacts, "receiptNumber" | "orgName" | "amountToea">): string =>
@@ -227,6 +242,7 @@ export function receipt(r: ReceiptFacts): Mail {
         `Invoice ${a.number}`,
         `${formatKina(a.amountToea)} paid${a.balanceToea === 0 ? ", now paid in full" : `, ${formatKina(a.balanceToea)} still to pay`}`,
       ] as const) }]),
+      ...((r.creditUsedToea ?? 0) > 0 ? [{ p: `${formatKina(r.creditUsedToea as Toea)} of your credit was used as well.` }] : []),
       ...(r.creditToea > 0 ? [{ p: `${formatKina(r.creditToea)} was more than the invoices owed. ${r.orgName} keeps it as credit for you.` }] : []),
       { p: `To ask about this receipt, reply to this email to reach ${r.orgName}.` },
     ],
@@ -239,6 +255,57 @@ export function receipt(r: ReceiptFacts): Mail {
     subject,
     text: letterText(letter),
     html: letterHtml(letter, { name: r.orgName, accent: r.accent, font: r.font, mark: { kind: "monogram" } }, subject),
+  };
+}
+
+/** What a credit note's email states (G2c), from the credit note as issued. */
+export interface CreditNoteFacts {
+  readonly snapshot: InvoiceSnapshot;
+  readonly number: string;
+  readonly documentTitle: string;
+  readonly invoiceNumber: string;
+  readonly reason: string;
+  readonly totalToea: Toea;
+  readonly appliedToea: Toea;
+  readonly balanceAfterToea: Toea;
+  readonly creditToea: Toea;
+  readonly pdf: Buffer;
+  readonly logo: Buffer | null;
+}
+
+export const creditNoteSubject = (c: Pick<CreditNoteFacts, "number" | "invoiceNumber" | "totalToea"> & { orgName: string }): string =>
+  `Credit note ${c.number} from ${c.orgName} - ${formatKina(c.totalToea)} off invoice ${c.invoiceNumber}`;
+
+export function creditNote(c: CreditNoteFacts): Mail {
+  const org = c.snapshot.org;
+  const subject = creditNoteSubject({ ...c, orgName: org.name });
+  const brand = brandOf(c);
+  const kind = c.documentTitle === "TAX CREDIT NOTE" ? "tax credit note" : "credit note";
+  const letter: Letter = {
+    greeting: `Hello ${c.snapshot.tenantName},`,
+    blocks: [
+      { p: `${org.name} has sent you ${kind} ${c.number} for invoice ${c.invoiceNumber}. The PDF is attached.` },
+      { rows: [["Credited", formatKina(c.totalToea)], ["Reason", c.reason]] },
+      { rows: [
+        ...(c.appliedToea > 0 ? [[`Taken off invoice ${c.invoiceNumber}`, formatKina(c.appliedToea)] as const, [`Still to pay on ${c.invoiceNumber}`, c.balanceAfterToea === 0 ? "Nothing" : formatKina(c.balanceAfterToea)] as const] : []),
+        ...(c.creditToea > 0 ? [["Kept as credit for you", formatKina(c.creditToea)] as const] : []),
+      ] },
+      { p: `To ask about this credit note, reply to this email to reach ${org.name}.` },
+    ],
+  };
+  const cc = c.snapshot.customer?.ccEmails ?? [];
+  return {
+    to: c.snapshot.tenantEmail,
+    ...(cc.length === 0 ? {} : { cc }),
+    fromName: org.name,
+    replyTo: org.email,
+    subject,
+    text: letterText(letter),
+    html: letterHtml(letter, brand, subject),
+    attachments: [
+      { filename: pdfFilename(c.number), content: c.pdf },
+      ...(brand.mark.kind === "logo" && c.logo !== null ? [{ filename: "logo.png", content: c.logo, contentId: LOGO_CID, contentType: "image/png" }] : []),
+    ],
   };
 }
 
