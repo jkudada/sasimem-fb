@@ -5,7 +5,7 @@
  */
 import {
   type BillingOrg, type DraftInvoice, type InvoiceDocument, type InvoiceStatus, type OrgProfile, type Period, type Tenancy,
-  type RunStatus, type TenancyDocument, isActiveIn, redraftPlan, sendAt,
+  type RunStatus, type TenancyDocument, isActiveIn, redraftPlan, rentSource, sendAt,
 } from "@sasimem/core";
 import { type Firestore, Timestamp, type Transaction } from "firebase-admin/firestore";
 import { db } from "../admin.js";
@@ -39,10 +39,11 @@ export const asDraft = (inv: InvoiceDocument): DraftInvoice => Object.fromEntrie
 /** A tenancy document as core's billing rules see it. */
 export const asTenancy = (id: string, d: TenancyDocument): Tenancy & TenancyDocument => ({ ...d, id }) as Tenancy & TenancyDocument;
 
-/** The fields a new invoice document starts with, around core's draft. */
-function newInvoice(draft: DraftInvoice, tenancy: TenancyDocument) {
+/** The fields a new rent invoice document starts with, around core's draft. The tick and rebuild both use it. */
+export function newInvoice(draft: DraftInvoice, tenancy: Pick<TenancyDocument, "tenantId" | "tenantName" | "unitLabel">) {
   return {
     ...draft,
+    source: rentSource(draft), // where it came from (docs/PLAN-GENERAL-INVOICING.md §5.2); tenantId is its customer
     tenantId: tenancy.tenantId, tenantName: tenancy.tenantName, unitLabel: tenancy.unitLabel,
     status: "draft" as InvoiceStatus, numberSeq: null, number: null, snapshot: null, pdfPath: "",
     sentAt: null, paidAt: null, paidNote: "", remindedAt: null, remindersPaused: false,

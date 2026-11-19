@@ -110,8 +110,21 @@ service cloud.firestore {
         && d.reminderMode in ['auto', 'off'];
     }
 
+    // A tenant is a customer (docs/PLAN-GENERAL-INVOICING.md G1b): today's three fields,
+    // plus optional business details, which mirror core's CUSTOMER_EXTRAS and customerProblems.
+    function ccOk(xs, i) { return xs.size() <= i || email(xs[i]); }
+    function validCc(xs) { return xs is list && xs.size() <= 3 && ccOk(xs, 0) && ccOk(xs, 1) && ccOk(xs, 2); }
+    function optional(d, key, ok) { return !(key in d) || ok; }
     function validTenant(d) {
-      return exactly(d, ['name', 'email', 'phone']) && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30);
+      return shaped(d, ['name', 'email', 'phone'], ['ccEmails', 'address', 'tin', 'gstNumber', 'termsDays', 'poRequired', 'notes'])
+        && str(d.name, 1, 100) && email(d.email) && str(d.phone, 0, 30)
+        && optional(d, 'ccEmails', validCc(d.get('ccEmails', [])))
+        && optional(d, 'address', str(d.get('address', ''), 0, 200))
+        && optional(d, 'tin', str(d.get('tin', ''), 0, 20))
+        && optional(d, 'gstNumber', str(d.get('gstNumber', ''), 0, 20))
+        && optional(d, 'termsDays', d.get('termsDays', null) == null || wholeIn(d.get('termsDays', null), 0, 90))
+        && optional(d, 'poRequired', d.get('poRequired', false) is bool)
+        && optional(d, 'notes', str(d.get('notes', ''), 0, 500));
     }
 
     function validExtra(e) {
