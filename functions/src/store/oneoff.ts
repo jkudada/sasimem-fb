@@ -7,29 +7,39 @@
  *
  * A one-off is written straight to `sent`, never draft, excluded or approved, so the rent
  * paths that load "every invoice in month X" (approval, rebuild, PDFs, release) skip it.
+ *
+ * A draft scheduled to send later (G2d) goes through here too: issuing drops its schedule,
+ * and the tick's call (`scheduled`) issues only while the schedule stands and is due.
  */
 import {
   type InvoiceDocument, type InvoiceTemplate, customerOf, documentNumber, draftOf, draftProblems, hasFeature, issuedOneOff,
-  localDate, nextNumberOf, numbered, oneOffSnapshot, templateFor,
+  localDate, nextNumberOf, numbered, oneOffSnapshot, sendLaterDue, templateFor,
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
 import { type OrgDoc, refs } from "./runs.js";
+import { sendLaterRef } from "./sendLater.js";
 
 export type IssueOutcome =
   | { readonly kind: "issued"; readonly number: string; readonly customerName: string }
   | { readonly kind: "alreadyIssued"; readonly number: string }
   | { readonly kind: "notFound" }
+  /** The tick's call only: the schedule was cancelled, moved or already found wanting. */
+  | { readonly kind: "notDue" }
   | { readonly kind: "notEnabled" }
   | { readonly kind: "refused"; readonly message: string };
 
-export async function issueOneOff(orgId: string, draftId: string, req: { readonly actor: string; readonly now: Date }): Promise<IssueOutcome> {
+export async function issueOneOff(orgId: string, draftId: string, req: { readonly actor: string; readonly now: Date; readonly scheduled?: boolean }): Promise<IssueOutcome> {
   const r = refs(orgId);
   const draftRef = r.org.collection("drafts").doc(draftId);
   return db().runTransaction(async (tx): Promise<IssueOutcome> => {
     const existing = await tx.get(r.invoice(draftId));
     if (existing.exists) return { kind: "alreadyIssued", number: existing.get("number") as string };
-    const draftSnap = await tx.get(draftRef);
+    const [draftSnap, scheduleSnap] = await Promise.all([tx.get(draftRef), tx.get(sendLaterRef(orgId, draftId))]);
+    if (req.scheduled === true) {
+      const sendAt = scheduleSnap.get("sendAt") as Timestamp | undefined;
+      if (sendAt === undefined || !sendLaterDue({ sendAt: sendAt.toDate() }, req.now)) return { kind: "notDue" };
+    }
     if (!draftSnap.exists) return { kind: "notFound" };
 
     const [orgSnap, counterSnap, templateSnap] = await Promise.all([tx.get(r.org), tx.get(r.counter), tx.get(r.templates)]);
@@ -59,7 +69,8 @@ export async function issueOneOff(orgId: string, draftId: string, req: { readonl
     tx.create(r.issued(seq), { invoiceId: draftId, at });
     tx.set(r.counter, { nextInvoiceNumber: seq + 1 }, { merge: true });
     tx.delete(draftRef);
-    tx.create(r.events.doc(), { actor: req.actor, kind: "invoiceIssued", at, target: `invoices/${draftId}`, note: `${number}, ${customer.name}` });
+    if (scheduleSnap.exists) tx.delete(scheduleSnap.ref);
+    tx.create(r.events.doc(), { actor: req.actor, kind: "invoiceIssued", at, target: `invoices/${draftId}`, note: `${number}, ${customer.name}${req.scheduled === true ? ", as scheduled" : ""}` });
     return { kind: "issued", number, customerName: customer.name };
   });
 }

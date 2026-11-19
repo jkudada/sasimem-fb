@@ -42,7 +42,10 @@ export const tick = makeTick(deps);
 
 const payments = makePaymentCallables(deps);
 // One-off invoices (docs/PLAN-GENERAL-INVOICING.md G2a).
-export const issueInvoice = makeOneOffCallables(deps).issueInvoice;
+const oneOff = makeOneOffCallables(deps);
+export const issueInvoice = oneOff.issueInvoice;
+export const scheduleInvoice = oneOff.scheduleInvoice; // G2d
+export const cancelSchedule = oneOff.cancelSchedule;
 const receipts = makeReceiptCallables(deps);
 export const recordPayment = receipts.recordPayment;
 export const undoPayment = receipts.undoPayment;
