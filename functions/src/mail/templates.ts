@@ -111,6 +111,8 @@ export interface TenantInvoiceFacts {
   readonly pdf: Buffer;
   /** The org's logo, prepared as for the PDF (a PNG ≤ 400 px), when the template shows it; null for initials or nothing. */
   readonly logo: Buffer | null;
+  /** A one-off invoice (G2a): worded without a unit or month, copied to the customer's ccEmails. */
+  readonly oneOff?: boolean;
 }
 
 /** INV/0142 → INV-0142.pdf: a prefix can hold characters a file name cannot. */
@@ -138,11 +140,14 @@ function tenantMail(i: TenantInvoiceFacts, subject: string, opening: readonly st
       { rows: [["Amount", formatKina(i.totalToea)], ["Due", dateLabel(i.dueDate)]] },
       { rows: [["Pay to", `${i.snapshot.org.bankName}, account ${i.snapshot.org.bankAccount}`], ["Payment reference", i.paymentReference]] },
       ...(footer === "" ? [] : [{ note: footer }]),
+      ...(i.snapshot.notes ? [{ note: i.snapshot.notes }] : []),
       { p: `To ask about this invoice, reply to this email to reach ${i.snapshot.org.name}.` },
     ],
   };
+  const cc = i.snapshot.customer?.ccEmails ?? [];
   return {
     to: i.snapshot.tenantEmail,
+    ...(cc.length === 0 ? {} : { cc }),
     fromName: i.snapshot.org.name,
     replyTo: i.snapshot.org.email,
     subject,
@@ -156,6 +161,13 @@ function tenantMail(i: TenantInvoiceFacts, subject: string, opening: readonly st
 }
 
 export function tenantInvoice(i: TenantInvoiceFacts): Mail {
+  const kind = i.documentTitle === "TAX INVOICE" ? "tax invoice" : "invoice";
+  if (i.oneOff === true) {
+    const order = i.snapshot.poNumber ? ` for your order ${i.snapshot.poNumber}` : "";
+    return tenantMail(i, tenantInvoiceSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: i.totalToea, dueDate: i.dueDate }), [
+      `${i.snapshot.org.name} has sent you ${kind} ${i.number}${order}. The PDF is attached.`,
+    ]);
+  }
   const where = [i.snapshot.unitLabel, i.snapshot.propertyAddress].filter((s) => s !== "").join(", ");
   return tenantMail(i, tenantInvoiceSubject({ number: i.number, orgName: i.snapshot.org.name, totalToea: i.totalToea, dueDate: i.dueDate }), [
     `${i.snapshot.org.name} has sent you ${i.documentTitle === "TAX INVOICE" ? "tax invoice" : "invoice"} ${i.number} for ${where}, ${periodLabel(i.period)}. The PDF is attached.`,

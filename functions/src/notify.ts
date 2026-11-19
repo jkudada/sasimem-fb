@@ -3,7 +3,7 @@
  * callables, the approval page and the tick call these after their transaction has
  * committed, and only the caller that won the compare-and-set does.
  */
-import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type Period, type Toea } from "@sasimem/core";
+import { CLASSIC, type InvoiceDocument, type InvoiceSnapshot, type Period, type Toea, sourceOf } from "@sasimem/core";
 import type { Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -81,6 +81,7 @@ async function invoiceMail(invoice: InvoiceDocument, make: typeof tenantInvoice)
     snapshot: invoice.snapshot, number: invoice.number, documentTitle: invoice.documentTitle, period: invoice.period,
     totalToea: invoice.totalToea, dueDate: invoice.dueDate, paymentReference: invoice.paymentReference, pdf,
     logo: await emailLogo(invoice.snapshot),
+    oneOff: sourceOf(invoice).kind !== "rent",
   });
 }
 

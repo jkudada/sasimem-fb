@@ -38,6 +38,7 @@ describe("what is wrong with a customer as typed", () => {
 
   test("the name and email follow the tenant rules, in neutral words", () => {
     expect(customers.customerProblems({ ...full, name: " " }).name).toBe("Enter the customer's name.");
+    expect(customers.customerProblems({ ...full, name: "x".repeat(101) })).toHaveProperty("name");
     expect(customers.customerProblems({ ...full, email: "kila" }).email).toBe("Enter an email address like name@example.com.");
   });
 

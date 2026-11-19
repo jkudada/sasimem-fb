@@ -34,6 +34,15 @@ describe("the Resend adapter (plan §6.6)", () => {
     });
   });
 
+  test("copy-to addresses go as cc (G2a); none means no cc field at all", async () => {
+    const f = fakeFetch(200, { id: "re_124" });
+    const mailer = new ResendMailer({ apiKey: () => "re_key", from: () => "invoices@mail.sasimem.example", fetch: f.fetch });
+    await mailer.send({ ...mail, cc: ["boss@kila.example"] });
+    await mailer.send({ ...mail, cc: [] });
+    expect(JSON.parse(String(f.calls[0]?.init.body))).toMatchObject({ to: ["peter@kila.example"], cc: ["boss@kila.example"] });
+    expect(JSON.parse(String(f.calls[1]?.init.body))).not.toHaveProperty("cc");
+  });
+
   test("sends the HTML part and the logo as an inline attachment with its content ID (docs/PLAN-TEMPLATES.md §6)", async () => {
     const f = fakeFetch(200, { id: "re_2" });
     const logo = Buffer.from("\x89PNG tiny");

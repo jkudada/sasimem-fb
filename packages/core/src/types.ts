@@ -205,6 +205,10 @@ export interface InvoiceSnapshot {
   readonly propertyAddress: string;
   /** How it prints, resolved at approval. Absent on invoices approved before templates: they print as CLASSIC. */
   readonly template?: InvoiceTemplate;
+  /** One-off invoices (G2a): what the customer's accounts payable needs. Absent on rent invoices. */
+  readonly customer?: { readonly tin: string; readonly gstNumber: string; readonly ccEmails: readonly string[] };
+  readonly poNumber?: string;
+  readonly notes?: string;
 }
 
 /** An invoice as stored at orgs/{orgId}/invoices/{tenancyId}_{period} (plan §4). Server-written only. */

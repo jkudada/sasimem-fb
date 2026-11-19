@@ -165,3 +165,29 @@ describe("sending a tenant's invoice (T3)", () => {
     expect(mailer.sent[1]?.html).toContain(">WH<");
   });
 });
+
+describe("a one-off invoice's email (G2a)", () => {
+  const oneOff = snapshot({ unitLabel: "", propertyAddress: "Section 5, Gordons", customer: { tin: "500012345", gstNumber: "", ccEmails: ["boss@kila.example"] }, poNumber: "PO-7731", notes: "Thanks for your business." });
+
+  test("names the invoice and the customer's order, not a unit or a month", () => {
+    const mail = tenantInvoice(facts({ snapshot: oneOff, oneOff: true }));
+    expect(mail.text).toContain("Wari Holdings has sent you invoice INV-0001 for your order PO-7731. The PDF is attached.");
+    expect(mail.text).not.toContain("Flat 1"); // no unit; the "Due" row still names its date
+    expect(mail.text).toContain("Thanks for your business.");
+  });
+
+  test("goes to the customer, with their copy-to addresses as cc", () => {
+    expect(tenantInvoice(facts({ snapshot: oneOff, oneOff: true }))).toMatchObject({ to: "peter@kila.example", cc: ["boss@kila.example"] });
+  });
+
+  test("with no order number it says only the invoice", () => {
+    const mail = tenantInvoice(facts({ snapshot: { ...oneOff, poNumber: "" }, oneOff: true }));
+    expect(mail.text).toContain("Wari Holdings has sent you invoice INV-0001. The PDF is attached.");
+  });
+
+  test("a rent invoice's email has no cc and is worded as before", () => {
+    const mail = tenantInvoice(facts());
+    expect(mail).not.toHaveProperty("cc");
+    expect(mail.text).toContain("for Flat 1, Lot 4, Boroko, October 2026.");
+  });
+});

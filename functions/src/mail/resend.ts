@@ -23,6 +23,7 @@ export class ResendMailer implements Mailer {
     const body = {
       from: name === "" ? this.config.from() : `${name} <${this.config.from()}>`,
       to: [mail.to],
+      ...(mail.cc === undefined || mail.cc.length === 0 ? {} : { cc: [...mail.cc] }),
       ...(mail.replyTo === undefined ? {} : { reply_to: mail.replyTo }),
       subject: mail.subject,
       text: mail.text,

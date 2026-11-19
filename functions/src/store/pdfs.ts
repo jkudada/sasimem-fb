@@ -6,6 +6,7 @@
  * without a PDF.
  */
 import type { InvoiceDocument, Period } from "@sasimem/core";
+import type { DocumentSnapshot } from "firebase-admin/firestore";
 import { bucket, db } from "../admin.js";
 import { renderInvoicePdf } from "../pdf.js";
 import { refs } from "./runs.js";
@@ -18,33 +19,45 @@ const alreadyExists = (e: unknown): boolean => typeof e === "object" && e !== nu
 export async function renderMissingPdfs(orgId: string, period: Period): Promise<number> {
   const r = refs(orgId);
   const missing = (await r.invoicesOf(period).where("pdfPath", "==", "").get()).docs.filter((d) => d.get("status") === "approved");
-  const logos = new Map<string, Promise<Buffer | null>>(); // one download per logo, however many invoices
-  const logo = (path: string | null) => {
+  const logo = logoCache();
+  for (const snap of missing) await renderOne(orgId, snap, logo);
+  return missing.length;
+}
+
+/** One invoice's PDF, if it has none yet: a one-off just issued (G2a). True if it rendered. */
+export async function renderPdfOf(orgId: string, invoiceId: string): Promise<boolean> {
+  const snap = await refs(orgId).invoice(invoiceId).get();
+  if (!snap.exists || snap.get("pdfPath") !== "") return false;
+  await renderOne(orgId, snap, logoCache());
+  return true;
+}
+
+/** One download per logo, however many invoices. A lost logo falls back to the monogram. */
+function logoCache(): (path: string | null) => Promise<Buffer | null> {
+  const logos = new Map<string, Promise<Buffer | null>>();
+  return (path) => {
     if (path === null) return Promise.resolve(null);
     let got = logos.get(path);
-    if (got === undefined) logos.set(path, (got = bucket().file(path).download().then(([b]) => b, () => null))); // a lost logo falls back to the monogram
+    if (got === undefined) logos.set(path, (got = bucket().file(path).download().then(([b]) => b, () => null)));
     return got;
   };
+}
 
-  let rendered = 0;
-  for (const snap of missing) {
-    const invoice = snap.data() as InvoiceDocument;
-    const path = pdfPathOf(orgId, snap.id);
-    const file = bucket().file(path);
-    const [exists] = await file.exists();
-    if (!exists) {
-      const pdf = await renderInvoicePdf(invoice, await logo(invoice.snapshot?.org.logoPath ?? null));
-      try {
-        await file.save(pdf, { contentType: "application/pdf", resumable: false, preconditionOpts: { ifGenerationMatch: 0 } });
-      } catch (e) {
-        if (!alreadyExists(e)) throw e;
-      }
+async function renderOne(orgId: string, snap: DocumentSnapshot, logo: (path: string | null) => Promise<Buffer | null>): Promise<void> {
+  const invoice = snap.data() as InvoiceDocument;
+  const path = pdfPathOf(orgId, snap.id);
+  const file = bucket().file(path);
+  const [exists] = await file.exists();
+  if (!exists) {
+    const pdf = await renderInvoicePdf(invoice, await logo(invoice.snapshot?.org.logoPath ?? null));
+    try {
+      await file.save(pdf, { contentType: "application/pdf", resumable: false, preconditionOpts: { ifGenerationMatch: 0 } });
+    } catch (e) {
+      if (!alreadyExists(e)) throw e;
     }
-    await db().runTransaction(async (tx) => {
-      const fresh = await tx.get(snap.ref);
-      if (fresh.get("pdfPath") === "") tx.update(snap.ref, { pdfPath: path });
-    });
-    rendered++;
   }
-  return rendered;
+  await db().runTransaction(async (tx) => {
+    const fresh = await tx.get(snap.ref);
+    if (fresh.get("pdfPath") === "") tx.update(snap.ref, { pdfPath: path });
+  });
 }

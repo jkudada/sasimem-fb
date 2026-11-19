@@ -3,7 +3,7 @@ import { aCharge, aTenancy, anOrg } from "../testing/index.js";
 import { draftInvoice, totals } from "./billing.js";
 import { chargesGst } from "./gst.js";
 import * as lines from "./lines.js";
-import { parseKina, toea } from "./money.js";
+import { parseKina, type Toea, toea } from "./money.js";
 import { parsePeriod } from "./period.js";
 import type { TaxCode } from "./types.js";
 
@@ -108,6 +108,7 @@ describe("item lines", () => {
     expect(lines.itemLineProblems({ ...labour, quantityMilli: 0 })).toHaveProperty("quantity");
     expect(lines.itemLineProblems({ ...labour, quantityMilli: 1.5 })).toHaveProperty("quantity");
     expect(lines.itemLineProblems({ ...labour, quantityMilli: 1_000_000, unitPriceToea: parseKina("10,000.01") })).toHaveProperty("unitPrice");
+    expect(lines.itemLineProblems({ ...labour, unitPriceToea: Number.NaN as Toea })).toHaveProperty("unitPrice");
     expect(lines.itemLineProblems({ ...labour, unit: "" })).toEqual({}); // a unit is optional
   });
 
