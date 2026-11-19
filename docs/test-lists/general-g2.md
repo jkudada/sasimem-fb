@@ -172,3 +172,79 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 
 ### End to end (T4)
 - [x] an owner records a part payment then the rest for a one-off invoice; the customer gets two receipts; the invoice ends paid
+
+## G2c: credit notes, and using credit
+
+### Choices (say if any is wrong)
+
+- **Behind `oneOff`, like all of G2.**
+- **A credit note credits one issued invoice**, sent or paid, rent or one-off; never a void one.
+  It is the only way to take money off an issued invoice (AR-3): the invoice itself never changes.
+- **What it credits is chosen per line** of the invoice: an amount before GST, of the line's sign
+  (a discount line is credited by a negative amount), at most what is left of that line after
+  earlier credit notes. **"Credit the whole invoice"** fills in every line's remainder.
+- **GST follows the line.** A line's GST is credited at 10% of the amount credited, except that
+  the last of a line takes the last of its GST, so a whole reversal matches the invoice to the toea
+  however many credit notes it took. An untaxed line credits no GST.
+- **A reason is required** (at most 200 characters); it prints on the credit note.
+- **Numbered `CN-0001` onwards** from their own counter, in the transaction, never reused. The
+  screen makes the credit note's ID, so pressing Issue twice gives one credit note.
+- **Frozen and printed (I5)** from the invoice's snapshot: the same business details, customer and
+  template. Titled **TAX CREDIT NOTE** when the invoice was a TAX INVOICE, else **CREDIT NOTE**.
+  The PDF prints the invoice it credits in place of the due date, and the reason and where the
+  credit went in place of the bank details.
+- **Where the money goes:** first off the invoice's balance (an invoice credited down to 0 is
+  paid); any rest is the customer's credit. So crediting a paid invoice makes credit.
+- **The invoice records** what was credited per line and in all (`creditNotedLines`,
+  `creditNotedToea`, for the limits and the screens) and the part taken off its balance
+  (`creditedToea`). Balance = total − paid − credited.
+- **Customer credit is one server-written document per customer** (`credits/{customerId}`,
+  members read), changed only in the transactions that make or use credit. It replaces G2b's
+  screen-side sum over payments, which could not be checked in a transaction.
+- **Using credit is part of recording a payment:** "Use their credit" adds up to their credit to
+  what can be applied (`creditUsedToea`), checked against the credit document in the
+  transaction. Only money received gets a receipt: a payment that only uses credit (K0.00
+  received) has no `RCT-` number and no email.
+- **Undoing a payment** gives back the credit it used and takes back the credit it made, and is
+  refused if that credit has been used since ("undo the payment that used it first").
+- **A credit note is never undone or edited:** it is a tax document. A mistaken one is put right
+  with a new invoice.
+- **While an invoice has a credit note** the paid tick, "not paid" and void are refused, as with
+  payments.
+- **Emailed with its PDF** to the customer and their copy-to when "Email it to them" is ticked
+  (on by default); it can be emailed again.
+- **The chip:** an invoice credit-noted in full shows **Credited**; otherwise as before.
+- **Later, not G2c:** paying credit back in cash (a refund) and writing off a bad debt (AR-12,
+  a kind of credit note) come with statements and the accountant's export (G7).
+
+### core (T1)
+- [ ] crediting a line: the amount's sign and size against what is left of the line; GST at 10%, the last of a line taking the last of its GST; untaxed lines none
+- [ ] the whole invoice: every line's remainder, matching the invoice's totals to the toea after earlier part credits
+- [ ] a credit note's problems: no reason or over 200; nothing credited; a line not on the invoice or listed twice; more than is left; a void or unissued invoice; over the limit
+- [ ] where it goes: off the balance first, the rest credit; an invoice credited to 0 is paid
+- [ ] balance and Still owed subtract what was credited; the Credited chip
+- [ ] a payment may use credit: up to the customer's credit; allocations up to received plus credit used; K0.00 received only when credit is used
+- [ ] property: crediting any invoice in random parts never passes its lines, and crediting the rest leaves exactly 0 on every line and in all
+
+### Security rules (T2)
+- [ ] members read credit notes and credits; nobody writes them
+
+### Functions (T3)
+- [ ] `issueCreditNote` numbers it (CN-0001, then 0002), freezes it, records the event, takes it off the balance, makes the PDF, and emails it to the customer and copy-to
+- [ ] crediting a paid invoice adds to the customer's credit; crediting part of a sent one leaves the rest owed; crediting all of it makes it paid
+- [ ] the same credit note ID twice gives one credit note, one number, one email
+- [ ] refused: no `oneOff`; not the owner; a void or unissued invoice; more than is left (checked in the transaction)
+- [ ] the credit note's PDF prints TAX CREDIT NOTE, the invoice it credits, and the reason
+- [ ] a payment using credit takes it off the customer's credit; one using only credit has no receipt and sends nothing
+- [ ] recording a payment that makes credit adds it; undoing one gives back credit used and takes back credit made; refused when that credit has been used
+- [ ] mark paid, not paid and void are refused once an invoice has a credit note
+
+### Web (T1 web)
+- [ ] the credit note form: each line with what is left; Credit the whole invoice; GST and total as typed; where it goes; reason; problems
+- [ ] the credit notes list: number, invoice, customer, amount; Open PDF; Email again
+- [ ] a Credit note link on sent and paid invoices (one-off list, Still owed, the month's invoices) with `oneOff`
+- [ ] the payment form: Use their credit
+- [ ] Still owed and the one-off list show what was credited
+
+### End to end (T4)
+- [ ] an owner credits part of a one-off invoice, then records a payment of the rest; the customer gets the credit note and a receipt; the invoice ends paid
