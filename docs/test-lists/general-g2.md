@@ -46,8 +46,9 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
   for G2). Rentals-only orgs see the form unchanged.
 - **Switching it on:** `node ops/features.ts --project sasimem-dev --org <orgId> --on rentals,repeating,oneOff`.
   The list replaces what is there: once `features` exists core reads only it.
-- **Size:** the "all JS" budget is 160 KB; G2a's screens bring it to about 156 KB. G2b and G2c
-  will need it raised or split (it sums every lazy screen, not just the shell).
+- **Size:** G2a brought the old "all JS" sum to about 156 of 160 KB. That sum counted every lazy
+  screen, which no phone downloads at once, so the budget is now split (`apps/web/.size-limit.mjs`):
+  the shell (all JS but the screens) ≤ 160 KB, 119 KB after G2a; each screen ≤ 8 KB.
 - **Found while building: the rules check a draft's shape and line count, not each line.**
   Checking 30 lines field by field passes the rules engine's limit of 1,000 expressions per
   write. A draft is a work in progress; `issueInvoice` re-runs core's full checks on a

@@ -500,7 +500,8 @@ A thrown error must fail the execution visibly, not be swallowed.
 - **The payload is the Firebase SDK, not Preact.** Auth plus Firestore is most
   of the JavaScript. Budgets, enforced in CI with `size-limit`:
   - sign-in route: **≤ 70 KB gzip**;
-  - signed-in app shell: **≤ 160 KB gzip**;
+  - signed-in app shell: **≤ 160 KB gzip**, measured as all JS but the screens; each lazily
+    loaded screen **≤ 8 KB gzip** on its own (split 2026-11-19, `apps/web/.size-limit.mjs`);
   - approval page: **0 KB required**.
 
   Ways to stay inside them:
