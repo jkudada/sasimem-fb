@@ -10,7 +10,7 @@ import {
 } from "@sasimem/core";
 import { type DocumentReference, type Transaction, Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
-import { asDraft, invoiceId, readBilling, refs } from "./runs.js";
+import { asDraft, invoiceId, newInvoice, readBilling, refs } from "./runs.js";
 
 /** A plain-English refusal; callables turn it into failed-precondition. */
 export class Refused extends Error {}
@@ -77,11 +77,7 @@ export async function rebuild(orgId: string, period: Period): Promise<void> {
       const t = byTenancy.get(draft.tenancyId);
       if (t === undefined) continue;
       const id = invoiceId(t.id, period);
-      tx.create(r.invoice(id), {
-        ...draft, tenantId: t.tenantId, tenantName: t.tenantName, unitLabel: t.unitLabel,
-        status: "draft", numberSeq: null, number: null, snapshot: null, pdfPath: "",
-        sentAt: null, paidAt: null, paidNote: "", remindedAt: null, remindersPaused: false,
-      });
+      tx.create(r.invoice(id), newInvoice(draft, t));
       after.set(id, { status: "draft", totalToea: draft.totalToea });
     }
     for (const { id, status, draft } of plan.rebuild) {

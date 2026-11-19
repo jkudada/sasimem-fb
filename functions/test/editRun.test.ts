@@ -69,6 +69,10 @@ describe("editing a run from the console (plan §6.2)", () => {
     await rebuildRun.run(request(uid, { orgId, period: "2026-10" }));
     const ids = (await adminDb().collection(`orgs/${orgId}/invoices`).get()).docs.map((d) => d.id).sort();
     expect(ids).toEqual(["k1_2026-10", "k3_2026-10"]);
+    // A tenancy added by a rebuild gets the same fields as one drafted by the tick (G1c).
+    expect((await invoice(orgId, "k3_2026-10")).data()).toMatchObject({
+      source: { kind: "rent", tenancyId: "k3", period: "2026-10" }, tenantId: "tenant-k3", status: "draft", remindersPaused: false,
+    });
   });
 
   test("approveRun from the console approves with the same transaction as the page", async () => {
