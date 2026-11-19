@@ -242,11 +242,12 @@ Written before the code (PLAN-SASIMEM-FB §9.1), from `docs/PLAN-GENERAL-INVOICI
 - [x] a part-credited invoice's reminder asks for what is left
 
 ### Web (T1 web)
-- [ ] the credit note form: each line with what is left; Credit the whole invoice; GST and total as typed; where it goes; reason; problems
-- [ ] the credit notes list: number, invoice, customer, amount; Open PDF; Email again
-- [ ] a Credit note link on sent and paid invoices (one-off list, Still owed, the month's invoices) with `oneOff`
-- [ ] the payment form: Use their credit
-- [ ] Still owed and the one-off list show what was credited
+- [x] the credit note form: each line with what is left; Credit the whole invoice; GST and total as typed; where it goes; reason; problems
+- [x] the credit notes list: number, invoice, customer, amount; Open PDF; Email again
+- [x] a Credit note link on sent and paid invoices (one-off list, Still owed, the month's invoices) with `oneOff`
+- [x] the payment form: Use their credit (it pays first; nothing need be received)
+- [x] Still owed and the one-off list show what was credited
+- [x] a sent month hides the paid tick and void once an invoice has payments or a credit note (the server refuses them anyway)
 
 ### End to end (T4)
-- [ ] an owner credits part of a one-off invoice, then records a payment of the rest; the customer gets the credit note and a receipt; the invoice ends paid
+- [x] an owner credits part of a one-off invoice, then records a payment of the rest; the customer gets the credit note and a receipt; the invoice ends paid

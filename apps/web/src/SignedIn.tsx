@@ -12,7 +12,7 @@ import type { Actions } from "./app.js";
 import { lazyScreen } from "./lazy.js";
 import { newPaymentId } from "./payment-id.js";
 import { Mark } from "./screens/icons.js";
-import { type Month, type Numbering, type Outcome, type PaymentRow, type Setup, type SetupStore, creditByCustomer } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, Month, Numbering, Outcome, PaymentRow, Setup, SetupStore } from "./setup.js";
 import { invoiceTemplateName } from "./template-choice.js";
 
 const Home = lazyScreen(() => import("./screens/Home.js").then((m) => m.Home));
@@ -37,6 +37,8 @@ const OneOffs = lazyScreen(() => import("./screens/OneOffs.js").then((m) => m.On
 const InvoiceEditor = lazyScreen(() => import("./screens/InvoiceEditor.js").then((m) => m.InvoiceEditor));
 const Payments = lazyScreen(() => import("./screens/Payments.js").then((m) => m.Payments));
 const PaymentForm = lazyScreen(() => import("./screens/PaymentForm.js").then((m) => m.PaymentForm));
+const CreditNotes = lazyScreen(() => import("./screens/CreditNotes.js").then((m) => m.CreditNotes));
+const CreditNoteForm = lazyScreen(() => import("./screens/CreditNoteForm.js").then((m) => m.CreditNoteForm));
 
 const OFFLINE = "Your details could not be loaded. Check your signal, then reload the page.";
 
@@ -108,6 +110,8 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/one-off/:id" component={EditorRoute} />
           <Route path="/payments" component={PaymentsRoute} />
           <Route path="/payments/new" component={PaymentFormRoute} />
+          <Route path="/credit-notes" component={CreditNotesRoute} />
+          <Route path="/credit-notes/new" component={CreditNoteFormRoute} />
           <Route default component={HomeRoute} />
         </Router>
       </LocationProvider>
@@ -182,7 +186,8 @@ function ReviewRoute(props: { params: Record<string, string> }) {
     return (
       <Tracking month={m} today={c.today}
         onMarkPaid={thenReload(c.store.markPaid)} onMarkUnpaid={thenReload(c.store.markUnpaid)} onPauseReminders={thenReload(c.store.pauseReminders)}
-        onVoid={thenReload(c.store.voidInvoice)} onResend={thenReload(c.store.resendInvoice)} onOpenPdf={c.store.openPdf} />
+        onVoid={thenReload(c.store.voidInvoice)} onResend={thenReload(c.store.resendInvoice)} onOpenPdf={c.store.openPdf}
+        creditNotes={hasFeature(c.setup.value.org, "oneOff")} />
     );
   }
   return (
@@ -212,14 +217,14 @@ function InvoicesRoute() {
   return <Invoices months={m} thisMonth={periodOf(c.today)} onExport={c.store.exportCsv} />;
 }
 
-/** Unused credit per customer, for orgs that record payments (G2b); empty for the rest, which read nothing more. */
+/** Unused credit per customer, for orgs that record payments (G2b, G2c); empty for the rest, which read nothing more. */
 function useCredit(enabled: boolean) {
   const { store } = useSignedIn();
   const credit = useSignal<ReadonlyMap<string, number>>(new Map());
   const load = async () => {
     if (!enabled) return;
-    const p = await store.payments();
-    if (typeof p !== "string") credit.value = creditByCustomer(p);
+    const c = await store.credits();
+    if (typeof c !== "string") credit.value = c;
   };
   useEffect(() => void load(), [store, enabled]);
   return credit;
@@ -276,6 +281,38 @@ function PaymentFormRoute() {
         : typeof o === "string" ? <main class="narrow"><p role="alert">{o}</p></main>
         : <PaymentForm setup={c.setup.value} owed={o.flatMap((g) => g.invoices)} today={c.today} credit={credit.value} paymentId={paymentId.value}
             {...(query["customer"] === undefined ? {} : { customerId: query["customer"] })} onRecord={c.store.recordPayment} />}
+    </OneOffOnly>
+  );
+}
+
+function CreditNotesRoute() {
+  const c = useSignedIn();
+  const list = useSignal<readonly CreditNoteRow[] | string | null>(null);
+  useEffect(() => void c.store.creditNotes().then((l) => (list.value = l)), [c.store]);
+  const l = list.value;
+  return (
+    <OneOffOnly>
+      {l === null ? <main class="narrow"><p>Loading…</p></main>
+        : typeof l === "string" ? <main class="narrow"><p role="alert">{l}</p></main>
+        : <CreditNotes creditNotes={l} onOpenPdf={c.store.openCreditNotePdf} onResend={c.store.resendCreditNote} />}
+    </OneOffOnly>
+  );
+}
+
+/** The invoice to credit, read fresh; the credit note's ID is made once, so a retry issues it once. */
+function CreditNoteFormRoute() {
+  const c = useSignedIn();
+  const { query } = useLocation();
+  const invoiceId = query["invoice"] ?? "";
+  const invoice = useSignal<CreditableRow | null | string | undefined>(undefined);
+  const creditNoteId = useSignal(newPaymentId());
+  useEffect(() => void c.store.creditable(invoiceId).then((i) => (invoice.value = i ?? "That invoice is not there any more.")), [c.store, invoiceId]);
+  const i = invoice.value;
+  return (
+    <OneOffOnly>
+      {i === undefined ? <main class="narrow"><p>Loading…</p></main>
+        : typeof i === "string" || i === null ? <main class="narrow"><p role="alert">{i}</p><p><a href="/credit-notes">Credit notes</a></p></main>
+        : <CreditNoteForm invoice={i} creditNoteId={creditNoteId.value} onIssue={c.store.issueCreditNote} />}
     </OneOffOnly>
   );
 }
