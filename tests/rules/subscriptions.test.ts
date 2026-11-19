@@ -2,7 +2,7 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, describe, test } from "vitest";
-import { seedOrg, subscriptionDoc, validTenancy, type Seeded } from "./fixtures.js";
+import { seedOrg, staffDb, subscriptionDoc, validTenancy, type Seeded } from "./fixtures.js";
 import { rulesEnv } from "./harness.js";
 
 let env: RulesTestEnvironment;
@@ -18,12 +18,10 @@ const seed = (docs: Record<string, Record<string, unknown>>) =>
 const withSubscription = async (s: Seeded, overrides: Record<string, unknown>) =>
   seed({ [`subscriptions/${s.orgId}`]: subscriptionDoc(overrides) });
 
-/** An operator as the console signs in: the claim, and a second factor. */
-const operator = () =>
-  env.authenticatedContext(`op-${crypto.randomUUID()}`, { operator: true, firebase: { sign_in_provider: "password", sign_in_second_factor: "totp" } } as never).firestore();
-/** The claim without a second factor: not enough. */
-const operatorNoMfa = () =>
-  env.authenticatedContext(`op-${crypto.randomUUID()}`, { operator: true }).firestore();
+/** The console's Owner (docs/PLAN-ADMIN-DASHBOARD.md §4), who stands where the single operator stood. */
+const operator = async () => (await staffDb(env, "owner")).db;
+/** An Owner signed in without their code: not enough. */
+const operatorNoMfa = async () => (await staffDb(env, "owner", { code: false })).db;
 
 describe("an owner and their subscription", () => {
   test("an owner reads their own subscription and its payments; a stranger reads neither", async () => {
@@ -90,7 +88,7 @@ describe("the tenancy limit", () => {
   });
 });
 
-describe("operators (PLAN-SUBSCRIBERS D10)", () => {
+describe("the console's Owner (PLAN-SUBSCRIBERS D10, now PLAN-ADMIN-DASHBOARD §4)", () => {
   test("an operator with a second factor reads any org, its setup, runs and subscription, and the audit trail", async () => {
     const s = await seedOrg(env);
     await seed({
@@ -104,7 +102,7 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
       "operatorEvents/ev1": { kind: "recordPayment", orgId: s.orgId },
       "system/tick": { lastSuccessAt: new Date(), tally: {} },
     });
-    const op = operator();
+    const op = await operator();
     for (const path of [
       `orgs/${s.orgId}`, `orgs/${s.orgId}/properties/${s.propertyId}`, `orgs/${s.orgId}/tenants/${s.tenantId}`,
       `orgs/${s.orgId}/tenancies/k1`, `orgs/${s.orgId}/runs/2026-10`, `orgs/${s.orgId}/invoices/k1_2026-10`,
@@ -125,18 +123,18 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
     const owner = env.authenticatedContext(s.ownerUid).firestore();
     await assertFails(getDoc(doc(owner, "exportLinks/abc")));
     await assertFails(setDoc(doc(owner, "exportLinks/mine"), { orgId: s.orgId, path: "exports/other/x.zip" }));
-    await assertFails(getDoc(doc(operator(), "exportLinks/abc")));
+    await assertFails(getDoc(doc(await operator(), "exportLinks/abc")));
   });
 
   test("not even an operator reads the invoice counter", async () => {
     const s = await seedOrg(env);
-    await assertFails(getDoc(doc(operator(), `orgs/${s.orgId}/private/counter`)));
+    await assertFails(getDoc(doc(await operator(), `orgs/${s.orgId}/private/counter`)));
   });
 
-  test("the operator claim without a second factor reads nothing of anyone else's", async () => {
+  test("an Owner without a second factor reads nothing of anyone else's", async () => {
     const s = await seedOrg(env);
     await seed({ "operatorEvents/ev2": { kind: "x" } });
-    const op = operatorNoMfa();
+    const op = await operatorNoMfa();
     await assertFails(getDoc(doc(op, `orgs/${s.orgId}`)));
     await assertFails(getDoc(doc(op, `subscriptions/${s.orgId}`)));
     await assertFails(getDoc(doc(op, "operatorEvents/ev2")));
@@ -144,7 +142,7 @@ describe("operators (PLAN-SUBSCRIBERS D10)", () => {
 
   test("an operator writes nothing directly: every change goes through an audited callable", async () => {
     const s = await seedOrg(env);
-    const op = operator();
+    const op = await operator();
     await assertFails(updateDoc(doc(op, `subscriptions/${s.orgId}`), { status: "active" }));
     await assertFails(updateDoc(doc(op, `orgs/${s.orgId}`), { name: "Changed" }));
     await assertFails(addDoc(collection(op, `orgs/${s.orgId}/tenants`), { name: "X", email: "x@x.example", phone: "" }));

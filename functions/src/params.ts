@@ -35,3 +35,9 @@ export const signupModeOf = (value: string): SignupMode => (value === "open" ? "
 
 /** Where a purge keeps issued invoices (PLAN-SUBSCRIBERS §11): empty means "<project>-retention". */
 export const RETENTION_BUCKET = defineString("RETENTION_BUCKET", { default: "", description: "The retention bucket for purged orgs' issued invoices; empty means <project>-retention" });
+
+/**
+ * The operator console's origin (docs/PLAN-ADMIN-DASHBOARD.md §9): a staff invitation's
+ * set-password link returns there. It must be an authorised domain in Firebase Auth.
+ */
+export const CONSOLE_URL = defineString("CONSOLE_URL", { description: "The console's Hosting origin, e.g. https://sasimem-ops-dev.web.app" });

@@ -4,7 +4,7 @@
  */
 import {
   applyOperatorAction, type CalendarDate, countsTowardLimit, draftRefusal, subscriptionStatus, type InviteTerms, localDate, newFreeSubscription, newTrialSubscription, type OperatorAction, planFrom, type PlanId,
-  SUBSCRIPTION_TIMEZONE, type SubscriptionFields, type SubscriptionStatus, subscriptionDiff, TRIAL_DAYS, TRIAL_PLAN,
+  SUBSCRIPTION_TIMEZONE, type StaffRole, type SubscriptionFields, type SubscriptionStatus, subscriptionDiff, TRIAL_DAYS, TRIAL_PLAN,
 } from "@sasimem/core";
 import type { DocumentReference, Transaction } from "firebase-admin/firestore";
 import { db } from "../admin.js";
@@ -112,7 +112,13 @@ export async function subscriptionIds(only?: readonly string[]): Promise<string[
 export interface Actor {
   readonly uid: string;
   readonly email: string;
+  /** A member of staff's role (PLAN-ADMIN-DASHBOARD §4), kept on the audit entry so Supervisors can read their team's. */
+  readonly role?: StaffRole;
 }
+
+/** The audit entry's actor fields: who, and in what role when staff. */
+export const actorFields = (actor: Actor): Record<string, string> =>
+  ({ actor: actor.uid, actorEmail: actor.email, ...(actor.role === undefined ? {} : { actorRole: actor.role }) });
 
 export type StoredAction =
   | { readonly kind: "refused"; readonly problem: string }
@@ -164,7 +170,7 @@ export async function storeOperatorAction(orgId: string, action: OperatorAction,
       tx.create(ref.collection("notes").doc(), { text: result.note, by: actor.uid, byEmail: actor.email, at: now });
     }
     tx.create(firestore.collection("operatorEvents").doc(), {
-      kind: action.kind, orgId, actor: actor.uid, actorEmail: actor.email, at: now, ...diff, ...(detail === undefined ? {} : { detail }),
+      kind: action.kind, orgId, ...actorFields(actor), at: now, ...diff, ...(detail === undefined ? {} : { detail }),
     });
     return { kind: "done", status: result.sub.status, duplicate: false };
   });

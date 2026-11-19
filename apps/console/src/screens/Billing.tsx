@@ -10,6 +10,7 @@ import { billingView, paymentsCsv, RENEWAL_WINDOW_DAYS } from "../reports.js";
 import { subscriptionToday } from "../rows.js";
 import { Field, value } from "./Field.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
+import type { Access } from "../types.js";
 
 /** Hand the browser a file to save. */
 export function download(filename: string, text: string): void {
@@ -21,9 +22,9 @@ export function download(filename: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export function Billing(props: { data: () => Promise<ConsoleData>; now: () => Date; save?: (filename: string, text: string) => void }) {
+export function Billing(props: { data: () => Promise<ConsoleData>; access: Access; now: () => Date; save?: (filename: string, text: string) => void }) {
   const loaded = useLoad(props.data, async (d) => {
-    const [inputs, payments] = await Promise.all([d.subscribers(), d.payments()]);
+    const [inputs, payments] = await Promise.all([d.subscribers(props.access), d.payments(props.access)]);
     return { inputs, payments };
   });
   const thisMonth = periodOf(subscriptionToday(props.now()));

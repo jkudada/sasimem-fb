@@ -12,8 +12,18 @@ export function request<T>(uid: string | null, data: T, claims: Record<string, u
   };
 }
 
-/** The claims of an operator signed in with their authenticator code (PLAN-SUBSCRIBERS D10). */
-export const OPERATOR = { operator: true, email: "joe@sasimem.example", firebase: { sign_in_provider: "password", sign_in_second_factor: "totp" } };
+/** The claims of staff signed in with their authenticator code (PLAN-SUBSCRIBERS D10; the role is in staff/{uid}). */
+export const OPERATOR = { email: "joe@sasimem.example", firebase: { sign_in_provider: "password", sign_in_second_factor: "totp" } };
+
+/**
+ * A member of staff (PLAN-ADMIN-DASHBOARD §4): their staff/{uid} record, and the claims of
+ * their session signed in with the code. The callables read the record, not the claims.
+ */
+export async function asStaff(uid: string, role: string, status = "active"): Promise<Record<string, unknown>> {
+  const email = `${uid}@sasimem.example`;
+  await adminDb().doc(`staff/${uid}`).set({ role, status, email, displayName: uid, lastSeenAt: null });
+  return { ...OPERATOR, email, staffRole: role };
+}
 
 /** A fresh user in the Auth emulator, so custom claims can be set and read back; verified unless a test says not. */
 export async function newUser(opts: { email?: string; verified?: boolean } = {}): Promise<string> {

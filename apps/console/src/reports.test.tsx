@@ -1,4 +1,4 @@
-import { type CalendarDate, defaultPlan, newFreeSubscription, newTrialSubscription, type Period, type SubscriptionFields, toea } from "@sasimem/core";
+import { type CalendarDate, defaultPlan, newFreeSubscription, newTrialSubscription, type Period, type SubscriptionFields, toea, DEFAULT_SETTINGS } from "@sasimem/core";
 import { fireEvent, render, screen } from "@testing-library/preact";
 import { describe, expect, test, vi } from "vitest";
 import type { ConsoleData } from "./data.js";
@@ -79,7 +79,7 @@ describe("billing (PLAN-SUBSCRIBERS §7)", () => {
   test("the page downloads the CSV for the months chosen", async () => {
     const save = vi.fn();
     const data = { subscribers: vi.fn(async () => []), payments: vi.fn(async () => [payment()]) } as unknown as ConsoleData;
-    render(<Billing data={async () => data} now={() => now} save={save} />);
+    render(<Billing data={async () => data} access={{ uid: "op", email: "op@sasimem.example", role: "owner", settings: DEFAULT_SETTINGS }} now={() => now} save={save} />);
     fireEvent.click(await screen.findByRole("button", { name: "Download CSV" }));
     expect(save).toHaveBeenCalledWith("sasimem-payments-2027-03-to-2027-03.csv", expect.stringContaining("Wari Holdings,400.00"));
   });

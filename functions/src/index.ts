@@ -8,12 +8,13 @@ import { makeExportDownload } from "./http/exportDownload.js";
 import { OutboxMailer } from "./mail/mailer.js";
 import { GmailMailer } from "./mail/gmail.js";
 import { ResendMailer } from "./mail/resend.js";
-import { APP_URL, APPROVAL_SIGNING_KEY, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, RETENTION_BUCKET, usesGmail } from "./params.js";
+import { APP_URL, APPROVAL_SIGNING_KEY, CONSOLE_URL, GMAIL_APP_PASSWORD, MAIL_FROM, RESEND_API_KEY, RETENTION_BUCKET, usesGmail } from "./params.js";
 import { makeTick } from "./tick.js";
 import { makePaymentCallables } from "./callables/payments.js";
 import { makeTemplateCallables } from "./callables/templates.js";
 import { makeOperatorCallables } from "./callables/operator.js";
 import { makeBillingCallables } from "./callables/billing.js";
+import { makeStaffCallables } from "./callables/staff.js";
 import { makeSubscriptionTick } from "./subscriptionTick.js";
 import { makeOnSubscriptionCreated } from "./triggers/welcome.js";
 
@@ -52,6 +53,12 @@ export const previewInvoicePdf = makeTemplateCallables(deps).previewInvoicePdf;
 const operator = makeOperatorCallables(deps);
 export const operatorAction = operator.operatorAction;
 export const invite = operator.invite;
+
+// Staff and the console's settings (PLAN-ADMIN-DASHBOARD A1): who may use the console,
+// in which role, and the Owner's and Managers' switches.
+const staff = makeStaffCallables({ ...deps, consoleUrl: () => CONSOLE_URL.value() });
+export const manageStaff = staff.manageStaff;
+export const updateSettings = staff.updateSettings;
 
 // Enforcement (PLAN-SUBSCRIBERS S4): the daily subscription tick, and the landlord's
 // "Ask to change plan", which emails Sasimem.

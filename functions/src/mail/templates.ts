@@ -186,6 +186,19 @@ export function invitation(req: { to: string; planId: PlanId; trialDays: number;
   });
 }
 
+/** A staff invitation (PLAN-ADMIN-DASHBOARD §9): the role, the set-password link, and the code to come. */
+export function staffInvitation(req: { to: string; name: string; role: string; invitedBy: string; link: string }): Mail {
+  return toLandlord(req.to, "Your Sasimem console account", {
+    greeting: `Hello ${req.name},`,
+    blocks: [
+      { p: `${req.invitedBy} has given you access to the Sasimem console as ${req.role}.` },
+      { p: "Choose your password here. The link works for one hour and only once:", link: req.link },
+      { p: "When you first sign in, you will set up a code from an authenticator app (such as Google Authenticator or Microsoft Authenticator). You need it every time you sign in." },
+      { p: "If you did not expect this email, ignore it: nothing happens until a password is chosen." },
+    ],
+  });
+}
+
 /** To Sasimem: a landlord asks to change plan (PLAN-SUBSCRIBERS §8). Replying reaches the landlord. */
 export function planChangeRequest(req: {
   to: string; orgName: string; orgId: string; ownerEmail: string; current: string; wanted: string; usage: string; message: string;

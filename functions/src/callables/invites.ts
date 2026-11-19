@@ -5,7 +5,7 @@
  * the subscriber's record of signing up and is never changed. Audited like every
  * operator change. signupInvites is server-only to the browser; operators read it.
  */
-import { type InviteRequest, inviteRequestFrom } from "@sasimem/core";
+import { can, type InviteRequest, inviteRequestFrom } from "@sasimem/core";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
@@ -13,20 +13,23 @@ import { db } from "../admin.js";
 import type { Mailer } from "../mail/mailer.js";
 import { invitation } from "../mail/templates.js";
 import { MAIL_SECRETS } from "../params.js";
-import { operatorOf } from "./auth.js";
+import { actorFields } from "../store/subscriptions.js";
+import { consoleSettings } from "../store/staff.js";
+import { allow, staffOf } from "./auth.js";
 
 const USED = "That invitation has been used: the subscriber has signed up.";
 const DAY_MS = 86_400_000;
 
 export function inviteCallable(deps: { now: () => Date; mailer: Mailer; appUrl: () => string }) {
   return onCall<unknown, Promise<{ emailed: boolean }>>({ maxInstances: 2, secrets: MAIL_SECRETS }, async (request) => {
-    const actor = operatorOf(request);
+    const actor = await staffOf(request);
+    allow(can(actor.role, "invites", await consoleSettings()), "Viewers cannot send invitations.");
     const req = inviteRequestFrom(request.data);
     if ("problem" in req) throw new HttpsError("invalid-argument", req.problem);
     const now = deps.now();
     const ref = db().doc(`signupInvites/${req.email}`);
     const event = (detail: Record<string, unknown>) =>
-      ({ kind: req.kind === "send" ? "invite" : "revokeInvite", actor: actor.uid, actorEmail: actor.email, at: now, before: {}, after: {}, detail });
+      ({ kind: req.kind === "send" ? "invite" : "revokeInvite", ...actorFields(actor), at: now, before: {}, after: {}, detail });
 
     if (req.kind === "revoke") {
       await db().runTransaction(async (tx) => {

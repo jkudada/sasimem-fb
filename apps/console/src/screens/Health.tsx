@@ -1,13 +1,20 @@
+import { can } from "@sasimem/core";
 import type { ConsoleData } from "../data.js";
 import { when } from "../format.js";
 import { healthView } from "../rows.js";
+import type { Access } from "../types.js";
 import { LOAD_FAILED, useLoad } from "./useLoad.js";
 
 const time = (at: Date) => at.toLocaleTimeString("en-AU", { timeZone: "Pacific/Port_Moresby", hour: "2-digit", minute: "2-digit" });
 
-export function Health(props: { data: () => Promise<ConsoleData>; now: () => Date }) {
+/**
+ * Health: the ticks for every role; held runs, failed emails and quiet customers come from
+ * customers' own records, so only for those who may read them (PLAN-ADMIN-DASHBOARD §4).
+ */
+export function Health(props: { data: () => Promise<ConsoleData>; access: Access; now: () => Date }) {
+  const records = can(props.access.role, "orgRecords", props.access.settings);
   const loaded = useLoad(props.data, async (d) => {
-    const [inputs, tick, subscriptionTick] = await Promise.all([d.subscribers(), d.tick(), d.subscriptionTick()]);
+    const [inputs, tick, subscriptionTick] = await Promise.all([records ? d.subscribers(props.access) : [], d.tick(), d.subscriptionTick()]);
     return { inputs, tick, subscriptionTick };
   });
   if (loaded.state === "loading") return <main><h1>Health</h1><p>Loading…</p></main>;
@@ -27,6 +34,7 @@ export function Health(props: { data: () => Promise<ConsoleData>; now: () => Dat
         {h.subscriptionTick === null ? <p class="problem">No successful subscription tick recorded yet.</p>
           : <p class={h.subscriptionTick.overdue ? "problem" : ""}>Last succeeded {when(h.subscriptionTick.lastSuccessAt)} at {time(h.subscriptionTick.lastSuccessAt)} (Port Moresby){h.subscriptionTick.overdue ? ": more than a day ago." : "."}</p>}
       </section>
+      {records && <>
       <section aria-label="Held runs" class="card">
         <h2>Held runs</h2>
         {h.held.length === 0 ? <p>None.</p> : <ul>{h.held.map((r) => <li key={`${r.orgId}-${r.period}`}><a href={`/s/${r.orgId}`}>{r.name}</a>: {r.period}</li>)}</ul>}
@@ -41,6 +49,7 @@ export function Health(props: { data: () => Promise<ConsoleData>; now: () => Dat
         <h2>No approval in 2 months</h2>
         {h.quiet.length === 0 ? <p>None.</p> : <ul>{h.quiet.map((q) => <li key={q.orgId}><a href={`/s/${q.orgId}`}>{q.name}</a>: last approval {when(q.lastApproval)}</li>)}</ul>}
       </section>
+      </>}
     </main>
   );
 }

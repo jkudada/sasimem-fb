@@ -1,4 +1,4 @@
-import { DEFAULT_PLANS, defaultPlan, newFreeSubscription, type CalendarDate } from "@sasimem/core";
+import { DEFAULT_PLANS, defaultPlan, newFreeSubscription, STAFF_ROLES, type CalendarDate } from "@sasimem/core";
 import { describe, expect, test } from "vitest";
 import * as s from "../src/subscribers.ts";
 
@@ -60,14 +60,33 @@ describe("ops/backfill-subscriptions.ts (D6)", () => {
   });
 });
 
-describe("ops/grant-operator.ts", () => {
-  test("adds operator: true and keeps the claims already there", () => {
-    expect(JSON.parse(s.operatorClaims(JSON.stringify({ orgIds: ["o1"] }), true))).toEqual({ orgIds: ["o1"], operator: true });
-    expect(JSON.parse(s.operatorClaims(undefined, true))).toEqual({ operator: true });
+describe("ops/grant-staff.ts (PLAN-ADMIN-DASHBOARD A1)", () => {
+  test("the roles are core's", () => {
+    expect(s.OPS_STAFF_ROLES).toEqual(STAFF_ROLES);
   });
 
-  test("--revoke removes it and nothing else", () => {
-    expect(JSON.parse(s.operatorClaims(JSON.stringify({ orgIds: ["o1"], operator: true }), false))).toEqual({ orgIds: ["o1"] });
+  test("sets staffRole, keeps a landlord's orgIds and drops the old operator claim", () => {
+    expect(JSON.parse(s.staffClaims(JSON.stringify({ orgIds: ["o1"], operator: true }), "owner"))).toEqual({ orgIds: ["o1"], staffRole: "owner" });
+    expect(JSON.parse(s.staffClaims(undefined, "viewer"))).toEqual({ staffRole: "viewer" });
+    expect(JSON.parse(s.staffClaims("", "manager"))).toEqual({ staffRole: "manager" });
+  });
+
+  test("--revoke removes staffRole and nothing else", () => {
+    expect(JSON.parse(s.staffClaims(JSON.stringify({ orgIds: ["o1"], staffRole: "owner" }), null))).toEqual({ orgIds: ["o1"] });
+  });
+
+  test("writes the record (replaced) and a create-only audit entry", () => {
+    const now = new Date("2026-11-19T00:00:00Z");
+    const [record, event] = s.staffWrites("sasimem-dev", { uid: "u1", email: "joe@sasimem.example" }, "owner", false, now, "ev1");
+    expect(record?.update.name).toBe(`${P}/staff/u1`);
+    expect(record?.currentDocument).toBeUndefined();
+    expect(record?.update.fields).toMatchObject({ role: { stringValue: "owner" }, status: { stringValue: "active" }, lastSeenAt: { nullValue: null } });
+    expect(event?.update.name).toBe(`${P}/operatorEvents/ev1`);
+    expect(event?.currentDocument).toEqual({ exists: false });
+    expect(event?.update.fields).toMatchObject({ kind: { stringValue: "staffInvited" }, actor: { stringValue: "ops/grant-staff.ts" } });
+    const [removed, gone] = s.staffWrites("sasimem-dev", { uid: "u1", email: "joe@sasimem.example" }, "owner", true, now, "ev2");
+    expect(removed?.update.fields).toMatchObject({ status: { stringValue: "removed" } });
+    expect(gone?.update.fields).toMatchObject({ kind: { stringValue: "staffRemoved" } });
   });
 });
 

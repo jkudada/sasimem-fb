@@ -12,14 +12,34 @@ service cloud.firestore {
       return signedIn()
         && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == "owner";
     }
-    // The operator console (PLAN-SUBSCRIBERS D10): the claim is set only by
-    // ops/grant-operator.ts, and counts only when signed in with a second factor.
-    // Operators read; every change they make goes through an audited callable.
-    function isOperator() {
-      return signedIn() && request.auth.token.get('operator', false) == true
-        && request.auth.token.get('firebase', {}).get('sign_in_second_factor', null) != null;
+    // Sasimem's staff (docs/PLAN-ADMIN-DASHBOARD.md §4, A1; core's staff.ts mirrors this).
+    // A staff member has a staff/{uid} document, written only by the manageStaff callable
+    // or ops/grant-staff.ts, and counts only while it is active and the session was signed
+    // in with a second factor. Reading the document, not a claim, means a suspension
+    // takes effect on the very next request. Staff read; every change goes through an
+    // audited callable.
+    function secondFactor() {
+      return request.auth.token.get('firebase', {}).get('sign_in_second_factor', null) != null;
     }
-    function canRead(orgId) { return isMember(orgId) || isOperator(); }
+    function staffDoc() { return /databases/$(database)/documents/staff/$(request.auth.uid); }
+    function isStaff(roles) {
+      return signedIn() && secondFactor() && exists(staffDoc())
+        && get(staffDoc()).data.status == 'active' && get(staffDoc()).data.role in roles;
+    }
+    function allStaff() { return ['owner', 'manager', 'supervisor', 'support', 'viewer']; }
+    // A console setting (§5) the Owner has switched on; absent means off.
+    function settingOn(key) {
+      let path = /databases/$(database)/documents/console/settings;
+      return exists(path) && get(path).data.get(key, false) == true;
+    }
+    // Customers' names and contact details (the org document): Owner, Supervisor and
+    // Support; Managers while the Owner allows it (S1). Viewers never.
+    function canSeeOrgProfile() {
+      return isStaff(['owner', 'supervisor', 'support']) || (isStaff(['manager']) && settingOn('managersSeeNames'));
+    }
+    // A customer's own records (properties, tenants, runs, invoices, emails): members,
+    // and of staff only the Owner until A2 replaces this with audited "view as" grants.
+    function canRead(orgId) { return isMember(orgId) || isStaff(['owner']); }
 
     // Rules cannot count, so a trigger keeps activeTenancyCount and the tenancy create
     // rule compares it with the limit (PLAN-SUBSCRIBERS §6). No subscription, no new tenancy.
@@ -158,7 +178,7 @@ service cloud.firestore {
     }
 
     match /orgs/{orgId} {
-      allow read: if canRead(orgId);
+      allow read: if isMember(orgId) || canSeeOrgProfile();
       allow update: if isOwner(orgId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(PROFILE_FIELDS())
         && validProfile(request.resource.data) && validLogo(orgId, request.resource.data)
@@ -216,30 +236,52 @@ service cloud.firestore {
     }
 
     // Subscribers (PLAN-SUBSCRIBERS §6). Plan, status, limits and payments are written
-    // only by Functions (I9); the owner reads their own, the operator reads all.
+    // only by Functions (I9); the owner reads their own. Staff (§4): every role but the
+    // Viewer reads subscriptions and notes; payments are billing roles' only.
     match /plans/{planId} {
       allow read: if signedIn();
     }
     match /subscriptions/{orgId} {
-      allow read: if canRead(orgId);
+      allow read: if isMember(orgId) || isStaff(['owner', 'manager', 'supervisor', 'support']);
       match /payments/{paymentId} {
-        allow read: if canRead(orgId);
+        allow read: if isMember(orgId) || isStaff(['owner', 'manager', 'supervisor']);
       }
       match /notes/{noteId} {
-        allow read: if isOperator();
+        allow read: if isStaff(['owner', 'manager', 'supervisor', 'support']);
       }
     }
+    // The audit trail: Owners and Managers read all of it; Supervisors their team's
+    // (entries by Supervisors and Support) and their own; Support their own. A query
+    // must ask for no more than that (rules are not filters).
     match /operatorEvents/{eventId} {
-      allow read: if isOperator();
+      allow read: if isStaff(['owner', 'manager'])
+        || (isStaff(['supervisor']) && resource.data.get('actorRole', '') in ['supervisor', 'support'])
+        || (isStaff(['supervisor', 'support']) && resource.data.get('actor', '') == request.auth.uid);
     }
     // Invitations to sign up: written only by Functions (ops/invite.ts, the invite
-    // callable); operators read them for the console's Invites page (S3).
+    // callable); every role but the Viewer reads them for the console's Invites page (S3).
     match /signupInvites/{email} {
-      allow read: if isOperator();
+      allow read: if isStaff(['owner', 'manager', 'supervisor', 'support']);
     }
-    // The tick's heartbeat, for the console's Health page; written only by the tick.
+    // The ticks' heartbeats, for the console's Health page; written only by the ticks.
     match /system/{docId} {
-      allow read: if isOperator();
+      allow read: if isStaff(allStaff());
+    }
+    // Staff records (§9): Owners and Managers read them all; each person reads their own
+    // and may set only their own name and when they were last seen.
+    match /staff/{uid} {
+      allow read: if isStaff(['owner', 'manager'])
+        || (signedIn() && request.auth.uid == uid && secondFactor());
+      allow update: if isStaff(allStaff()) && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastSeenAt'])
+        && request.resource.data.lastSeenAt == request.time
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 80;
+    }
+    // The console's settings (§5): every member of staff reads them, to know what to
+    // show; only the updateSettings callable writes them.
+    match /console/{docId} {
+      allow read: if isStaff(allStaff());
     }
     // Sasimem's own bank details and contact, shown to every landlord on their banner
     // and Plan & billing page (S4); written only by ops/billing-details.ts.

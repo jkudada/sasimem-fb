@@ -81,13 +81,47 @@ export function backfillWrites(project: string, orgs: readonly OrgTenancies[], h
   });
 }
 
-// ---------------------------------------------------------------- the operator claim (D10)
+// ---------------------------------------------------------------- staff (PLAN-ADMIN-DASHBOARD A1)
 
-/** The user's custom claims with `operator` granted or revoked; every other claim kept. */
-export function operatorClaims(existing: string | undefined, grant: boolean): string {
+/** Copy of core's STAFF_ROLES. */
+export const OPS_STAFF_ROLES = ["owner", "manager", "supervisor", "support", "viewer"] as const;
+export type OpsStaffRole = (typeof OPS_STAFF_ROLES)[number];
+
+/**
+ * The user's custom claims with `staffRole` set (or removed, for null) and the old
+ * `operator` claim dropped; every other claim (a landlord's orgIds) kept. Copy of the
+ * manageStaff callable's staffClaims.
+ */
+export function staffClaims(existing: string | undefined, role: OpsStaffRole | null): string {
   const claims = existing === undefined || existing === "" ? {} : (JSON.parse(existing) as Record<string, unknown>);
-  const { operator: _old, ...rest } = claims;
-  return JSON.stringify(grant ? { ...rest, operator: true } : rest);
+  const { operator: _old, staffRole: _role, ...rest } = claims;
+  return JSON.stringify(role === null ? rest : { ...rest, staffRole: role });
+}
+
+/**
+ * The staff record and its audit entry, for bootstrap and break-glass: the console's
+ * Staff page (the manageStaff callable) is the usual way. Granting replaces the record
+ * as active in that role; revoking marks it removed, keeping it for the audit trail.
+ */
+export function staffWrites(
+  project: string, user: { uid: string; email: string }, role: OpsStaffRole, revoke: boolean, now: Date, eventId: string,
+): Write[] {
+  const status = revoke ? "removed" : "active";
+  return [
+    {
+      update: {
+        name: `${documentsRoot(project)}/staff/${user.uid}`,
+        fields: encodeFields({
+          role, status, email: user.email, displayName: user.email, invitedBy: "ops/grant-staff.ts", invitedByEmail: "",
+          createdAt: now, updatedAt: now, lastSeenAt: null,
+        }),
+      },
+    },
+    createWrite(project, `operatorEvents/${eventId}`, {
+      kind: revoke ? "staffRemoved" : "staffInvited", actor: "ops/grant-staff.ts", actorEmail: "", at: now,
+      staffUid: user.uid, staffEmail: user.email, role, status,
+    }),
+  ];
 }
 
 // ---------------------------------------------------------------- Sasimem's bank details (S4)
