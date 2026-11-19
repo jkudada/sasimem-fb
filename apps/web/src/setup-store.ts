@@ -6,7 +6,7 @@
  */
 import {
   type BankDetails, type InvoiceDocument, type Item, type OneOffDraft, type SubscriptionFields, type InvoiceTemplate, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
-  arrears, draftOf, hasFeature, logoExtension, sourceOf,
+  arrears, draftOf, hasFeature, logoExtension, quoteDraftOf, quoteLabel, sourceOf, type QuoteDraft, type QuoteStatus, type CalendarDate,
 } from "@sasimem/core";
 import {
   type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch,
@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, SendLater, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, SendLater, SentQuote, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 
@@ -353,6 +353,41 @@ export function setupStore(orgId: string): SetupStore {
     issueInvoice: (draftId) => call("issueInvoice", { orgId, draftId }, (r) => r.message ?? "Sent."),
     scheduleInvoice: (draftId, sendOn) => call("scheduleInvoice", { orgId, draftId, sendOn }, (r) => r.message ?? "Scheduled."),
     cancelSchedule: (draftId) => call("cancelSchedule", { orgId, draftId }, (r) => r.message ?? "It stays a draft."),
+
+    async quotes() {
+      try {
+        const [drafts, sent] = await Promise.all([getDocs(collection(db, `${org}/quoteDrafts`)), getDocs(collection(db, `${org}/quotes`))]);
+        return {
+          drafts: drafts.docs.map((d) => ({ ...quoteDraftOf(d.data()), id: d.id })),
+          sent: sent.docs
+            .map((d): SentQuote & { readonly number: string } => {
+              const q = d.data();
+              return {
+                id: d.id, number: q["number"] as string, label: quoteLabel(q["number"] as string, q["revision"] as number), customerName: q["customerName"] as string,
+                issueDate: q["issueDate"] as CalendarDate, validUntil: q["validUntil"] as CalendarDate, totalToea: q["totalToea"] as Toea, status: q["status"] as QuoteStatus,
+              };
+            })
+            .sort((a, b) => b.number.localeCompare(a.number)),
+        };
+      } catch {
+        return OFFLINE;
+      }
+    },
+    async quoteDraft(id) {
+      try {
+        const d = await getDoc(ref(`quoteDrafts/${id}`));
+        return d.exists() ? quoteDraftOf(d.data()) : null;
+      } catch {
+        return OFFLINE;
+      }
+    },
+    async saveQuoteDraft(id, draft: QuoteDraft) {
+      const target = id === null ? doc(collection(db, `${org}/quoteDrafts`)) : ref(`quoteDrafts/${id}`);
+      const problem = await attempt(() => setDoc(target, { ...draft, lines: draft.lines.map((l) => ({ ...l })) }));
+      return problem === null ? { id: target.id } : { problem };
+    },
+    deleteQuoteDraft: (id) => attempt(() => deleteDoc(ref(`quoteDrafts/${id}`))),
+    sendQuote: (draftId) => call("sendQuote", { orgId, draftId }, (r) => r.message ?? "Sent."),
 
     async payments() {
       try {

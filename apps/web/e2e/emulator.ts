@@ -96,7 +96,7 @@ export async function runTheTick(): Promise<void> {
   if (!res.ok) throw new Error(`could not fire the tick: ${res.status}`);
 }
 
-interface Mailed { subject: string; attachments: { filename: string; bytes: number }[] }
+interface Mailed { subject: string; text: string; attachments: { filename: string; bytes: number }[] }
 
 /** The mail an address has received since a moment, once a subject matching `subject` has landed. */
 export async function mailTo(email: string, since: Date, subject: RegExp): Promise<Mailed> {
@@ -107,6 +107,7 @@ export async function mailTo(email: string, since: Date, subject: RegExp): Promi
       .filter((f) => f["to"]?.stringValue === email && (f["at"]?.timestampValue ?? "") >= since.toISOString() && subject.test(f["subject"]?.stringValue ?? ""))
       .map((f) => ({
         subject: f["subject"]?.stringValue ?? "",
+        text: f["text"]?.stringValue ?? "",
         attachments: (f["attachments"]?.arrayValue?.values ?? []).map((v) => ({ filename: v.mapValue.fields["filename"]?.stringValue ?? "", bytes: Number(v.mapValue.fields["bytes"]?.integerValue ?? 0) })),
       }))[0];
   };

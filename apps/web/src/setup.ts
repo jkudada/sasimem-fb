@@ -5,7 +5,7 @@
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
 import { customerOf } from "@sasimem/core";
-import type { Arrears, BankDetails, CalendarDate, CreditableInvoice, CreditNoteInput, Customer, Interval, Item, OneOffDraft, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, CreditableInvoice, CreditNoteInput, Customer, Interval, Item, OneOffDraft, QuoteDraft, QuoteStatus, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -20,13 +20,21 @@ export interface Org extends OrgProfile {
   readonly defaultTermsDays?: number;
   /** Email the owner when a scheduled one-off goes (G2d); absent means on. */
   readonly scheduledSentNote?: boolean;
+  /** Quotes (G2q): days a quote is valid (absent means 30), and the terms printed on each (absent means core's default). */
+  readonly quoteValidDays?: number;
+  readonly quoteTerms?: string;
   /** Server-written (docs/PLAN-GENERAL-INVOICING.md §3); read with core's orgFeatures. */
   readonly modules?: unknown;
   readonly features?: unknown;
 }
 
 /** What Settings saves: the profile, and the one-off settings when that part is shown. */
-export type ProfileEdit = OrgProfile & { readonly defaultTermsDays?: number; readonly scheduledSentNote?: boolean };
+export type ProfileEdit = OrgProfile & {
+  readonly defaultTermsDays?: number;
+  readonly scheduledSentNote?: boolean;
+  readonly quoteValidDays?: number;
+  readonly quoteTerms?: string;
+};
 
 export interface Setup {
   readonly org: Org;
@@ -125,6 +133,14 @@ export interface SetupStore {
   deleteItem(id: string): Promise<string | null>;
   /** Saved drafts and sent one-off invoices (G2a). A string is a problem. */
   oneOffs(): Promise<OneOffs | string>;
+  /** Quote drafts and sent quotes (G2q). A string is a problem. */
+  quotes(): Promise<Quotes | string>;
+  /** One saved quote draft; null when it is gone (sent or deleted). A string is a problem. */
+  quoteDraft(id: string): Promise<QuoteDraft | null | string>;
+  saveQuoteDraft(id: string | null, draft: QuoteDraft): Promise<{ readonly id: string } | { readonly problem: string }>;
+  deleteQuoteDraft(id: string): Promise<string | null>;
+  /** Number, freeze and email a saved quote draft (the sendQuote callable). */
+  sendQuote(draftId: string): Promise<Outcome>;
   /** One saved draft, with its schedule if it has one; null when it is gone (sent or deleted). A string is a problem. */
   draft(id: string): Promise<ScheduledDraft | null | string>;
   /** Save a draft; the result is its ID, or a problem. */
@@ -206,6 +222,23 @@ export interface OneOffs {
   readonly drafts: readonly WithId<ScheduledDraft>[];
   /** Newest number first. */
   readonly invoices: readonly OneOffInvoice[];
+}
+
+export interface Quotes {
+  readonly drafts: readonly WithId<QuoteDraft>[];
+  /** Newest number first. */
+  readonly sent: readonly SentQuote[];
+}
+
+export interface SentQuote {
+  readonly id: string;
+  /** "QUO-0012", or "QUO-0012 rev 2". */
+  readonly label: string;
+  readonly customerName: string;
+  readonly issueDate: CalendarDate;
+  readonly validUntil: CalendarDate;
+  readonly totalToea: Toea;
+  readonly status: QuoteStatus;
 }
 
 export interface OneOffInvoice {

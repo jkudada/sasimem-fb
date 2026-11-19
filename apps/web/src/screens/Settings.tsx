@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import { DEFAULT_TERMS_DAYS, MAX_LOGO_BYTES, type OrgProfile, firstInvoiceNumberProblem, hasFeature, logoProblem, logoTypeProblem, profileProblems, wholeIn } from "@sasimem/core";
+import { DEFAULT_QUOTE_TERMS, DEFAULT_QUOTE_VALID_DAYS, DEFAULT_TERMS_DAYS, MAX_LOGO_BYTES, quoteSettingsProblems, type OrgProfile, firstInvoiceNumberProblem, hasFeature, logoProblem, logoTypeProblem, profileProblems, wholeIn } from "@sasimem/core";
 import { shrinkLogo } from "../logo/shrink.js";
 import type { Numbering, Org, ProfileEdit } from "../setup.js";
 import { Icon, type IconName } from "./icons.js";
@@ -7,7 +7,7 @@ import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
 import { whole } from "./read.js";
 
-type Problems = ReturnType<typeof profileProblems> & { defaultTermsDays?: string };
+type Problems = ReturnType<typeof profileProblems> & ReturnType<typeof quoteSettingsProblems> & { defaultTermsDays?: string };
 
 /** How the next invoice number will print (plan §6.3: prefix + zero-pad(4)). */
 const printed = (prefix: string, n: number) => `${prefix}${String(n).padStart(4, "0")}`;
@@ -40,6 +40,9 @@ export function Settings(props: {
   const oneOff = hasFeature(o, "oneOff");
   const termsDays = useSignal(String(o.defaultTermsDays ?? DEFAULT_TERMS_DAYS));
   const sentNote = useSignal(o.scheduledSentNote !== false);
+  const quotes = oneOff && hasFeature(o, "quotes");
+  const quoteDays = useSignal(String(o.quoteValidDays ?? DEFAULT_QUOTE_VALID_DAYS));
+  const quoteTerms = useSignal(o.quoteTerms ?? DEFAULT_QUOTE_TERMS);
   const problems = useSignal<Problems>({});
   const message = useSignal<string | null>(null);
   const logoMessage = useSignal<string | null>(null);
@@ -57,11 +60,17 @@ export function Settings(props: {
     };
     // One-off invoices' usual terms (G2a) and the sent-as-scheduled note (G2d), only where that part is shown.
     const terms = whole(termsDays.value);
-    problems.value = { ...profileProblems(profile), ...(oneOff && !wholeIn(terms, 0, 90) ? { defaultTermsDays: "Choose from 0 to 90 days." } : {}) };
+    // Quotes' validity and terms (G2q), only where that part is shown.
+    const quoteSettings = { quoteValidDays: whole(quoteDays.value), quoteTerms: quoteTerms.value.trim() };
+    problems.value = {
+      ...profileProblems(profile),
+      ...(oneOff && !wholeIn(terms, 0, 90) ? { defaultTermsDays: "Choose from 0 to 90 days." } : {}),
+      ...(quotes ? quoteSettingsProblems(quoteSettings) : {}),
+    };
     message.value = null;
     if (Object.keys(problems.value).length > 0) return;
     busy.value = true;
-    message.value = (await props.onSave(oneOff ? { ...profile, defaultTermsDays: terms, scheduledSentNote: sentNote.value } : profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
+    message.value = (await props.onSave(oneOff ? { ...profile, defaultTermsDays: terms, scheduledSentNote: sentNote.value, ...(quotes ? quoteSettings : {}) } : profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
     busy.value = false;
   };
 
@@ -157,6 +166,16 @@ export function Settings(props: {
               <input type="checkbox" checked={sentNote} onChange={(e) => (sentNote.value = (e.currentTarget as HTMLInputElement).checked)} />
               Email me when a scheduled invoice goes
             </label>
+          )}
+          {quotes && (
+            <>
+              <Field label="Days a quote is valid" hint="Your usual. You can change it on each quote." problem={p.quoteValidDays}>
+                <input inputMode="numeric" value={quoteDays} onInput={(e) => (quoteDays.value = value(e))} />
+              </Field>
+              <Field label="Quote terms" hint="Printed on every quote, and shown where the customer accepts it. Leave it empty to print none." problem={p.quoteTerms}>
+                <textarea rows={8} value={quoteTerms} onInput={(e) => (quoteTerms.value = value(e))} />
+              </Field>
+            </>
           )}
           {message.value !== null && <p role="status">{message.value}</p>}
           <button type="submit" disabled={busy}>Save settings</button>
