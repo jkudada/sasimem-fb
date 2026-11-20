@@ -1,4 +1,4 @@
-/** G2q-a (docs/test-lists/general-g2q.md): the quote screens, the menu and Settings. */
+/** G2q-a to G2q-c (docs/test-lists/general-g2q.md): the quote screens, the menu, Home and Settings. */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { DEFAULT_QUOTE_TERMS, type Item, type QuoteDraft, type Toea } from "@sasimem/core";
 import { describe, expect, test, vi } from "vitest";
@@ -18,7 +18,7 @@ const line = (n: number) => screen.getByRole("group", { name: `Line ${n}` });
 const ON = { rentals: true, repeating: true, oneOff: true, quotes: true };
 const labour: WithId<Item> = { id: "i1", name: "Labour", description: "Electrician", unit: "hour", unitPriceToea: 8_000 as Toea, taxCode: "standard" };
 
-const setup = (over: { features?: object; quoteValidDays?: number; quoteTerms?: string } = {}): Setup => ({
+const setup = (over: { features?: object; quoteValidDays?: number; quoteTerms?: string; depositPercent?: number; depositOverToea?: number; quoteFollowUpDays?: number } = {}): Setup => ({
   org: {
     name: "Wari Electrical", address: "Boroko", email: "mary@wari.example", gstRegistered: true, gstNumber: "500012345",
     bankName: "BSP", bankAccount: "1000 2345", invoicePrefix: "INV-", timezone: "Pacific/Port_Moresby",
@@ -26,6 +26,9 @@ const setup = (over: { features?: object; quoteValidDays?: number; quoteTerms?: 
     features: over.features ?? ON,
     ...(over.quoteValidDays === undefined ? {} : { quoteValidDays: over.quoteValidDays }),
     ...(over.quoteTerms === undefined ? {} : { quoteTerms: over.quoteTerms }),
+    ...(over.depositPercent === undefined ? {} : { depositPercent: over.depositPercent }),
+    ...(over.depositOverToea === undefined ? {} : { depositOverToea: over.depositOverToea }),
+    ...(over.quoteFollowUpDays === undefined ? {} : { quoteFollowUpDays: over.quoteFollowUpDays }),
   },
   properties: [],
   tenants: [{ id: "c1", name: "Kila Trading", email: "accounts@kila.example", phone: "", ccEmails: ["boss@kila.example"] } as WithId<{ name: string; email: string; phone: string }>],
@@ -120,7 +123,7 @@ describe("the list of quotes", () => {
       sent: [
         { id: "q2", label: "QUO-0002", customerName: "Mine Services", issueDate: "2026-11-19" as never, validUntil: "2026-12-19" as never, totalToea: 28_050 as Toea, status: "sent" },
         { id: "q1", label: "QUO-0001", customerName: "Kila Trading", issueDate: "2026-11-01" as never, validUntil: "2026-12-01" as never, totalToea: 11_000 as Toea, status: "viewed" },
-        ...(["accepted", "declined", "expired"] as const).map((status, i) => ({ id: `o${i}`, label: `QUO-000${i + 3}`, customerName: "Other", issueDate: "2026-10-01" as never, validUntil: "2026-10-31" as never, totalToea: 5_000 as Toea, status })),
+        ...(["accepted", "declined", "expired", "invoiced"] as const).map((status, i) => ({ id: `o${i}`, label: `QUO-000${i + 3}`, customerName: "Other", issueDate: "2026-10-01" as never, validUntil: "2026-10-31" as never, totalToea: 5_000 as Toea, status })),
       ],
     };
     render(<Quotes list={list} setup={setup()} />);
@@ -129,7 +132,7 @@ describe("the list of quotes", () => {
     expect(screen.getByRole("link", { name: "QUO-0002 · Mine Services" }).getAttribute("href")).toBe("/quotes/sent/q2");
     expect(screen.getByText("K280.50 · valid until 19 December 2026 · Sent")).toBeTruthy();
     expect(screen.getByText("K110.00 · valid until 1 December 2026 · Viewed")).toBeTruthy();
-    for (const s of ["Accepted", "Declined", "Expired"]) expect(screen.getByText(`K50.00 · valid until 31 October 2026 · ${s}`)).toBeTruthy();
+    for (const s of ["Accepted", "Declined", "Expired", "Invoiced"]) expect(screen.getByText(`K50.00 · valid until 31 October 2026 · ${s}`)).toBeTruthy();
     expect(screen.getByRole("link", { name: "New quote" }).getAttribute("href")).toBe("/quotes/new");
   });
 });
@@ -140,14 +143,19 @@ describe("a sent quote (G2q-b)", () => {
   const base: QuoteDetail = {
     id: "q1", label: "QUO-0001", customerName: "Kila Trading", issueDate: "2026-11-19" as never, validUntil: "2026-12-19" as never,
     totalToea: 28_050 as Toea, status: "sent", viewedAt: null, acceptance: null, decline: null, invoiceIds: [],
+    number: "QUO-0001", revision: 1, invoicedToea: 0 as Toea, invoices: [], drafts: [], revisions: [],
   };
-  const show = (quote: Partial<QuoteDetail> = {}, over: { mark?: () => Promise<Outcome>; undo?: () => Promise<Outcome> } = {}) => {
+  const show = (quote: Partial<QuoteDetail> = {}, over: { mark?: () => Promise<Outcome>; undo?: () => Promise<Outcome>; revise?: () => Promise<{ id: string } | { problem: string }> } = {}) => {
     const onMark = vi.fn(over.mark ?? (async (): Promise<Outcome> => ({ ok: true, message: "Recorded: QUO-0001 accepted by Peter Kila." })));
     const onUndo = vi.fn(over.undo ?? (async (): Promise<Outcome> => ({ ok: true, message: "QUO-0001 is open again." })));
+    const onDraftFrom = vi.fn(async (): Promise<Outcome> => ({ ok: true, message: "Drafted." }));
+    const onRevise = vi.fn(over.revise ?? (async () => ({ id: "q1_rev" })));
+    const onOpen = vi.fn();
     const onChanged = vi.fn();
-    render(<Quote quote={{ ...base, ...quote }} timezone={TZ} now={NOW} onMark={onMark} onUndo={onUndo} onChanged={onChanged} />);
-    return { onMark, onUndo, onChanged };
+    render(<Quote quote={{ ...base, ...quote }} timezone={TZ} now={NOW} onMark={onMark} onUndo={onUndo} onDraftFrom={onDraftFrom} onRevise={onRevise} onOpen={onOpen} onChanged={onChanged} />);
+    return { onMark, onUndo, onDraftFrom, onRevise, onOpen, onChanged };
   };
+  const accepted = { by: "customer" as const, name: "Peter Kila", poNumber: "PO-4471", at: new Date("2026-11-20T02:00:00Z"), totalToea: 28_050 as Toea };
 
   test("viewed: the status, when it was first opened; Record an answer, no Undo", () => {
     show({ status: "viewed", viewedAt: new Date("2026-11-19T22:30:00Z") });
@@ -159,7 +167,7 @@ describe("a sent quote (G2q-b)", () => {
   });
 
   test("accepted on the link: who, when and the PO; Undo, which reloads it", async () => {
-    const { onUndo, onChanged } = show({ status: "accepted", acceptance: { by: "customer", name: "Peter Kila", poNumber: "PO-4471", at: new Date("2026-11-20T02:00:00Z") } });
+    const { onUndo, onChanged } = show({ status: "accepted", acceptance: accepted, drafts: ["full"] });
     expect(screen.getByText(/Accepted by/).textContent).toBe("Accepted by Peter Kila at 12:00 pm on 20 November 2026, on the quote's link. Order number PO-4471.");
     expect(screen.queryByRole("button", { name: "Record an answer" })).toBeNull();
     click("Undo the acceptance");
@@ -168,18 +176,18 @@ describe("a sent quote (G2q-b)", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  test("declined, recorded by the owner, with the reason; nothing to do", () => {
+  test("declined, recorded by the owner, with the reason; it can only be revised", () => {
     show({ status: "declined", decline: { by: "owner", reason: "Went elsewhere", at: new Date("2026-11-20T02:00:00Z") } });
     expect(screen.getByText(/Declined at/).textContent).toBe("Declined at 12:00 pm on 20 November 2026, recorded by you. Reason: Went elsewhere");
-    expect(screen.queryAllByRole("button")).toEqual([]);
+    expect(screen.queryAllByRole("button").map((b) => b.textContent)).toEqual(["Revise"]);
   });
 
-  test("invoiced or expired: no Undo, no answer", () => {
-    show({ status: "accepted", acceptance: { by: "owner", name: "Peter Kila", poNumber: "", at: NOW }, invoiceIds: ["inv1"] });
-    expect(screen.queryAllByRole("button")).toEqual([]);
+  test("partly invoiced: no Undo, no answer, no revise; expired: only revise", () => {
+    show({ status: "accepted", acceptance: { ...accepted, by: "owner" }, invoiceIds: ["q1_r1_deposit"], invoicedToea: 8_415 as Toea, invoices: [{ id: "q1_r1_deposit", number: "INV-0040", totalToea: 8_415 as Toea, kind: "deposit" }] });
+    expect(screen.queryAllByRole("button").map((b) => b.textContent)).toEqual(["Invoice the rest"]);
     cleanup();
     show({ status: "sent", validUntil: "2026-11-19" as never });
-    expect(screen.queryAllByRole("button")).toEqual([]);
+    expect(screen.queryAllByRole("button").map((b) => b.textContent)).toEqual(["Revise"]);
   });
 
   test("Record an answer: accepted with who and the order number, or declined with a reason; a refusal shows", async () => {
@@ -201,6 +209,95 @@ describe("a sent quote (G2q-b)", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("QUO-0001 was already accepted."));
     expect(refused.onMark).toHaveBeenCalledWith("q1", { answer: "decline", name: "", poNumber: "", reason: "Too dear" });
     expect(refused.onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("revising and invoicing a quote (G2q-c)", () => {
+  const NOW = new Date("2026-11-20T02:00:00Z");
+  const base: QuoteDetail = {
+    id: "q1", label: "QUO-0001 rev 2", number: "QUO-0001", revision: 2, customerName: "Kila Trading", issueDate: "2026-11-20" as never, validUntil: "2026-12-04" as never,
+    totalToea: 28_050 as Toea, status: "sent", viewedAt: null, acceptance: null, decline: null, invoiceIds: [], invoicedToea: 0 as Toea, invoices: [], drafts: [],
+    revisions: [{ revision: 1, issueDate: "2026-11-19" as never, totalToea: 30_000 as Toea, status: "declined" }],
+  };
+  const accepted = { by: "customer" as const, name: "Peter Kila", poNumber: "PO-4471", at: NOW, totalToea: 28_050 as Toea };
+  const show = (quote: Partial<QuoteDetail> = {}, revise: () => Promise<{ id: string } | { problem: string }> = async () => ({ id: "q1_rev" })) => {
+    const props = {
+      onMark: vi.fn(), onUndo: vi.fn(), onChanged: vi.fn(), onOpen: vi.fn(), onRevise: vi.fn(revise),
+      onDraftFrom: vi.fn(async (): Promise<Outcome> => ({ ok: true, message: "The invoice for QUO-0001 rev 2 is drafted as a deposit." })),
+    };
+    render(<Quote quote={{ ...base, ...quote }} timezone="Pacific/Port_Moresby" now={NOW} {...props} />);
+    return props;
+  };
+
+  test("Revise opens the revision draft; the revisions it replaced are listed", async () => {
+    const { onRevise, onOpen } = show();
+    expect(screen.getByText(/^Replaces/).textContent).toBe("Replaces QUO-0001 of 19 November 2026 (K300.00, declined).");
+    expect(screen.getByText(/as revision 3/)).toBeTruthy();
+    click("Revise");
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/quotes/q1_rev"));
+    expect(onRevise).toHaveBeenCalledWith("q1");
+    cleanup();
+    show({}, async () => ({ problem: "You need a connection to do this." }));
+    click("Revise");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("You need a connection to do this."));
+  });
+
+  test("accepted: the invoice draft linked; switch to a deposit and back while nothing is sent", async () => {
+    const { onDraftFrom, onChanged } = show({ status: "accepted", acceptance: accepted, drafts: ["full"] });
+    expect(screen.getByText("Nothing invoiced yet.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "The invoice" }).getAttribute("href")).toBe("/one-off/q1_r2_full");
+    expect(screen.queryByRole("button", { name: "Revise" })).toBeNull();
+    click("Ask for a deposit instead");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("The invoice for QUO-0001 rev 2 is drafted as a deposit."));
+    expect(onDraftFrom).toHaveBeenCalledWith("q1", "deposit");
+    expect(onChanged).toHaveBeenCalled();
+    cleanup();
+    const back = show({ status: "accepted", acceptance: accepted, drafts: ["deposit"] });
+    expect(screen.getByRole("link", { name: "The deposit invoice" }).getAttribute("href")).toBe("/one-off/q1_r2_deposit");
+    click("Invoice in full instead");
+    await waitFor(() => expect(back.onDraftFrom).toHaveBeenCalledWith("q1", "full"));
+    cleanup();
+    const none = show({ status: "accepted", acceptance: accepted });
+    click("Draft the invoice");
+    await waitFor(() => expect(none.onDraftFrom).toHaveBeenCalledWith("q1", "full"));
+  });
+
+  test("after the deposit is sent: the invoices from it, how much is invoiced, Invoice the rest", async () => {
+    const deposit = { id: "q1_r2_deposit", number: "INV-0040", totalToea: 8_415 as Toea, kind: "deposit" as const };
+    const { onDraftFrom } = show({ status: "accepted", acceptance: accepted, invoiceIds: [deposit.id], invoicedToea: 8_415 as Toea, invoices: [deposit] });
+    expect(screen.getByText("Invoiced K84.15 of K280.50.")).toBeTruthy();
+    expect(screen.getByText("INV-0040 (deposit) · K84.15")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo the acceptance" })).toBeNull();
+    click("Invoice the rest");
+    await waitFor(() => expect(onDraftFrom).toHaveBeenCalledWith("q1", "final"));
+  });
+
+  test("Invoiced in full, or flagged when over the accepted total", () => {
+    const final = { id: "q1_r2_full", number: "INV-0041", totalToea: 28_050 as Toea, kind: "full" as const };
+    show({ status: "invoiced", acceptance: accepted, invoiceIds: [final.id], invoicedToea: 28_050 as Toea, invoices: [final] });
+    expect(screen.getByText("Invoiced in full.")).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    cleanup();
+    show({ status: "invoiced", acceptance: accepted, invoiceIds: [final.id], invoicedToea: 148_050 as Toea, invoices: [{ ...final, totalToea: 148_050 as Toea }] });
+    expect(screen.getByText("Invoiced K1,480.50: K1,200.00 more than the accepted quote.")).toBeTruthy();
+  });
+
+  test("the editor, revising: says which quote, and sends as the next revision", () => {
+    const draft: QuoteDraft = { customerId: "c1", lines: [{ description: "Rewire", detail: "", quantityMilli: 1000, unit: "", unitPriceToea: 50_000 as Toea, taxCode: "standard" }], notes: "", validDays: 14, revises: "q1" };
+    render(<QuoteEditor id="q1_rev" draft={draft} revising={{ label: "QUO-0001 rev 2", next: 3 }} setup={setup()} onSave={vi.fn()} onDelete={vi.fn()} onSend={vi.fn()} onDone={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Revising QUO-0001 rev 2" })).toBeTruthy();
+    expect(screen.getByText(/makes revision 3/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send revision 3" })).toBeTruthy();
+  });
+
+  test("Home: accepted quotes not invoiced a week on, linked to the quotes", () => {
+    render(<Home setup={setup()} quotesToInvoice={2} onSignOut={vi.fn()} />);
+    const stat = screen.getByRole("link", { name: /accepted quotes not invoiced/ });
+    expect(stat.textContent).toBe("2 accepted quotes not invoiced");
+    expect(stat.getAttribute("href")).toBe("/quotes");
+    cleanup();
+    render(<Home setup={setup()} quotesToInvoice={0} onSignOut={vi.fn()} />);
+    expect(screen.queryByText(/not invoiced/)).toBeNull();
   });
 });
 
@@ -230,6 +327,38 @@ describe("Settings: quotes", () => {
     click("Save settings");
     expect(screen.getByText("Choose from 1 to 365 days.")).toBeTruthy();
     expect(screen.getByText("Keep the terms to 2,000 characters or fewer.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  test("G2q-c: the deposit and follow-up, blank (off) by default; saved, or switched off as null", async () => {
+    const onSave = settings(setup());
+    for (const l of [/deposit on accepted quotes/i, /only on quotes over/i, /remind customers/i]) expect((screen.getByLabelText(l) as HTMLInputElement).value).toBe("");
+    type(/deposit on accepted quotes/i, "30");
+    type(/only on quotes over/i, "K5,000");
+    type(/remind customers/i, "7");
+    click("Save settings");
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ depositPercent: 30, depositOverToea: 500_000, quoteFollowUpDays: 7 });
+    cleanup();
+
+    const off = settings(setup({ depositPercent: 30, depositOverToea: 500_000, quoteFollowUpDays: 7 }));
+    expect((screen.getByLabelText(/only on quotes over/i) as HTMLInputElement).value).toBe("K5,000.00");
+    type(/deposit on accepted quotes/i, "");
+    type(/remind customers/i, " ");
+    click("Save settings");
+    await waitFor(() => expect(off).toHaveBeenCalled());
+    expect(off.mock.calls[0]?.[0]).toMatchObject({ depositPercent: null, depositOverToea: null, quoteFollowUpDays: null });
+  });
+
+  test("G2q-c: a bad deposit or follow-up is refused in core's words", () => {
+    const onSave = settings(setup());
+    type(/deposit on accepted quotes/i, "120");
+    type(/only on quotes over/i, "lots");
+    type(/remind customers/i, "90");
+    click("Save settings");
+    expect(screen.getByText("Choose from 1 to 100 per cent.")).toBeTruthy();
+    expect(screen.getByText("Enter an amount like K1,200.00.")).toBeTruthy();
+    expect(screen.getByText("Choose from 1 to 60 days.")).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
   });
 

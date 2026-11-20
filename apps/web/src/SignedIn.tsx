@@ -4,7 +4,7 @@
  * screen shows what was actually stored.
  */
 import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
-import { type CalendarDate, type Period, type QuoteDraft, hasFeature, periodOf } from "@sasimem/core";
+import { type CalendarDate, type Period, type QuoteDraft, hasFeature, periodOf, quoteLabel } from "@sasimem/core";
 import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
@@ -170,9 +170,11 @@ function HomeRoute() {
   const period = periodOf(c.today);
   const { month, thenReload } = useMonth(period);
   const owed = useOwedTotal();
+  const toInvoice = useQuotesToInvoice();
   const m = month.value;
   return (
-    <Home setup={c.setup.value} today={c.today} {...(owed.value === null ? {} : { owedToea: owed.value })} onSignOut={() => void c.signOut()}>
+    <Home setup={c.setup.value} today={c.today} {...(owed.value === null ? {} : { owedToea: owed.value })}
+      {...(toInvoice.value === null ? {} : { quotesToInvoice: toInvoice.value })} onSignOut={() => void c.signOut()}>
       {m === undefined ? <p class="note">Loading this month…</p>
         : typeof m === "string" ? <p role="alert">{m}</p>
         : <MonthCard period={period} month={m} timezone={c.setup.value.org.timezone} onDraftNow={thenReload(c.store.draftNow)} />}
@@ -211,6 +213,17 @@ function useOwedTotal() {
     void store.owed().then((g) => (total.value = typeof g === "string" ? null : g.reduce((t, x) => t + x.totalToea, 0)));
   }, [store]);
   return total;
+}
+
+/** Accepted quotes with nothing invoiced a week on (G2q-c), for orgs with quotes on; null until known. */
+function useQuotesToInvoice() {
+  const { store, setup } = useSignedIn();
+  const count = useSignal<number | null>(null);
+  const on = hasFeature(setup.value.org, "quotes") && hasFeature(setup.value.org, "oneOff");
+  useEffect(() => {
+    if (on) void store.quotesToInvoice(new Date(Date.now() - 7 * 86_400_000)).then((n) => (count.value = typeof n === "string" ? null : n));
+  }, [store, on]);
+  return count;
 }
 
 function InvoicesRoute() {
@@ -506,6 +519,7 @@ function QuotesRoute() {
 /** A sent quote with its answer (G2q-b); loaded again after the owner records or undoes one. */
 function QuoteRoute(props: Params) {
   const c = useSignedIn();
+  const { route } = useLocation();
   const id = props.params["id"] ?? "";
   const quote = useSignal<NonNullable<Awaited<ReturnType<SetupStore["quote"]>>> | undefined>(undefined);
   const load = () => void c.store.quote(id).then((q) => (quote.value = q ?? "That quote is not there."));
@@ -515,7 +529,8 @@ function QuoteRoute(props: Params) {
     <QuotesOnly>
       {q === undefined ? <main class="narrow"><p>Loading…</p></main>
         : typeof q === "string" ? <main class="narrow"><p role="alert">{q}</p><p><a href="/quotes">Quotes</a></p></main>
-        : <Quote quote={q} timezone={c.setup.value.org.timezone} now={new Date()} onMark={c.store.markQuote} onUndo={c.store.undoAcceptance} onChanged={load} />}
+        : <Quote quote={q} timezone={c.setup.value.org.timezone} now={new Date()} onMark={c.store.markQuote} onUndo={c.store.undoAcceptance}
+            onDraftFrom={c.store.draftFromQuote} onRevise={c.store.reviseQuote} onOpen={route} onChanged={load} />}
     </QuotesOnly>
   );
 }
@@ -526,15 +541,22 @@ function QuoteEditorRoute(props: Params) {
   const { route } = useLocation();
   const id = idOf(props);
   const draft = useSignal<QuoteDraft | null | string | undefined>(id === null ? null : undefined);
+  const revising = useSignal<{ label: string; next: number } | undefined>(undefined);
   useEffect(() => {
-    if (id !== null) void c.store.quoteDraft(id).then((d) => (draft.value = d ?? "That draft is not there any more. It may have been sent or deleted."));
+    if (id === null) return;
+    void c.store.quoteDraft(id).then(async (d) => {
+      // A revision draft (G2q-c) says which quote it revises; a quote gone meanwhile still opens the draft.
+      const of = d !== null && typeof d !== "string" && d.revises !== null ? await c.store.quote(d.revises) : null;
+      if (of !== null && typeof of !== "string") revising.value = { label: quoteLabel(of.number, of.revision), next: of.revision + 1 };
+      draft.value = d ?? "That draft is not there any more. It may have been sent or deleted.";
+    });
   }, [id]);
   const d = draft.value;
   return (
     <QuotesOnly>
       {d === undefined ? <main class="narrow"><p>Loading…</p></main>
         : typeof d === "string" ? <main class="narrow"><p role="alert">{d}</p><p><a href="/quotes">Quotes</a></p></main>
-        : <QuoteEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value}
+        : <QuoteEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value} {...(revising.value === undefined ? {} : { revising: revising.value })}
             onSave={c.store.saveQuoteDraft} onDelete={c.store.deleteQuoteDraft} onSend={c.store.sendQuote} onDone={() => route("/quotes")} />}
     </QuotesOnly>
   );

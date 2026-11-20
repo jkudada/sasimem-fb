@@ -35,7 +35,8 @@ export function menuFor(org: Setup["org"]): readonly MenuEntry[] {
 
 /** Home (plan §7, screen 3): this month's one action (the card, as children), the amount owed, then setup. */
 /** today: shows the subscription banner (PLAN-SUBSCRIBERS §8) when there is one. */
-export function Home(props: { setup: Setup; today?: CalendarDate; owedToea?: number; onSignOut: () => void; children?: ComponentChildren }) {
+/** quotesToInvoice: accepted quotes nothing has been invoiced from, a week on (G2q-c, AR-1). */
+export function Home(props: { setup: Setup; today?: CalendarDate; owedToea?: number; quotesToInvoice?: number; onSignOut: () => void; children?: ComponentChildren }) {
   const { org, tenancies } = props.setup;
   const owed = props.owedToea !== undefined && props.owedToea > 0 ? props.owedToea : null;
   return (
@@ -59,6 +60,12 @@ export function Home(props: { setup: Setup; today?: CalendarDate; owedToea?: num
             <span class="stat-value">{tenancies.length}</span>
             <span class="stat-label">{tenancies.length === 1 ? "tenancy" : "tenancies"}</span>
           </div>
+          {props.quotesToInvoice !== undefined && props.quotesToInvoice > 0 && (
+            <a class="stat" href="/quotes">
+              <span class="stat-value">{props.quotesToInvoice}</span>{" "}
+              <span class="stat-label">accepted {props.quotesToInvoice === 1 ? "quote" : "quotes"} not invoiced</span>
+            </a>
+          )}
           {owed !== null && (
             <a class="stat owed" href="/owed">
               <span class="stat-value">{formatKina(owed as Toea)}</span>{" "}

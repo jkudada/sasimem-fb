@@ -5,7 +5,7 @@
  * problem, or null on success; Firebase stays in setup-store.ts.
  */
 import { customerOf } from "@sasimem/core";
-import type { Arrears, BankDetails, CalendarDate, CreditableInvoice, CreditNoteInput, Customer, Interval, Item, OneOffDraft, QuoteDraft, QuoteStatus, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
+import type { Arrears, BankDetails, CalendarDate, CreditableInvoice, CreditNoteInput, Customer, Interval, Item, OneOffDraft, QuoteDraft, QuoteInvoiceKind, QuoteStatus, PaymentInput, PaymentMethod, PlanId, SubscriptionFields, InvoiceStatus, InvoiceTemplate, IssuedInvoice, OrgProfile, Period, PropertyInput, RunStatus, TenancyDocument, TenantInput, Toea } from "@sasimem/core";
 import type { LogoDesign } from "@sasimem/core/logo";
 
 export type WithId<T> = T & { readonly id: string };
@@ -23,6 +23,11 @@ export interface Org extends OrgProfile {
   /** Quotes (G2q): days a quote is valid (absent means 30), and the terms printed on each (absent means core's default). */
   readonly quoteValidDays?: number;
   readonly quoteTerms?: string;
+  /** G2q-c: a deposit of this share (1-100) on quotes over the amount (D13); absent means none. */
+  readonly depositPercent?: number;
+  readonly depositOverToea?: number;
+  /** G2q-c: remind the customer this many days after sending a quote; absent means off. */
+  readonly quoteFollowUpDays?: number;
   /** Server-written (docs/PLAN-GENERAL-INVOICING.md §3); read with core's orgFeatures. */
   readonly modules?: unknown;
   readonly features?: unknown;
@@ -34,6 +39,10 @@ export type ProfileEdit = OrgProfile & {
   readonly scheduledSentNote?: boolean;
   readonly quoteValidDays?: number;
   readonly quoteTerms?: string;
+  /** G2q-c: null switches it off (the field is deleted). */
+  readonly depositPercent?: number | null;
+  readonly depositOverToea?: number | null;
+  readonly quoteFollowUpDays?: number | null;
 };
 
 export interface Setup {
@@ -147,6 +156,12 @@ export interface SetupStore {
   markQuote(id: string, answer: QuoteAnswerForm): Promise<Outcome>;
   /** Set an accepted quote back to sent (the undoAcceptance callable). */
   undoAcceptance(id: string): Promise<Outcome>;
+  /** Open (or reopen) the draft that revises a sent quote (G2q-c); its id, or a problem. */
+  reviseQuote(id: string): Promise<{ readonly id: string } | { readonly problem: string }>;
+  /** Draft the invoice for an accepted quote: in full, a deposit, or the final one (the draftFromQuote callable). */
+  draftFromQuote(id: string, kind: QuoteInvoiceKind): Promise<Outcome>;
+  /** Accepted quotes with nothing invoiced, accepted before `before` (Home, AR-1). A string is a problem. */
+  quotesToInvoice(before: Date): Promise<number | string>;
   /** One saved draft, with its schedule if it has one; null when it is gone (sent or deleted). A string is a problem. */
   draft(id: string): Promise<ScheduledDraft | null | string>;
   /** Save a draft; the result is its ID, or a problem. */
@@ -247,14 +262,23 @@ export interface SentQuote {
   readonly status: QuoteStatus;
 }
 
-/** A sent quote as its own screen shows it (G2q-b). */
+/** A sent quote as its own screen shows it (G2q-b, G2q-c). */
 export interface QuoteDetail extends SentQuote {
+  /** "QUO-0012": the label without its revision. */
+  readonly number: string;
+  readonly revision: number;
   /** When the customer first opened the link. */
   readonly viewedAt: Date | null;
-  readonly acceptance: { readonly by: "customer" | "owner"; readonly name: string; readonly poNumber: string; readonly at: Date } | null;
+  readonly acceptance: { readonly by: "customer" | "owner"; readonly name: string; readonly poNumber: string; readonly at: Date; readonly totalToea: Toea } | null;
   readonly decline: { readonly by: "customer" | "owner"; readonly reason: string; readonly at: Date } | null;
-  /** The invoices sent from it (G2q-c). */
+  /** The invoices sent from it, and what they came to (G2q-c). */
   readonly invoiceIds: readonly string[];
+  readonly invoicedToea: Toea;
+  readonly invoices: readonly { readonly id: string; readonly number: string; readonly totalToea: Toea; readonly kind: QuoteInvoiceKind }[];
+  /** Its invoice drafts not yet sent, by kind (G2q-c). */
+  readonly drafts: readonly QuoteInvoiceKind[];
+  /** The revisions it replaced, oldest first (G2q-c). */
+  readonly revisions: readonly { readonly revision: number; readonly issueDate: CalendarDate; readonly totalToea: Toea; readonly status: QuoteStatus }[];
 }
 
 /** What the owner records, as markQuote reads it. */

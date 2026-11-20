@@ -234,12 +234,12 @@ Built as two PRs, server then web (stacked), as G2q-b was.
 - [x] the tick's follow-up: sent once after N days, with the link; not for answered, expired or followed-up quotes, or with the setting off; the email logged
 
 ### Web (T1 web)
-- [ ] the quote screen: Revise (sent, viewed, declined, expired) opens the revision draft; the revisions listed with their dates
-- [ ] the quote screen after acceptance: the invoice draft linked; "Deposit" / "In full" switch while nothing is sent; Invoice the rest after the deposit is sent; invoices from the quote with their totals; Invoiced, or the amount over
-- [ ] the quote editor shows "Revising QUO-0012" and sends as "Send revision 2"
-- [ ] Settings: the deposit percent and amount, and follow-up days, with quotes on only
-- [ ] Home: "2 accepted quotes not invoiced" after 7 days
-- [ ] the quotes list shows Invoiced
+- [x] the quote screen: Revise (sent, viewed, declined, expired) opens the revision draft; the revisions listed with their dates
+- [x] the quote screen after acceptance: the invoice draft linked; "Deposit" / "In full" switch while nothing is sent; Invoice the rest after the deposit is sent; invoices from the quote with their totals; Invoiced, or the amount over
+- [x] the quote editor shows "Revising QUO-0012" and sends as "Send revision 2"
+- [x] Settings: the deposit percent and amount, and follow-up days, with quotes on only
+- [x] Home: "2 accepted quotes not invoiced" after 7 days
+- [x] the quotes list shows Invoiced
 
 ### End to end (T4)
-- [ ] the owner revises a sent quote; the customer's new link accepts it and the old one says replaced; the invoice draft is there; the owner sends it and the quote shows Invoiced
+- [x] the owner revises a sent quote; the customer's new link accepts it and the old one says replaced; the invoice draft is there; the owner sends it and the quote shows Invoiced
