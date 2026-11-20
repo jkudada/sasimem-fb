@@ -10,7 +10,7 @@
 import { type BillingOrg, type InvoiceDocument, approvalRequestDue, periodsToDraft } from "@sasimem/core";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendReminder, sendTenantInvoice } from "./notify.js";
+import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendReminder, sendSentScheduled, sendTenantInvoice } from "./notify.js";
 import type { DispatchLine } from "./mail/templates.js";
 import { issueOneOff } from "./store/oneoff.js";
 import { renderMissingPdfs, renderPdfOf } from "./store/pdfs.js";
@@ -127,6 +127,7 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
         await renderPdfOf(s.orgId, s.draftId);
         const invoice = (await refs(s.orgId).invoice(s.draftId).get()).data() as InvoiceDocument;
         await sendTenantInvoice(deps, s.orgId, s.draftId, invoice);
+        await sendSentScheduled(deps, s.orgId, await orgOf(s.orgId), s.draftId, invoice, now);
         return;
       }
       case "notFound": // the draft was deleted

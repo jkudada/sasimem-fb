@@ -39,6 +39,7 @@ export function Settings(props: {
   const remind = useSignal(o.reminderMode === "auto");
   const oneOff = hasFeature(o, "oneOff");
   const termsDays = useSignal(String(o.defaultTermsDays ?? DEFAULT_TERMS_DAYS));
+  const sentNote = useSignal(o.scheduledSentNote !== false);
   const problems = useSignal<Problems>({});
   const message = useSignal<string | null>(null);
   const logoMessage = useSignal<string | null>(null);
@@ -54,13 +55,13 @@ export function Settings(props: {
       approvalLeadDays: whole(leadDays.value), sendHour: whole(sendHour.value), reminderAfterDays: whole(reminderDays.value),
       reminderMode: remind.value ? "auto" : "off",
     };
-    // One-off invoices' usual terms (G2a), only where that part is shown.
+    // One-off invoices' usual terms (G2a) and the sent-as-scheduled note (G2d), only where that part is shown.
     const terms = whole(termsDays.value);
     problems.value = { ...profileProblems(profile), ...(oneOff && !wholeIn(terms, 0, 90) ? { defaultTermsDays: "Choose from 0 to 90 days." } : {}) };
     message.value = null;
     if (Object.keys(problems.value).length > 0) return;
     busy.value = true;
-    message.value = (await props.onSave(oneOff ? { ...profile, defaultTermsDays: terms } : profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
+    message.value = (await props.onSave(oneOff ? { ...profile, defaultTermsDays: terms, scheduledSentNote: sentNote.value } : profile)) ?? "Saved. Invoices already approved keep the details they were issued with.";
     busy.value = false;
   };
 
@@ -150,6 +151,12 @@ export function Settings(props: {
             <Field label="Days to pay a one-off invoice" hint="Your usual terms. A customer's own terms, or the invoice's, come first." problem={p.defaultTermsDays}>
               <input inputMode="numeric" value={termsDays} onInput={(e) => (termsDays.value = value(e))} />
             </Field>
+          )}
+          {oneOff && (
+            <label class="check">
+              <input type="checkbox" checked={sentNote} onChange={(e) => (sentNote.value = (e.currentTarget as HTMLInputElement).checked)} />
+              Email me when a scheduled invoice goes
+            </label>
           )}
           {message.value !== null && <p role="status">{message.value}</p>}
           <button type="submit" disabled={busy}>Save settings</button>

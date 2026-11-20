@@ -1,5 +1,5 @@
 /** G2a web (docs/test-lists/general-g2.md): the price list, the invoice editor and its list, behind the `oneOff` feature. */
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import type { CalendarDate, Item, OneOffDraft, Toea } from "@sasimem/core";
 import { type Mock, describe, expect, test, vi } from "vitest";
 import type { OneOffs as List, Outcome, ScheduledDraft, Setup, WithId } from "../setup.js";
@@ -21,13 +21,14 @@ const ON = { rentals: true, repeating: true, oneOff: true };
 const labour: WithId<Item> = { id: "i1", name: "Labour", description: "Electrician", unit: "hour", unitPriceToea: 8_000 as Toea, taxCode: "standard" };
 const cable: WithId<Item> = { id: "i2", name: "Cable 2.5mm", description: "", unit: "m", unitPriceToea: 450 as Toea, taxCode: "exempt" };
 
-const setup = (over: { gst?: boolean; features?: object | undefined; defaultTermsDays?: number } = {}): Setup => ({
+const setup = (over: { gst?: boolean; features?: object | undefined; defaultTermsDays?: number; scheduledSentNote?: boolean } = {}): Setup => ({
   org: {
     name: "Wari Electrical", address: "Boroko", email: "mary@wari.example", gstRegistered: over.gst ?? true, gstNumber: over.gst === false ? "" : "500012345",
     bankName: "BSP", bankAccount: "1000 2345", invoicePrefix: "INV-", timezone: "Pacific/Port_Moresby",
     approvalLeadDays: 3, sendHour: 8, reminderAfterDays: 7, reminderMode: "auto",
     ...("features" in over ? (over.features === undefined ? {} : { features: over.features }) : { features: ON }),
     ...(over.defaultTermsDays === undefined ? {} : { defaultTermsDays: over.defaultTermsDays }),
+    ...(over.scheduledSentNote === undefined ? {} : { scheduledSentNote: over.scheduledSentNote }),
   },
   properties: [],
   tenants: [
@@ -388,6 +389,21 @@ describe("Settings: the default payment terms", () => {
     click("Save settings");
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("defaultTermsDays");
+    expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("scheduledSentNote");
+    expect(screen.queryByLabelText(/email me when a scheduled invoice goes/i)).toBeNull();
+  });
+
+  test("G2d: the sent-as-scheduled note is on unless switched off, and saved with the profile", async () => {
+    const onSave = settings(setup());
+    const box = screen.getByLabelText(/email me when a scheduled invoice goes/i) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(box);
+    click("Save settings");
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ scheduledSentNote: false });
+    cleanup();
+    settings(setup({ scheduledSentNote: false }));
+    expect((screen.getByLabelText(/email me when a scheduled invoice goes/i) as HTMLInputElement).checked).toBe(false);
   });
 });
 

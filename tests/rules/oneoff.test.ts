@@ -87,3 +87,10 @@ test("the default payment terms are an owner-editable profile field, 0-90 days",
   await assertFails(updateDoc(doc(owner, org), { defaultTermsDays: 91 }));
   await assertFails(updateDoc(doc(owner, org), { defaultTermsDays: 7.5 }));
 });
+
+test("G2d: the sent-as-scheduled note is an owner-editable switch", async () => {
+  const { org, owner } = await setup();
+  await assertSucceeds(updateDoc(doc(owner, org), { scheduledSentNote: false }));
+  await assertSucceeds(updateDoc(doc(owner, org), { scheduledSentNote: true }));
+  await assertFails(updateDoc(doc(owner, org), { scheduledSentNote: "no" }));
+});
