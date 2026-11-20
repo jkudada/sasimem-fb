@@ -6,10 +6,11 @@
 import { totals } from "./billing.js";
 import type { Customer } from "./customers.js";
 import { itemLine } from "./lines.js";
-import { lineOf, linesProblem } from "./oneoff.js";
+import { MAX_EDITABLE_TOEA, type Toea, toea } from "./money.js";
+import { type OneOffDraft, lineOf, linesProblem } from "./oneoff.js";
 import { addDays, type CalendarDate, dateLabel, localDate } from "./period.js";
 import { wholeIn } from "./setup.js";
-import type { ItemLineInput, Line, Problems, Totals } from "./types.js";
+import type { ItemLineInput, Line, Problems, TaxCode, Totals } from "./types.js";
 
 // ---------------------------------------------------------------- the draft
 
@@ -20,6 +21,8 @@ export interface QuoteDraft {
   readonly notes: string;
   /** Days the quote is valid; null means the org's, else 30. */
   readonly validDays: number | null;
+  /** The quote this draft revises (G2q-c), or null for a new quote. */
+  readonly revises: string | null;
 }
 
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -31,6 +34,7 @@ export function quoteDraftOf(doc: Readonly<Record<string, unknown>>): QuoteDraft
     lines: (Array.isArray(doc.lines) ? (doc.lines as unknown[]) : []).map(lineOf),
     notes: text(doc.notes),
     validDays: typeof doc.validDays === "number" ? doc.validDays : null,
+    revises: typeof doc.revises === "string" && doc.revises !== "" ? doc.revises : null,
   };
 }
 
@@ -76,22 +80,38 @@ export interface QuoteSettings {
   readonly quoteValidDays?: number;
   /** Printed on every quote; absent means DEFAULT_QUOTE_TERMS, "" means none. */
   readonly quoteTerms?: string;
+  /** D13: ask for this share (1-100) as a deposit; absent means no deposits (G2q-c). */
+  readonly depositPercent?: number;
+  /** D13: only on quotes over this total; absent means over K0.00. */
+  readonly depositOverToea?: number;
+  /** Remind the customer this many days (1-60) after sending; absent means off (G2q-c). */
+  readonly quoteFollowUpDays?: number;
 }
 
 /** The terms a quote prints: the org's own, the default when never set, none when cleared. */
 export const quoteTermsOf = (org: QuoteSettings): string => (org.quoteTerms ?? DEFAULT_QUOTE_TERMS).trim();
 
-export function quoteSettingsProblems(s: Required<QuoteSettings>): Problems<keyof QuoteSettings> {
+export const MAX_FOLLOW_UP_DAYS = 60;
+
+/** The quote settings as Settings saves them: valid days and terms always, the rest when on. */
+export function quoteSettingsProblems(s: Required<Pick<QuoteSettings, "quoteValidDays" | "quoteTerms">> & QuoteSettings): Problems<keyof QuoteSettings> {
   const p: Problems<keyof QuoteSettings> = {};
   const days = validDaysProblem(s.quoteValidDays);
   if (days !== null) p.quoteValidDays = days;
   if (s.quoteTerms.length > QUOTE_TERMS_MAX) p.quoteTerms = `Keep the terms to ${QUOTE_TERMS_MAX.toLocaleString("en")} characters or fewer.`;
+  if (s.depositPercent !== undefined && !wholeIn(s.depositPercent, 1, 100)) p.depositPercent = "Choose from 1 to 100 per cent.";
+  if (s.depositOverToea !== undefined && !wholeIn(s.depositOverToea, 0, MAX_EDITABLE_TOEA)) p.depositOverToea = "Enter an amount of K0.00 or more.";
+  if (s.quoteFollowUpDays !== undefined && !wholeIn(s.quoteFollowUpDays, 1, MAX_FOLLOW_UP_DAYS)) p.quoteFollowUpDays = `Choose from 1 to ${MAX_FOLLOW_UP_DAYS} days.`;
   return p;
 }
 
+/** D13: the org asks for a deposit on this total. */
+export const depositApplies = (org: Pick<QuoteSettings, "depositPercent" | "depositOverToea">, totalToea: number): boolean =>
+  org.depositPercent !== undefined && totalToea > (org.depositOverToea ?? 0);
+
 // ---------------------------------------------------------------- sending
 
-export type QuoteStatus = "sent" | "viewed" | "accepted" | "declined" | "expired";
+export type QuoteStatus = "sent" | "viewed" | "accepted" | "declined" | "expired" | "invoiced";
 
 /** What a quote holds once sent, before its number: dates, priced lines, totals and terms. */
 export interface IssuedQuote extends Totals {
@@ -123,7 +143,7 @@ export function issuedQuote(req: {
 export const quoteLabel = (number: string, revision: number): string => (revision > 1 ? `${number} rev ${revision}` : number);
 
 export const QUOTE_STATUS_LABELS: Readonly<Record<QuoteStatus, string>> = {
-  sent: "Sent", viewed: "Viewed", accepted: "Accepted", declined: "Declined", expired: "Expired",
+  sent: "Sent", viewed: "Viewed", accepted: "Accepted", declined: "Declined", expired: "Expired", invoiced: "Invoiced",
 };
 
 // ---------------------------------------------------------------- answering (G2q-b)
@@ -178,20 +198,134 @@ export interface QuoteState {
 
 /**
  * What a quote takes now: an answer while sent or viewed and not past its day; an undone
- * acceptance until anything is invoiced from it. Declined and expired quotes take neither
- * (they can be revised, G2q-c).
+ * acceptance until anything is invoiced from it; a revision unless it is accepted (undo
+ * that first) or invoiced.
  */
-export function quoteAllows(q: QuoteState, now: Date, timezone: string): { readonly answer: boolean; readonly undo: boolean } {
+export function quoteAllows(q: QuoteState, now: Date, timezone: string): { readonly answer: boolean; readonly undo: boolean; readonly revise: boolean } {
   return {
     answer: (q.status === "sent" || q.status === "viewed") && !quoteExpired(q, now, timezone),
     undo: q.status === "accepted" && (q.invoiceIds ?? []).length === 0,
+    revise: q.status !== "accepted" && q.status !== "invoiced",
   };
 }
 
 /** Why a quote takes no answer, or null when it does. `label` is "QUO-0012" or "QUO-0012 rev 2". */
 export function noAnswerReason(q: QuoteState, label: string, now: Date, timezone: string): string | null {
-  if (q.status === "accepted") return `${label} was already accepted.`;
+  if (q.status === "accepted" || q.status === "invoiced") return `${label} was already accepted.`;
   if (q.status === "declined") return `${label} was already declined.`;
   if (q.status === "expired" || quoteExpired(q, now, timezone)) return `${label} expired on ${dateLabel(q.validUntil)}.`;
   return null;
+}
+
+// ---------------------------------------------------------------- revising (G2q-c)
+
+/** A stored line back as typed: item lines carry their inputs; anything else is one unit at its amount. */
+export const lineInputOf = (l: Line): ItemLineInput => ({
+  description: l.description, detail: l.detail, quantityMilli: l.quantityMilli ?? 1000, unit: l.unit ?? "",
+  unitPriceToea: l.unitPriceToea ?? l.amountToea, taxCode: l.taxCode ?? "standard",
+});
+
+const daysFrom = (from: CalendarDate, to: CalendarDate): number => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+
+/** The draft Revise opens: the sent quote's customer, lines, notes and valid days, naming the quote. */
+export function revisionDraftOf(
+  q: Pick<IssuedQuote, "customerId" | "lines" | "issueDate" | "validUntil"> & { readonly notes: string },
+  quoteId: string,
+): QuoteDraft {
+  return { customerId: q.customerId, lines: q.lines.map(lineInputOf), notes: q.notes, validDays: daysFrom(q.issueDate, q.validUntil), revises: quoteId };
+}
+
+// ---------------------------------------------------------------- converting to an invoice (G2q-c)
+
+export type QuoteInvoiceKind = "full" | "deposit" | "final";
+
+/** One invoice per kind per revision: the draft and the invoice it becomes share this id. */
+export const quoteInvoiceId = (quoteId: string, revision: number, kind: QuoteInvoiceKind): string => `${quoteId}_r${revision}_${kind}`;
+
+/** The quote an invoice or draft id was made from, or null for any other. */
+export function quoteFromDraftId(id: string): { readonly quoteId: string; readonly revision: number; readonly kind: QuoteInvoiceKind } | null {
+  const m = /^(.+)_r([1-9]\d*)_(full|deposit|final)$/.exec(id);
+  return m === null ? null : { quoteId: m[1] as string, revision: Number(m[2]), kind: m[3] as QuoteInvoiceKind };
+}
+
+/** An accepted quote, as converting needs it. */
+export interface AcceptedQuote extends Pick<IssuedQuote, "customerId" | "lines"> {
+  readonly number: string;
+  readonly revision: number;
+  readonly notes: string;
+  readonly acceptance: { readonly name: string; readonly poNumber: string; readonly acceptedOn: CalendarDate };
+}
+
+/** The share a deposit takes when the owner asks for one without a setting. */
+export const DEFAULT_DEPOSIT_PERCENT = 50;
+const NOTES_MAX = 500;
+
+function invoiceNotes(q: AcceptedQuote): string {
+  const said = `Quote ${quoteLabel(q.number, q.revision)}, accepted by ${q.acceptance.name} on ${dateLabel(q.acceptance.acceptedOn)}.`;
+  const all = q.notes.trim() === "" ? said : `${said}\n${q.notes.trim()}`;
+  return all.length <= NOTES_MAX ? all : `${all.slice(0, NOTES_MAX - 1)}…`;
+}
+
+/** Percent of an amount, rounded half away from zero to the toea, in integers. */
+const share = (amount: number, percent: number): Toea =>
+  toea(Math.sign(amount) * Math.floor((Math.abs(amount) * percent * 2 + 100) / 200) + 0);
+
+const TAX_WORDS: Readonly<Record<TaxCode, string>> = { standard: "standard-rated", zero: "zero-rated", exempt: "GST-exempt" };
+const TAX_ORDER: readonly TaxCode[] = ["standard", "zero", "exempt"];
+
+/**
+ * D14: the invoice draft an accepted quote becomes. In full, it has the quote's lines; as a
+ * deposit (D13), one line per tax code the quote uses, at that share of the code's amount
+ * before GST, so GST on the deposit is what it would be on that share of the work.
+ */
+export function invoiceDraftFromQuote(q: AcceptedQuote, kind: "full" | "deposit", org: Pick<QuoteSettings, "depositPercent">): OneOffDraft {
+  const base = { customerId: q.customerId, poNumber: q.acceptance.poNumber, notes: invoiceNotes(q), dueDays: null };
+  if (kind === "full") return { ...base, lines: q.lines.map(lineInputOf) };
+  const percent = org.depositPercent ?? DEFAULT_DEPOSIT_PERCENT;
+  const byCode = TAX_ORDER.map((code) => ({ code, amount: q.lines.filter((l) => (l.taxCode ?? "standard") === code).reduce((t, l) => t + l.amountToea, 0) }))
+    .filter((g) => share(g.amount, percent) !== 0);
+  const label = quoteLabel(q.number, q.revision);
+  return {
+    ...base,
+    lines: byCode.map((g): ItemLineInput => ({
+      description: `Deposit for ${label}`,
+      detail: byCode.length > 1 ? `${percent}% of the ${TAX_WORDS[g.code]} work` : `${percent}% of the quoted work`,
+      quantityMilli: 1000, unit: "", unitPriceToea: share(g.amount, percent), taxCode: g.code,
+    })),
+  };
+}
+
+/**
+ * The final invoice after a deposit: the quote's lines, then the deposit invoice's lines (as
+ * sent) taken off. A negative line's GST mirrors the charge, so the two invoices together
+ * charge the quote's subtotal, GST and total exactly.
+ */
+export function finalDraftFromQuote(q: AcceptedQuote, deposit: { readonly number: string; readonly lines: readonly Line[] }): OneOffDraft {
+  const less = deposit.lines.map((l): ItemLineInput => ({
+    description: `Less deposit, ${deposit.number}`, detail: l.detail, quantityMilli: 1000, unit: "",
+    unitPriceToea: toea(-l.amountToea + 0), taxCode: l.taxCode ?? "standard",
+  }));
+  return { ...invoiceDraftFromQuote(q, "full", {}), lines: [...q.lines.map(lineInputOf), ...less] };
+}
+
+/** Quoted vs invoiced: Invoiced once the invoices sent from it reach the accepted total; anything over is flagged. */
+export function quoteInvoiced(q: { readonly acceptance?: { readonly totalToea: number }; readonly invoicedToea?: number }): { readonly invoiced: boolean; readonly overToea: number } {
+  if (q.acceptance === undefined) return { invoiced: false, overToea: 0 };
+  const invoiced = q.invoicedToea ?? 0;
+  return { invoiced: invoiced >= q.acceptance.totalToea, overToea: Math.max(0, invoiced - q.acceptance.totalToea) };
+}
+
+// ---------------------------------------------------------------- the follow-up (G2q-c)
+
+/** When the follow-up goes, fixed as the quote is sent; null when the org has it off. */
+export const followUpAtOf = (sentAt: Date, org: Pick<QuoteSettings, "quoteFollowUpDays">): Date | null =>
+  org.quoteFollowUpDays === undefined ? null : new Date(sentAt.getTime() + org.quoteFollowUpDays * 86_400_000);
+
+/** One reminder per revision: unanswered, not past its day, its time come, and the setting still on. */
+export function followUpDue(
+  q: { readonly status: QuoteStatus; readonly validUntil: CalendarDate; readonly followUpAt: Date | null; readonly followedUp?: boolean },
+  org: Pick<QuoteSettings, "quoteFollowUpDays">, now: Date, timezone: string,
+): boolean {
+  return org.quoteFollowUpDays !== undefined && q.followUpAt !== null && q.followedUp !== true
+    && (q.status === "sent" || q.status === "viewed") && !quoteExpired(q, now, timezone) && q.followUpAt.getTime() <= now.getTime();
 }

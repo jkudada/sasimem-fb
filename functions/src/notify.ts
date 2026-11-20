@@ -10,7 +10,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, quoteAnsweredNotice, quoteMail, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, quoteAnsweredNotice, quoteFollowUpMail, quoteMail, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
 import type { StoredCreditNote } from "./store/creditNotes.js";
 import type { StoredQuote } from "./store/quotes.js";
@@ -95,10 +95,18 @@ export async function sendQuoteMail(deps: NotifyDeps, orgId: string, quoteId: st
   if (q.pdfPath === "") throw new Error("a quote is emailed only once it has its PDF");
   const [pdf] = await bucket().file(q.pdfPath).download();
   await sendLogged(logged(deps), { orgId, kind: "quote", noticeKey: `${quoteId}@r${q.revision}` }, quoteMail({
-    snapshot: q.snapshot, label: quoteLabel(q.number, q.revision), totalToea: q.totalToea,
+    snapshot: q.snapshot, label: quoteLabel(q.number, q.revision), totalToea: q.totalToea, revision: q.revision,
     validUntil: q.validUntil, link: `${deps.appUrl()}/q/${token}`, pdf, logo: await emailLogo(q.snapshot),
   }));
   return q.snapshot.tenantEmail;
+}
+
+/** The one follow-up (G2q-c): to the customer, with a fresh link to the same revision. Once per revision. */
+export async function sendQuoteFollowUp(deps: NotifyDeps, orgId: string, quoteId: string, q: StoredQuote, token: string): Promise<void> {
+  await sendLogged(logged(deps), { orgId, kind: "quoteFollowUp", noticeKey: `${quoteId}@r${q.revision}` }, quoteFollowUpMail({
+    snapshot: q.snapshot, label: quoteLabel(q.number, q.revision), totalToea: q.totalToea, validUntil: q.validUntil,
+    link: `${deps.appUrl()}/q/${token}`, logo: await emailLogo(q.snapshot),
+  }));
 }
 
 /** The customer answered on the link (G2q-b): the owner is told at once. Not for an answer the owner recorded. */
@@ -111,7 +119,7 @@ export async function sendQuoteAnswered(deps: NotifyDeps, orgId: string, quoteId
     : { kind: "decline" as const, reason: q.decline?.reason ?? "" };
   await sendLogged(logged(deps), { orgId, kind: "quoteAnswered", noticeKey: `${quoteId}@r${q.revision}@${answered.at.toMillis()}` }, quoteAnsweredNotice({
     to: org.email, orgName: org.name, label: quoteLabel(q.number, q.revision), customerName: q.customerName, totalToea: q.totalToea as Toea,
-    answer, at: answered.at.toDate(), timezone: org.timezone, link: `${deps.appUrl()}/quotes/${quoteId}`,
+    answer, at: answered.at.toDate(), timezone: org.timezone, link: `${deps.appUrl()}/quotes/sent/${quoteId}`,
   }));
 }
 

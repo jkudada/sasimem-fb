@@ -51,6 +51,7 @@ const quotes = makeQuoteCallables(deps); // G2q
 export const sendQuote = quotes.sendQuote;
 export const markQuote = quotes.markQuote;
 export const undoAcceptance = quotes.undoAcceptance;
+export const draftFromQuote = quotes.draftFromQuote;
 export const quotePage = makeQuotePage({ ...deps, signingKey: () => APPROVAL_SIGNING_KEY.value() });
 const receipts = makeReceiptCallables(deps);
 export const recordPayment = receipts.recordPayment;

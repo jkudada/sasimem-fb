@@ -9,7 +9,7 @@ import { logger } from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { type NotifyDeps, sendQuoteMail } from "../notify.js";
 import { MAIL_SECRETS } from "../params.js";
-import { answerQuote, quotePdfOf, sendQuote, undoAcceptance } from "../store/quotes.js";
+import { answerQuote, draftFromQuote, quotePdfOf, sendQuote, undoAcceptance } from "../store/quotes.js";
 import { ownerOrg, uidOf } from "./auth.js";
 
 export interface SendQuoteReply {
@@ -45,7 +45,8 @@ export function makeQuoteCallables(deps: NotifyDeps) {
           throw new HttpsError("failed-precondition", outcome.message);
         case "recorded": {
           const label = quoteLabel(outcome.quote.number, outcome.quote.revision);
-          return { message: read.answer.kind === "accept" ? `Recorded: ${label} accepted by ${read.answer.name}.` : `Recorded: ${label} declined.` };
+          if (read.answer.kind === "decline") return { message: `Recorded: ${label} declined.` };
+          return { message: `Recorded: ${label} accepted by ${read.answer.name}.${outcome.draftId === undefined ? "" : " Its invoice is drafted for you to check and send."}` };
         }
       }
     }),
@@ -63,10 +64,30 @@ export function makeQuoteCallables(deps: NotifyDeps) {
       }
     }),
 
+    /** In full or a deposit (switching the unsent draft), or the final invoice after the deposit (G2q-c). */
+    draftFromQuote: onCall<unknown, Promise<{ readonly draftId: string; readonly message: string }>>(async (request) => {
+      const orgId = await ownerOrg(request);
+      const quoteId = quoteIdOf(request.data);
+      const kind = (request.data as { kind?: unknown }).kind;
+      if (kind !== "full" && kind !== "deposit" && kind !== "final") throw new HttpsError("invalid-argument", "Choose in full, a deposit, or the final invoice.");
+      const outcome = await draftFromQuote(orgId, quoteId, kind, { actor: uidOf(request), now: deps.now() });
+      switch (outcome.kind) {
+        case "notFound":
+          throw new HttpsError("not-found", NOT_FOUND);
+        case "refused":
+          throw new HttpsError("failed-precondition", outcome.message);
+        case "drafted":
+          return {
+            draftId: outcome.draftId,
+            message: kind === "final" ? `The final invoice for ${outcome.label} is drafted.` : `The invoice for ${outcome.label} is drafted ${kind === "full" ? "in full" : "as a deposit"}.`,
+          };
+      }
+    }),
+
     sendQuote: onCall<unknown, Promise<SendQuoteReply>>({ secrets: MAIL_SECRETS }, async (request) => {
       const orgId = await ownerOrg(request);
       const draftId = (request.data as { draftId?: unknown }).draftId;
-      if (typeof draftId !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(draftId)) throw new HttpsError("invalid-argument", "Choose a quote to send.");
+      if (typeof draftId !== "string" || !/^[A-Za-z0-9_]{1,64}$/.test(draftId)) throw new HttpsError("invalid-argument", "Choose a quote to send.");
 
       const token = deps.newToken();
       const outcome = await sendQuote(orgId, draftId, { actor: uidOf(request), now: deps.now(), token });
@@ -81,14 +102,15 @@ export function makeQuoteCallables(deps: NotifyDeps) {
           await quotePdfOf(orgId, draftId); // a crash after the commit left it without one
           return { number: outcome.quote.number, message: `${outcome.quote.number} was already sent.` };
         case "sent": {
-          const q = await quotePdfOf(orgId, draftId);
-          const sent = `Sent ${q.number} to ${q.customerName}.`;
+          const quoteId = outcome.quoteId;
+          const q = await quotePdfOf(orgId, quoteId);
+          const sent = `Sent ${quoteLabel(q.number, q.revision)} to ${q.customerName}.`;
           // Only the call that sent it emails, with the link only it holds. The quote stands whatever the email does.
           try {
-            await sendQuoteMail(deps, orgId, draftId, q, token);
+            await sendQuoteMail(deps, orgId, quoteId, q, token);
             return { number: q.number, message: sent };
           } catch (e) {
-            logger.error("quote email refused", { orgId, quoteId: draftId, error: e instanceof Error ? e.message : String(e) });
+            logger.error("quote email refused", { orgId, quoteId, error: e instanceof Error ? e.message : String(e) });
             return { number: q.number, message: `${q.number} is numbered, but the email to ${q.snapshot.tenantEmail} was refused. Check the address.` };
           }
         }

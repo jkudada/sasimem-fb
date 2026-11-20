@@ -1,6 +1,6 @@
 /**
- * The hourly tick (plan §6.4). Seven steps in order - draft, request approval,
- * release, hold, send scheduled one-offs (G2d), remind, expire quotes (G2q-b) - each safe to run twice or concurrently: every state change
+ * The hourly tick (plan §6.4). Eight steps in order - draft, request approval,
+ * release, hold, send scheduled one-offs (G2d), remind, expire quotes (G2q-b), follow up quotes (G2q-c) - each safe to run twice or concurrently: every state change
  * is a create() or a compare-and-set, and only the tick that wins it sends email.
  *
  * One landlord's failure does not stop another's: each unit of work runs on its own,
@@ -10,10 +10,10 @@
 import { type BillingOrg, type InvoiceDocument, approvalRequestDue, periodsToDraft } from "@sasimem/core";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendReminder, sendSentScheduled, sendTenantInvoice } from "./notify.js";
+import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendQuoteFollowUp, sendReminder, sendSentScheduled, sendTenantInvoice } from "./notify.js";
 import type { DispatchLine } from "./mail/templates.js";
 import { issueOneOff } from "./store/oneoff.js";
-import { expireQuote, openQuotesPast } from "./store/quotes.js";
+import { claimFollowUp, expireQuote, openQuotesPast, quotesToFollowUp } from "./store/quotes.js";
 import { renderMissingPdfs, renderPdfOf } from "./store/pdfs.js";
 import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
@@ -37,6 +37,8 @@ export interface Tally {
   scheduled: number;
   /** Quotes past their valid-until day, marked expired (G2q-b). */
   expired: number;
+  /** Unanswered quotes whose customer was reminded once (G2q-c). */
+  followedUp: number;
   /** Orgs whose subscription stops new months (restricted, cancelled): step 1 passed them by. */
   skipped: number;
 }
@@ -48,7 +50,7 @@ export interface TickOptions {
 
 export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<Tally> {
   const now = deps.now();
-  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, scheduled: 0, expired: 0, skipped: 0 };
+  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, scheduled: 0, expired: 0, followedUp: 0, skipped: 0 };
   const errors: unknown[] = [];
   const orgs = new Map<string, Promise<OrgDoc & BillingOrg>>();
   const orgOf = (orgId: string) => {
@@ -158,6 +160,16 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
   // 7. Expire quotes past their day (G2q-b). No email: the owner sees it in the list.
   await each(await openQuotesPast(now, opts.orgIds), async (q) => {
     if (await expireQuote(q, now)) tally.expired++;
+  });
+
+  // 8. Follow up unanswered quotes, once each, where the org has it on (G2q-c). After
+  //    expiry, so a quote past its day is not chased.
+  await each(await quotesToFollowUp(now, opts.orgIds), async (q) => {
+    const token = deps.newToken();
+    const quote = await claimFollowUp(q, now, token);
+    if (quote === null) return;
+    tally.followedUp++;
+    await sendQuoteFollowUp(deps, q.orgId, q.quoteId, quote, token);
   });
 
   logger.info("tick", { ...tally, errors: errors.length });

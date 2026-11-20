@@ -108,7 +108,7 @@ describe("the customer's page", () => {
     expect(mail).toMatchObject({ to: "mary@wari.example", subject: "QUO-0001 accepted by Peter Kila" });
     expect(mail?.text).toContain("Peter Kila accepted your quote QUO-0001 to Kila Trading, for K280.50, at 12:00 pm, Friday 20 November 2026.");
     expect(mail?.text).toContain("Order number: PO-4471");
-    expect(mail?.text).toContain(`https://sasimem.example/quotes/${q.id}`);
+    expect(mail?.text).toContain(`https://sasimem.example/quotes/sent/${q.id}`);
 
     const page = String((await q.get()).body);
     expect(page).toContain("Accepted by Peter Kila at 12:00 pm, Friday 20 November 2026.");
@@ -169,7 +169,7 @@ describe("the customer's page", () => {
 describe("the owner records an answer (markQuote)", () => {
   test("accepted by hand with name and PO, as the owner's; or declined; no email either way", async () => {
     const q = await sentQuote();
-    expect(await q.mark({ answer: "accept", name: "Peter Kila", poNumber: "4471" })).toEqual({ message: "Recorded: QUO-0001 accepted by Peter Kila." });
+    expect(await q.mark({ answer: "accept", name: "Peter Kila", poNumber: "4471" })).toEqual({ message: "Recorded: QUO-0001 accepted by Peter Kila. Its invoice is drafted for you to check and send." });
     expect(await q.quote()).toMatchObject({ status: "accepted", acceptance: { by: "owner", name: "Peter Kila", poNumber: "4471", actor: q.uid } });
     expect(await q.events("quoteAccepted")).toEqual(["QUO-0001, accepted by Peter Kila, order 4471 (recorded by the owner)"]);
 
