@@ -226,6 +226,48 @@ export function tenantReminder(i: TenantInvoiceFacts): Mail {
   ]);
 }
 
+/** What a quote's email states (G2q-a): the price, how long it holds, and the link to answer it. */
+export interface QuoteFacts {
+  readonly snapshot: InvoiceSnapshot;
+  /** "QUO-0012", or "QUO-0012 rev 2". */
+  readonly label: string;
+  readonly totalToea: Toea;
+  readonly validUntil: CalendarDate;
+  readonly link: string;
+  readonly pdf: Buffer;
+  readonly logo: Buffer | null;
+}
+
+export function quoteMail(q: QuoteFacts): Mail {
+  const org = q.snapshot.org;
+  const subject = `Quote ${q.label} from ${org.name} - ${formatKina(q.totalToea)}, valid until ${dateLabel(q.validUntil)}`;
+  const brand = brandOf(q);
+  const letter: Letter = {
+    greeting: `Hello ${q.snapshot.tenantName},`,
+    blocks: [
+      { p: `${org.name} has sent you quote ${q.label}. The PDF is attached.` },
+      { rows: [["Amount", formatKina(q.totalToea)], ["Valid until", dateLabel(q.validUntil)]] },
+      { p: "To accept it, or to decline it, open the quote:", link: q.link },
+      ...(q.snapshot.notes ? [{ note: q.snapshot.notes }] : []),
+      { p: `To ask about this quote, reply to this email to reach ${org.name}.` },
+    ],
+  };
+  const cc = q.snapshot.customer?.ccEmails ?? [];
+  return {
+    to: q.snapshot.tenantEmail,
+    ...(cc.length === 0 ? {} : { cc }),
+    fromName: org.name,
+    replyTo: org.email,
+    subject,
+    text: letterText(letter),
+    html: letterHtml(letter, brand, subject),
+    attachments: [
+      { filename: pdfFilename(q.label), content: q.pdf },
+      ...(brand.mark.kind === "logo" && q.logo !== null ? [{ filename: "logo.png", content: q.logo, contentId: LOGO_CID, contentType: "image/png" }] : []),
+    ],
+  };
+}
+
 /** What a receipt states (G2b, AR-10): what came in, and where it went. */
 export interface ReceiptFacts {
   readonly to: string;

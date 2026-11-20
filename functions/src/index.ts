@@ -6,6 +6,7 @@ import { newToken } from "./links.js";
 import { db, retentionBucket } from "./admin.js";
 import { makeExportDownload } from "./http/exportDownload.js";
 import { makeOneOffCallables } from "./callables/oneoff.js";
+import { makeQuoteCallables } from "./callables/quotes.js";
 import { OutboxMailer } from "./mail/mailer.js";
 import { GmailMailer } from "./mail/gmail.js";
 import { ResendMailer } from "./mail/resend.js";
@@ -46,6 +47,7 @@ const oneOff = makeOneOffCallables(deps);
 export const issueInvoice = oneOff.issueInvoice;
 export const scheduleInvoice = oneOff.scheduleInvoice; // G2d
 export const cancelSchedule = oneOff.cancelSchedule;
+export const sendQuote = makeQuoteCallables(deps).sendQuote; // G2q
 const receipts = makeReceiptCallables(deps);
 export const recordPayment = receipts.recordPayment;
 export const undoPayment = receipts.undoPayment;

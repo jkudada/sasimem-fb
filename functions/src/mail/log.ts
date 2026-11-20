@@ -13,6 +13,7 @@ export type EmailKind = "approvalDigest" | "freshLink" | "held" | "dispatch" | "
   | "receipt" | "receiptAgain" // G2b: one per payment, keyed by the payment's ID; again when the owner asks
   | "creditNote" | "creditNoteAgain" // G2c: one per credit note, keyed by its ID; again when the owner asks
   | "notSent" // G2d: a scheduled one-off the tick could not send, once per schedule (the notice key)
+  | "quote" // G2q: a quote revision to the customer, once per revision (the notice key)
   | "sentScheduled" // G2d: a scheduled one-off went as planned, once per invoice, unless the owner switched it off
   // The subscriber's lifecycle (PLAN-SUBSCRIBERS §9), each sent once per notice key.
   | "welcome" | "setupNudge" | "trialEnding" | "pastDue" | "restricted" | "cancelled";
