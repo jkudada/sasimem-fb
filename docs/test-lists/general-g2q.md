@@ -93,6 +93,10 @@ three slices, each its own PR or pair of PRs:
   a link to the PDF.
 - **Opening the page marks the quote `viewed`** (once, with the time) if it was `sent`. The
   owner sees "Viewed" in the list. No email for a view.
+- **The PDF, the page's forms and the owner's email** are served by one public function,
+  `quotePage`, behind Hosting's `/q/**` rewrite, as `approvalPage` is behind `/a/**`. Its
+  forms are signed with the same key (`APPROVAL_SIGNING_KEY`). Expiry needs a new
+  collection-group index on `quotes` (status, validUntil), deployed with `firestore:indexes`.
 - **Accept:** the customer types their name (required), optionally a PO number, and ticks
   "I accept these terms". Recorded on the quote as `acceptance` (by: customer, name, poNumber,
   at, revision, totalToea) and as an event. A form nonce, as on the approval page, stops a
@@ -113,20 +117,20 @@ three slices, each its own PR or pair of PRs:
   has passed in the org's time. Expired quotes can be revised (G2q-c).
 
 ### core (T1)
-- [ ] `readQuoteAnswer(form)`: accept needs a name (up to 100) and the tick; PO up to 50; decline reason up to 500
-- [ ] `quoteExpired(quote, now, timezone)`: after the valid-until day ends
-- [ ] which answers each status allows: sent and viewed take an answer; accepted can be undone until invoiced; the rest take none
+- [x] `readQuoteAnswer(form)`: accept needs a name (up to 100) and the tick; PO up to 40 (as on an invoice, where it goes next); decline reason up to 500
+- [x] `quoteExpired(quote, now, timezone)`: after the valid-until day ends
+- [x] which answers each status allows: sent and viewed take an answer; accepted can be undone until invoiced; the rest take none
 
 ### Functions (T3)
-- [ ] `GET /q/{token}`: the quote page; marks it viewed once; an unknown token gets a plain "link not recognised" page
-- [ ] `GET /q/{token}/pdf`: the frozen PDF
-- [ ] accept: recorded with name, PO, time, revision and total; the owner emailed once; the page shows it accepted
-- [ ] decline: recorded with the reason; the owner emailed once
-- [ ] refused: a second answer, a missing name or tick, a bad nonce, an expired quote, a link past its life
-- [ ] two accepts at once: recorded once, one email
-- [ ] `markQuote` (owner): accepted by hand with name and PO, or declined; refused for a non-owner and for quotes already answered
-- [ ] `undoAcceptance`: back to sent; refused once invoiced
-- [ ] the tick marks quotes expired after their day, once, and leaves answered ones alone
+- [x] `GET /q/{token}`: the quote page; marks it viewed once; an unknown token gets a plain "link not recognised" page
+- [x] `GET /q/{token}/pdf`: the frozen PDF
+- [x] accept: recorded with name, PO, time, revision and total; the owner emailed once; the page shows it accepted
+- [x] decline: recorded with the reason; the owner emailed once
+- [x] refused: a second answer, a missing name or tick, a bad nonce, an expired quote, a link past its life
+- [x] two accepts at once: recorded once, one email
+- [x] `markQuote` (owner): accepted by hand with name and PO, or declined, with no email; refused for a non-owner, a missing name and quotes already answered
+- [x] `undoAcceptance`: back to sent; refused once invoiced
+- [x] the tick marks quotes expired after their day, once, and leaves answered ones alone
 
 ### Web (T1 web)
 - [ ] the quote screen: status, acceptance (who, when, PO) or the decline reason; Record an answer; Undo the acceptance

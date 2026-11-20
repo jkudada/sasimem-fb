@@ -1,7 +1,7 @@
 import "./options.js"; // must stay first: see options.ts
 
 import { makeDraftNow, makeReissueApproval } from "./callables/runs.js";
-import { makeApprovalPage } from "./http/index.js";
+import { makeApprovalPage, makeQuotePage } from "./http/index.js";
 import { newToken } from "./links.js";
 import { db, retentionBucket } from "./admin.js";
 import { makeExportDownload } from "./http/exportDownload.js";
@@ -47,7 +47,11 @@ const oneOff = makeOneOffCallables(deps);
 export const issueInvoice = oneOff.issueInvoice;
 export const scheduleInvoice = oneOff.scheduleInvoice; // G2d
 export const cancelSchedule = oneOff.cancelSchedule;
-export const sendQuote = makeQuoteCallables(deps).sendQuote; // G2q
+const quotes = makeQuoteCallables(deps); // G2q
+export const sendQuote = quotes.sendQuote;
+export const markQuote = quotes.markQuote;
+export const undoAcceptance = quotes.undoAcceptance;
+export const quotePage = makeQuotePage({ ...deps, signingKey: () => APPROVAL_SIGNING_KEY.value() });
 const receipts = makeReceiptCallables(deps);
 export const recordPayment = receipts.recordPayment;
 export const undoPayment = receipts.undoPayment;

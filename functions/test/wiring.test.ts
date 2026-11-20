@@ -22,6 +22,7 @@ const MAILERS = ["tick", "draftNow", "reissueApproval", "resendInvoice", "invite
 test("every function that sends email can read both senders' secrets; the approval page also signs its forms", () => {
   for (const name of MAILERS) expect(secrets(name), name).toEqual(["GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
   expect(secrets("approvalPage")).toEqual(["APPROVAL_SIGNING_KEY", "GMAIL_APP_PASSWORD", "RESEND_API_KEY"]);
+  expect(secrets("quotePage")).toEqual(["APPROVAL_SIGNING_KEY", "GMAIL_APP_PASSWORD", "RESEND_API_KEY"]); // G2q-b: signs its forms, emails the owner
 });
 
 // The deploy reads the secrets while loading the code, without functions/.env.<project>,
@@ -32,7 +33,7 @@ test("the secrets declared do not depend on MAIL_PROVIDER, which the deploy does
   try {
     const gmail = await import("../src/index.js");
     const keys = (f: unknown) => ((f as { __endpoint: Endpoint }).__endpoint.secretEnvironmentVariables ?? []).map((s) => s.key).sort();
-    for (const name of [...MAILERS, "approvalPage"] as const) expect(keys(gmail[name]), name).toEqual(secrets(name));
+    for (const name of [...MAILERS, "approvalPage", "quotePage"] as const) expect(keys(gmail[name]), name).toEqual(secrets(name));
   } finally {
     vi.unstubAllEnvs();
   }
@@ -53,6 +54,7 @@ test("asking to change plan is capped at 2 instances: it emails Sasimem (PLAN-SU
 
 test("the approval page is public, so anyone can reach it: at most 5 instances, to bound the cost of a flood", () => {
   expect(endpoint("approvalPage")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 5 });
+  expect(endpoint("quotePage")).toMatchObject({ httpsTrigger: { invoker: ["public"] }, maxInstances: 5 }); // G2q-b: the customer's quote page
 });
 
 test("the export's download is public, as the link is the credential; export and cancel are capped (PLAN-SUBSCRIBERS S6)", () => {

@@ -10,7 +10,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { bucket } from "./admin.js";
 import { sendLogged } from "./mail/log.js";
 import type { Mailer } from "./mail/mailer.js";
-import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, quoteMail, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
+import { type DispatchLine, approvalDigest, creditNote, dispatchNotice, freshLink, freshTrackingLink, heldNotice, notSentNotice, quoteAnsweredNotice, quoteMail, receipt, sentScheduledNotice, tenantInvoice, tenantReminder } from "./mail/templates.js";
 import { prepareLogo } from "./pdf.js";
 import type { StoredCreditNote } from "./store/creditNotes.js";
 import type { StoredQuote } from "./store/quotes.js";
@@ -99,6 +99,20 @@ export async function sendQuoteMail(deps: NotifyDeps, orgId: string, quoteId: st
     validUntil: q.validUntil, link: `${deps.appUrl()}/q/${token}`, pdf, logo: await emailLogo(q.snapshot),
   }));
   return q.snapshot.tenantEmail;
+}
+
+/** The customer answered on the link (G2q-b): the owner is told at once. Not for an answer the owner recorded. */
+export async function sendQuoteAnswered(deps: NotifyDeps, orgId: string, quoteId: string, q: StoredQuote): Promise<void> {
+  const answered = q.acceptance ?? q.decline;
+  if (answered === undefined) return;
+  const org = (await refs(orgId).org.get()).data() as OrgDoc;
+  const answer = q.acceptance !== undefined
+    ? { kind: "accept" as const, name: q.acceptance.name, poNumber: q.acceptance.poNumber }
+    : { kind: "decline" as const, reason: q.decline?.reason ?? "" };
+  await sendLogged(logged(deps), { orgId, kind: "quoteAnswered", noticeKey: `${quoteId}@r${q.revision}@${answered.at.toMillis()}` }, quoteAnsweredNotice({
+    to: org.email, orgName: org.name, label: quoteLabel(q.number, q.revision), customerName: q.customerName, totalToea: q.totalToea as Toea,
+    answer, at: answered.at.toDate(), timezone: org.timezone, link: `${deps.appUrl()}/quotes/${quoteId}`,
+  }));
 }
 
 /** A sent month's fresh link: the tracking page, not approval. Always to the org's address on file. */
