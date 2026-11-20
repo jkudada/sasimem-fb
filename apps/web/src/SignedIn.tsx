@@ -39,6 +39,7 @@ const Payments = lazyScreen(() => import("./screens/Payments.js").then((m) => m.
 const PaymentForm = lazyScreen(() => import("./screens/PaymentForm.js").then((m) => m.PaymentForm));
 const CreditNotes = lazyScreen(() => import("./screens/CreditNotes.js").then((m) => m.CreditNotes));
 const Quotes = lazyScreen(() => import("./screens/Quotes.js").then((m) => m.Quotes));
+const Quote = lazyScreen(() => import("./screens/Quote.js").then((m) => m.Quote));
 const QuoteEditor = lazyScreen(() => import("./screens/QuoteEditor.js").then((m) => m.QuoteEditor));
 const CreditNoteForm = lazyScreen(() => import("./screens/CreditNoteForm.js").then((m) => m.CreditNoteForm));
 
@@ -112,6 +113,7 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/one-off/:id" component={EditorRoute} />
           <Route path="/quotes" component={QuotesRoute} />
           <Route path="/quotes/:id" component={QuoteEditorRoute} />
+          <Route path="/quotes/sent/:id" component={QuoteRoute} />
           <Route path="/payments" component={PaymentsRoute} />
           <Route path="/payments/new" component={PaymentFormRoute} />
           <Route path="/credit-notes" component={CreditNotesRoute} />
@@ -497,6 +499,23 @@ function QuotesRoute() {
       {l === null ? <main class="narrow"><p>Loading…</p></main>
         : typeof l === "string" ? <main class="narrow"><p role="alert">{l}</p></main>
         : <Quotes list={l} setup={c.setup.value} />}
+    </QuotesOnly>
+  );
+}
+
+/** A sent quote with its answer (G2q-b); loaded again after the owner records or undoes one. */
+function QuoteRoute(props: Params) {
+  const c = useSignedIn();
+  const id = props.params["id"] ?? "";
+  const quote = useSignal<NonNullable<Awaited<ReturnType<SetupStore["quote"]>>> | undefined>(undefined);
+  const load = () => void c.store.quote(id).then((q) => (quote.value = q ?? "That quote is not there."));
+  useEffect(load, [id]);
+  const q = quote.value;
+  return (
+    <QuotesOnly>
+      {q === undefined ? <main class="narrow"><p>Loading…</p></main>
+        : typeof q === "string" ? <main class="narrow"><p role="alert">{q}</p><p><a href="/quotes">Quotes</a></p></main>
+        : <Quote quote={q} timezone={c.setup.value.org.timezone} now={new Date()} onMark={c.store.markQuote} onUndo={c.store.undoAcceptance} onChanged={load} />}
     </QuotesOnly>
   );
 }
