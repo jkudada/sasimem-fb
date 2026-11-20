@@ -1,6 +1,6 @@
-// G2q-a (docs/test-lists/general-g2q.md): quote drafts, sent quotes, their links, the org's quote settings.
+// G2q-a and G2q-c (docs/test-lists/general-g2q.md): quote drafts, sent quotes, their links, the org's quote settings.
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { addDoc, collection, deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { afterAll, beforeAll, test } from "vitest";
 import { DEFAULT_QUOTE_TERMS, QUOTE_TERMS_MAX } from "../../packages/core/src/quotes.js";
 import { seedOrg } from "./fixtures.js";
@@ -22,6 +22,8 @@ async function setup() {
     await setDoc(doc(db, `${org}/members/viewer`), { role: "member", addedAt: new Date() });
     await setDoc(doc(db, `${org}/quotes/q1`), { number: "QUO-0001", revision: 1, status: "sent" });
     await setDoc(doc(db, "quoteTokens/abc"), { orgId: s.orgId, quoteId: "q1", revision: 1 });
+    await setDoc(doc(db, `${org}/quotes/q1/revisions/1`), { number: "QUO-0001", revision: 1, status: "sent" });
+    await setDoc(doc(db, `${org}/drafts/q1_r1_full`), { customerId: "t1", lines: [line], poNumber: "PO-1", notes: "Quote QUO-0001", dueDays: null });
   });
   return { s, org, owner, member: env.authenticatedContext("viewer").firestore(), stranger: env.authenticatedContext("stranger").firestore() };
 }
@@ -74,4 +76,45 @@ test("the owner sets how long quotes are valid (1-365) and the quote terms (up t
   await assertFails(updateDoc(doc(owner, org), { quoteValidDays: 366 }));
   await assertFails(updateDoc(doc(owner, org), { quoteValidDays: 7.5 }));
   await assertFails(updateDoc(doc(member, org), { quoteValidDays: 14 }));
+});
+
+test("G2q-c: a revision draft names the quote it revises (a string); new drafts need not", async () => {
+  const { org, owner } = await setup();
+  const drafts = collection(owner, `${org}/quoteDrafts`);
+  await assertSucceeds(setDoc(doc(drafts, "q1_rev"), { ...draft, revises: "q1" }));
+  await assertSucceeds(updateDoc(doc(drafts, "q1_rev"), { notes: "Second floor too" }));
+  await assertFails(addDoc(drafts, { ...draft, revises: 1 }));
+  await assertFails(addDoc(drafts, { ...draft, revises: "" }));
+  await assertFails(addDoc(drafts, { ...draft, revises: "x".repeat(129) }));
+});
+
+test("G2q-c: members read a quote's earlier revisions; nobody writes them", async () => {
+  const { org, owner, member, stranger } = await setup();
+  await assertSucceeds(getDoc(doc(member, `${org}/quotes/q1/revisions/1`)));
+  await assertFails(getDoc(doc(stranger, `${org}/quotes/q1/revisions/1`)));
+  await assertFails(setDoc(doc(owner, `${org}/quotes/q1/revisions/2`), { revision: 2 }));
+  await assertFails(updateDoc(doc(owner, `${org}/quotes/q1/revisions/1`), { status: "accepted" }));
+  await assertFails(deleteDoc(doc(owner, `${org}/quotes/q1/revisions/1`)));
+});
+
+test("G2q-c: the owner edits and deletes an invoice draft made from a quote, as any draft", async () => {
+  const { org, owner, member } = await setup();
+  await assertSucceeds(updateDoc(doc(owner, `${org}/drafts/q1_r1_full`), { dueDays: 7 }));
+  await assertFails(updateDoc(doc(member, `${org}/drafts/q1_r1_full`), { dueDays: 7 }));
+  await assertSucceeds(deleteDoc(doc(owner, `${org}/drafts/q1_r1_full`)));
+});
+
+test("G2q-c: the owner sets the deposit (1-100%, over K0.00 or more) and follow-up days (1-60), and clears them", async () => {
+  const { org, owner, member } = await setup();
+  await assertSucceeds(updateDoc(doc(owner, org), { depositPercent: 30, depositOverToea: 500_000, quoteFollowUpDays: 7 }));
+  await assertSucceeds(updateDoc(doc(owner, org), { depositPercent: 100, depositOverToea: 0, quoteFollowUpDays: 60 }));
+  await assertSucceeds(updateDoc(doc(owner, org), { depositPercent: deleteField(), depositOverToea: deleteField(), quoteFollowUpDays: deleteField() }));
+  await assertFails(updateDoc(doc(owner, org), { depositPercent: 0 }));
+  await assertFails(updateDoc(doc(owner, org), { depositPercent: 101 }));
+  await assertFails(updateDoc(doc(owner, org), { depositPercent: 12.5 }));
+  await assertFails(updateDoc(doc(owner, org), { depositOverToea: -1 }));
+  await assertFails(updateDoc(doc(owner, org), { depositOverToea: 0.5 }));
+  await assertFails(updateDoc(doc(owner, org), { quoteFollowUpDays: 0 }));
+  await assertFails(updateDoc(doc(owner, org), { quoteFollowUpDays: 61 }));
+  await assertFails(updateDoc(doc(member, org), { quoteFollowUpDays: 7 }));
 });

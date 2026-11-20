@@ -69,7 +69,7 @@ describe("the quote editor", () => {
     click("Send quote");
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Sent QUO-0001 to Kila Trading."));
     expect(onSave.mock.calls[0]).toEqual([null, {
-      customerId: "c1", notes: "Parts held 30 days", validDays: null,
+      customerId: "c1", notes: "Parts held 30 days", validDays: null, revises: null,
       lines: [{ description: "Labour", detail: "Electrician", quantityMilli: 2000, unit: "hour", unitPriceToea: 8_000, taxCode: "standard" }],
     }]);
     expect(onSend).toHaveBeenCalledWith("q1");
@@ -103,7 +103,7 @@ describe("the quote editor", () => {
   });
 
   test("a saved draft opens as it was; a refused send keeps it and shows why", async () => {
-    const draft: QuoteDraft = { customerId: "c1", lines: [{ description: "Rewire", detail: "", quantityMilli: 1000, unit: "", unitPriceToea: 50_000 as Toea, taxCode: "standard" }], notes: "", validDays: 7 };
+    const draft: QuoteDraft = { customerId: "c1", lines: [{ description: "Rewire", detail: "", quantityMilli: 1000, unit: "", unitPriceToea: 50_000 as Toea, taxCode: "standard" }], notes: "", validDays: 7, revises: null };
     editor({ id: "q9", draft, send: async () => ({ ok: false, message: "Quotes are not switched on for your account." }) });
     expect(screen.getByRole("heading", { name: "Edit draft quote" })).toBeTruthy();
     expect((screen.getByLabelText(/days it is valid/i) as HTMLInputElement).value).toBe("7");
@@ -116,7 +116,7 @@ describe("the quote editor", () => {
 describe("the list of quotes", () => {
   test("drafts, then sent quotes with number, customer, total, valid until and status", () => {
     const list: List = {
-      drafts: [{ id: "d1", customerId: "c1", lines: [{ description: "Labour", detail: "", quantityMilli: 1000, unit: "hour", unitPriceToea: 8_000 as Toea, taxCode: "standard" }], notes: "", validDays: null }],
+      drafts: [{ id: "d1", customerId: "c1", lines: [{ description: "Labour", detail: "", quantityMilli: 1000, unit: "hour", unitPriceToea: 8_000 as Toea, taxCode: "standard" }], notes: "", validDays: null, revises: null }],
       sent: [
         { id: "q2", label: "QUO-0002", customerName: "Mine Services", issueDate: "2026-11-19" as never, validUntil: "2026-12-19" as never, totalToea: 28_050 as Toea, status: "sent" },
         { id: "q1", label: "QUO-0001", customerName: "Kila Trading", issueDate: "2026-11-01" as never, validUntil: "2026-12-01" as never, totalToea: 11_000 as Toea, status: "viewed" },

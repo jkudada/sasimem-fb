@@ -189,41 +189,49 @@ Built as two PRs, server then web (stacked), as G2q-b was.
 - **Follow-up, off by default:** one reminder to the customer, N days after sending
   (`quoteFollowUpDays`, 1-60, Settings, absent = off), if the quote is still `sent` or
   `viewed` and not expired. Once per revision (`followedUpAt`). It is the hourly tick's step
-  8, with the same link and copy-to as the quote: "A reminder about quote QUO-0012 from
+  8, to the customer and copy-to as the quote, with a **fresh link to the same revision** (only
+  links' hashes are kept, I10, so the first link cannot be sent again): "A reminder about quote QUO-0012 from
   {business}". Turning the setting off stops reminders not yet sent. The send time is fixed
   when the quote is sent (`followUpAt`), so the tick's query needs a new index on `quotes`
   (status, followUpAt).
+- **The final invoice can pass 30 lines** (a 30-line quote plus up to three deposit lines). It
+  is still drafted; Send then says it has too many lines, and the owner combines some.
+- **Draft ids with `_`:** invoice and quote drafts made by the server have ids like
+  `{quoteId}_r1_full` and `{quoteId}_rev`, so Send invoice and Send quote take letters,
+  digits and `_`.
+- **Fixed on the way:** the owner's "accepted" email linked to `/quotes/{id}` (the draft
+  editor); it now links to the quote's screen, `/quotes/sent/{id}`.
 - **Deploy:** `functions`, `firestore:rules` (the new settings and `revises`), and
   `firestore:indexes`.
 
 ### core (T1)
-- [ ] `quoteDraftOf` keeps `revises`; `quoteProblems` is unchanged for a revision
-- [ ] `quoteAllows(q).revise`: sent, viewed, declined and expired; not accepted or invoiced
-- [ ] `revisionDraftOf(quote)`: the lines, customer, notes and valid days of the quote, with `revises`
-- [ ] `quoteSettingsProblems`: `depositPercent` whole 1-100, `depositOverToea` whole toea 0 or more, `quoteFollowUpDays` whole 1-60
-- [ ] `depositApplies(org, totalToea)`: off without a percent; on only over the amount
-- [ ] `invoiceDraftFromQuote(quote, "full" | "deposit", acceptance, org)`: the full draft (lines, customer, PO, notes with the acceptance line); the deposit draft (one line per tax code, at the share of each code's amount, rounded to the toea)
-- [ ] `finalDraftFromQuote(quote, depositInvoice)`: the quote's lines and the deposit's lines negated; property: deposit + final = the quote's subtotal, GST and total, for any lines and percent
-- [ ] `quoteInvoiced(q)`: Invoiced at the accepted total; the amount over it, if any
-- [ ] `quoteFromDraftId(id)`: reads `{quoteId}_r{rev}_{full|deposit|final}` back; null for any other id
-- [ ] `followUpDue(q, org, now)`: sent or viewed, not expired, not followed up, past `followUpAt`, the setting still on
+- [x] `quoteDraftOf` keeps `revises`; `quoteProblems` is unchanged for a revision
+- [x] `quoteAllows(q).revise`: sent, viewed, declined and expired; not accepted or invoiced
+- [x] `revisionDraftOf(quote)`: the lines, customer, notes and valid days of the quote, with `revises`
+- [x] `quoteSettingsProblems`: `depositPercent` whole 1-100, `depositOverToea` whole toea 0 or more, `quoteFollowUpDays` whole 1-60
+- [x] `depositApplies(org, totalToea)`: off without a percent; on only over the amount
+- [x] `invoiceDraftFromQuote(quote, "full" | "deposit", acceptance, org)`: the full draft (lines, customer, PO, notes with the acceptance line); the deposit draft (one line per tax code, at the share of each code's amount, rounded to the toea)
+- [x] `finalDraftFromQuote(quote, depositInvoice)`: the quote's lines and the deposit's lines negated; property: deposit + final = the quote's subtotal, GST and total, for any lines and percent
+- [x] `quoteInvoiced(q)`: Invoiced at the accepted total; the amount over it, if any
+- [x] `quoteFromDraftId(id)`: reads `{quoteId}_r{rev}_{full|deposit|final}` back; null for any other id
+- [x] `followUpDue(q, org, now)`: sent or viewed, not expired, not followed up, past `followUpAt`, the setting still on
 
 ### Security rules (T2)
-- [ ] the owner writes a quote draft with `revises` (a string); others' shape rules unchanged
-- [ ] the owner sets `depositPercent`, `depositOverToea` and `quoteFollowUpDays` (whole, in range) and clears them
-- [ ] the owner edits and deletes a draft made from a quote, as any draft; nobody writes `quotes/{id}/revisions`; members read them
+- [x] the owner writes a quote draft with `revises` (a string); others' shape rules unchanged
+- [x] the owner sets `depositPercent`, `depositOverToea` and `quoteFollowUpDays` (whole, in range) and clears them
+- [x] the owner edits and deletes a draft made from a quote, as any draft; nobody writes `quotes/{id}/revisions`; members read them
 
 ### Functions (T3)
-- [ ] `sendQuote` with `revises`: the same number, revision 2, a new token, PDF and valid-until; rev 1 kept under `revisions/1`; the old link says replaced and refuses a post; the draft gone; an event
-- [ ] revising is refused for an accepted quote, a quote of another org, or a draft whose quote is gone
-- [ ] a revision and an acceptance at once: exactly one wins
-- [ ] accepting (link or owner) makes the draft `{id}_r1_full`, once, with the lines, PO and acceptance note; two accepts still make one
-- [ ] with a deposit setting that applies, the draft is `_deposit` with one line per tax code
-- [ ] `draftFromQuote(id, "full" | "deposit")`: switches the draft while nothing is sent; refused after
-- [ ] `draftFromQuote(id, "final")`: after the deposit invoice is sent; made once
-- [ ] sending an invoice from a quote adds it to `invoiceIds` and `invoicedToea`; the quote becomes Invoiced at the accepted total; flagged over it
-- [ ] undoing an acceptance deletes its unsent draft; refused once an invoice from it is sent
-- [ ] the tick's follow-up: sent once after N days, with the link; not for answered, expired or followed-up quotes, or with the setting off; the email logged
+- [x] `sendQuote` with `revises`: the same number, revision 2, a new token, PDF and valid-until; rev 1 kept under `revisions/1`; the old link says replaced and refuses a post; the draft gone; an event
+- [x] revising is refused for an accepted quote, a quote of another org, or a draft whose quote is gone
+- [x] a revision and an acceptance at once: exactly one wins
+- [x] accepting (link or owner) makes the draft `{id}_r1_full`, once, with the lines, PO and acceptance note; two accepts still make one
+- [x] with a deposit setting that applies, the draft is `_deposit` with one line per tax code
+- [x] `draftFromQuote(id, "full" | "deposit")`: switches the draft while nothing is sent; refused after
+- [x] `draftFromQuote(id, "final")`: after the deposit invoice is sent; made once
+- [x] sending an invoice from a quote adds it to `invoiceIds` and `invoicedToea`; the quote becomes Invoiced at the accepted total; flagged over it
+- [x] undoing an acceptance deletes its unsent draft; refused once an invoice from it is sent
+- [x] the tick's follow-up: sent once after N days, with the link; not for answered, expired or followed-up quotes, or with the setting off; the email logged
 
 ### Web (T1 web)
 - [ ] the quote screen: Revise (sent, viewed, declined, expired) opens the revision draft; the revisions listed with their dates

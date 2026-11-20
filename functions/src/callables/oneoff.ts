@@ -23,7 +23,7 @@ const GONE = "That draft is not there any more. It may have been sent or deleted
 
 function draftIdOf(request: CallableRequest<unknown>): string {
   const draftId = (request.data as { draftId?: unknown }).draftId;
-  if (typeof draftId !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(draftId)) throw new HttpsError("invalid-argument", "Choose a draft to send.");
+  if (typeof draftId !== "string" || !/^[A-Za-z0-9_]{1,64}$/.test(draftId)) throw new HttpsError("invalid-argument", "Choose a draft to send.");
   return draftId;
 }
 

@@ -111,7 +111,7 @@ export function quoteAnsweredNotice(req: {
       blocks: [
         { p: `${a.name} accepted your quote ${req.label} to ${req.customerName}, for ${price}, at ${when}.` },
         ...(a.poNumber === "" ? [] : [{ rows: [["Order number", a.poNumber]] as [string, string][] }]),
-        { p: "See the quote:", link: req.link },
+        { p: "Its invoice is drafted for you to check and send. See the quote:", link: req.link },
         { p: "If it was not your customer who accepted (a forwarded email, say), you can undo the acceptance there." },
       ],
     });
@@ -267,16 +267,22 @@ export interface QuoteFacts {
   readonly link: string;
   readonly pdf: Buffer;
   readonly logo: Buffer | null;
+  /** From 2 on, the email says which revision it replaces (G2q-c). */
+  readonly revision?: number;
 }
 
 export function quoteMail(q: QuoteFacts): Mail {
   const org = q.snapshot.org;
-  const subject = `Quote ${q.label} from ${org.name} - ${formatKina(q.totalToea)}, valid until ${dateLabel(q.validUntil)}`;
+  const rev = q.revision ?? 1;
+  const replaces = rev > 1 ? ` (replaces rev ${rev - 1})` : "";
+  const subject = `Quote ${q.label}${replaces} from ${org.name} - ${formatKina(q.totalToea)}, valid until ${dateLabel(q.validUntil)}`;
   const brand = brandOf(q);
   const letter: Letter = {
     greeting: `Hello ${q.snapshot.tenantName},`,
     blocks: [
-      { p: `${org.name} has sent you quote ${q.label}. The PDF is attached.` },
+      { p: rev > 1
+        ? `${org.name} has sent you quote ${q.label}. It replaces the earlier version, whose link no longer works. The PDF is attached.`
+        : `${org.name} has sent you quote ${q.label}. The PDF is attached.` },
       { rows: [["Amount", formatKina(q.totalToea)], ["Valid until", dateLabel(q.validUntil)]] },
       { p: "To accept it, or to decline it, open the quote:", link: q.link },
       ...(q.snapshot.notes ? [{ note: q.snapshot.notes }] : []),
@@ -296,6 +302,33 @@ export function quoteMail(q: QuoteFacts): Mail {
       { filename: pdfFilename(q.label), content: q.pdf },
       ...(brand.mark.kind === "logo" && q.logo !== null ? [{ filename: "logo.png", content: q.logo, contentId: LOGO_CID, contentType: "image/png" }] : []),
     ],
+  };
+}
+
+/** The one follow-up on an unanswered quote (G2q-c): a fresh link to the same revision, no attachment. */
+export function quoteFollowUpMail(q: Omit<QuoteFacts, "pdf" | "revision">): Mail {
+  const org = q.snapshot.org;
+  const subject = `A reminder about quote ${q.label} from ${org.name}`;
+  const letter: Letter = {
+    greeting: `Hello ${q.snapshot.tenantName},`,
+    blocks: [
+      { p: `${org.name} sent you quote ${q.label} and would like to know what you think.` },
+      { rows: [["Amount", formatKina(q.totalToea)], ["Valid until", dateLabel(q.validUntil)]] },
+      { p: "To accept it, or to decline it, open the quote:", link: q.link },
+      { p: `To ask about this quote, reply to this email to reach ${org.name}.` },
+    ],
+  };
+  const brand = brandOf(q);
+  const cc = q.snapshot.customer?.ccEmails ?? [];
+  return {
+    to: q.snapshot.tenantEmail,
+    ...(cc.length === 0 ? {} : { cc }),
+    fromName: org.name,
+    replyTo: org.email,
+    subject,
+    text: letterText(letter),
+    html: letterHtml(letter, brand, subject),
+    attachments: brand.mark.kind === "logo" && q.logo !== null ? [{ filename: "logo.png", content: q.logo, contentId: LOGO_CID, contentType: "image/png" }] : [],
   };
 }
 

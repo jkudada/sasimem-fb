@@ -383,7 +383,9 @@ export function setupStore(orgId: string): SetupStore {
     },
     async saveQuoteDraft(id, draft: QuoteDraft) {
       const target = id === null ? doc(collection(db, `${org}/quoteDrafts`)) : ref(`quoteDrafts/${id}`);
-      const problem = await attempt(() => setDoc(target, { ...draft, lines: draft.lines.map((l) => ({ ...l })) }));
+      // A new quote's draft has no `revises` field at all (the rules check the shape exactly).
+      const { revises, ...rest } = draft;
+      const problem = await attempt(() => setDoc(target, { ...rest, ...(revises === null ? {} : { revises }), lines: draft.lines.map((l) => ({ ...l })) }));
       return problem === null ? { id: target.id } : { problem };
     },
     deleteQuoteDraft: (id) => attempt(() => deleteDoc(ref(`quoteDrafts/${id}`))),

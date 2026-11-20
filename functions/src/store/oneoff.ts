@@ -17,6 +17,7 @@ import {
 } from "@sasimem/core";
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../admin.js";
+import { quoteInvoicing } from "./quotes.js";
 import { type OrgDoc, refs } from "./runs.js";
 import { sendLaterRef } from "./sendLater.js";
 
@@ -52,6 +53,7 @@ export async function issueOneOff(orgId: string, draftId: string, req: { readonl
     const problem = Object.values(draftProblems(draft, customer))[0];
     if (problem !== undefined || customer === null) return { kind: "refused", message: problem ?? "Choose who this invoice is for." };
 
+    const fromQuote = await quoteInvoicing(tx, orgId, draftId); // G2q-c: read now, written below
     const seq = nextNumberOf(counterSnap.data() ?? {}, "invoice");
     const number = documentNumber("invoice", seq, org);
     const issued = numbered(issuedOneOff({ draftId, draft, customer, org, today: localDate(req.now, org.timezone) }), number);
@@ -66,11 +68,12 @@ export async function issueOneOff(orgId: string, draftId: string, req: { readonl
       pdfPath: "", sentAt: at, paidAt: null, paidNote: "", remindedAt: null, remindersPaused: false,
     };
     tx.create(r.invoice(draftId), invoice);
+    fromQuote.write(invoice.totalToea);
     tx.create(r.issued(seq), { invoiceId: draftId, at });
     tx.set(r.counter, { nextInvoiceNumber: seq + 1 }, { merge: true });
     tx.delete(draftRef);
     if (scheduleSnap.exists) tx.delete(scheduleSnap.ref);
-    tx.create(r.events.doc(), { actor: req.actor, kind: "invoiceIssued", at, target: `invoices/${draftId}`, note: `${number}, ${customer.name}${req.scheduled === true ? ", as scheduled" : ""}` });
+    tx.create(r.events.doc(), { actor: req.actor, kind: "invoiceIssued", at, target: `invoices/${draftId}`, note: `${number}, ${customer.name}${fromQuote.label === null ? "" : `, from ${fromQuote.label}`}${req.scheduled === true ? ", as scheduled" : ""}` });
     return { kind: "issued", number, customerName: customer.name };
   });
 }

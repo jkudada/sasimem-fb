@@ -60,7 +60,8 @@ service cloud.firestore {
     function PROFILE_FIELDS() {
       return ['name', 'address', 'email', 'gstRegistered', 'gstNumber', 'bankName', 'bankAccount',
               'invoicePrefix', 'timezone', 'approvalLeadDays', 'sendHour', 'reminderAfterDays', 'reminderMode', 'logoPath',
-              'defaultTemplateId', 'logoDesign', 'defaultTermsDays', 'scheduledSentNote', 'quoteValidDays', 'quoteTerms'];
+              'defaultTemplateId', 'logoDesign', 'defaultTermsDays', 'scheduledSentNote', 'quoteValidDays', 'quoteTerms',
+              'depositPercent', 'depositOverToea', 'quoteFollowUpDays'];
     }
 
     // A logo lives in the org's own folder; storage.rules guards the file itself.
@@ -111,7 +112,10 @@ service cloud.firestore {
         && (!('defaultTermsDays' in d) || wholeIn(d.defaultTermsDays, 0, 90)) // G2a: one-off invoices' default terms
         && (!('scheduledSentNote' in d) || d.scheduledSentNote is bool) // G2d: email the owner when a scheduled one-off goes
         && (!('quoteValidDays' in d) || wholeIn(d.quoteValidDays, 1, 365)) // G2q: core's quoteSettingsProblems
-        && (!('quoteTerms' in d) || str(d.quoteTerms, 0, 2000));
+        && (!('quoteTerms' in d) || str(d.quoteTerms, 0, 2000))
+        && (!('depositPercent' in d) || wholeIn(d.depositPercent, 1, 100)) // G2q-c (D13)
+        && (!('depositOverToea' in d) || wholeIn(d.depositOverToea, 0, 1000000000)) // core's MAX_EDITABLE_TOEA
+        && (!('quoteFollowUpDays' in d) || wholeIn(d.quoteFollowUpDays, 1, 60));
     }
 
     // A tenant is a customer (docs/PLAN-GENERAL-INVOICING.md G1b): today's three fields,
@@ -169,9 +173,11 @@ service cloud.firestore {
         && (d.dueDays == null || wholeIn(d.dueDays, 0, 90));
     }
 
-    // A quote being written (G2q-a); sendQuote checks it in full, as issueInvoice does a draft.
+    // A quote being written (G2q-a), or a revision of a sent one (G2q-c, `revises`); sendQuote
+    // checks it in full, as issueInvoice does a draft.
     function validQuoteDraft(d) {
-      return exactly(d, ['customerId', 'lines', 'notes', 'validDays'])
+      return shaped(d, ['customerId', 'lines', 'notes', 'validDays'], ['revises'])
+        && optional(d, 'revises', str(d.get('revises', ''), 1, 128))
         && str(d.customerId, 0, 128) && validLines(d.lines) && str(d.notes, 0, 500)
         && (d.validDays == null || wholeIn(d.validDays, 1, 365));
     }
@@ -246,6 +252,10 @@ service cloud.firestore {
       }
       match /quotes/{quoteId} {
         allow read: if canRead(orgId);
+        // Earlier revisions (G2q-c), kept as they were sent and answered.
+        match /revisions/{revision} {
+          allow read: if canRead(orgId);
+        }
       }
 
       match /tenants/{tenantId} {

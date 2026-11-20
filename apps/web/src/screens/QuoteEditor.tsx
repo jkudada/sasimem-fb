@@ -44,6 +44,7 @@ export function QuoteEditor(props: {
     lines: read.map((r) => r.line),
     notes: notes.value.trim(),
     validDays: validDays.value.trim() === "" ? null : whole(validDays.value),
+    revises: d?.revises ?? null,
   };
 
   /** Save as it stands; what stops a save is what could not be stored (unreadable numbers, lengths, days). */

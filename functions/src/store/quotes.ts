@@ -6,9 +6,11 @@
  * commit, as for an invoice: a crash can lose the email, never send it twice.
  */
 import {
-  type CalendarDate, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, type IssuedQuote, type Period, type QuoteAnswer, type QuoteStatus,
-  addDays, customerOf, documentNumber, hasFeature, issuedQuote, localDate, nextNumberOf, noAnswerReason, oneOffSnapshot, quoteAllows, quoteDraftOf,
-  quoteExpired, quoteLabel, quoteProblems, templateFor, zonedInstant,
+  type AcceptedQuote, type CalendarDate, type InvoiceDocument, type InvoiceSnapshot, type InvoiceTemplate, type IssuedQuote, type OneOffDraft, type Period,
+  type QuoteAnswer, type QuoteInvoiceKind, type QuoteSettings, type QuoteStatus,
+  addDays, customerOf, depositApplies, documentNumber, finalDraftFromQuote, followUpAtOf, followUpDue, hasFeature, invoiceDraftFromQuote, issuedQuote,
+  localDate, nextNumberOf, noAnswerReason, oneOffSnapshot, quoteAllows, quoteDraftOf, quoteExpired, quoteFromDraftId, quoteInvoiceId, quoteInvoiced,
+  quoteLabel, quoteProblems, templateFor, zonedInstant,
 } from "@sasimem/core";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { bucket, db } from "../admin.js";
@@ -40,6 +42,11 @@ export interface StoredQuote extends IssuedQuote {
   readonly expiredAt?: Timestamp;
   /** The invoices sent from it (G2q-c). Once there is one, its acceptance stays. */
   readonly invoiceIds?: readonly string[];
+  /** What those invoices came to (G2q-c). */
+  readonly invoicedToea?: number;
+  /** When the one follow-up goes (G2q-c); null when the org had it off at sending. */
+  readonly followUpAt?: Timestamp | null;
+  readonly followedUpAt?: Timestamp;
 }
 
 /** Who answered: the customer on the link, or the owner recording a call or signed paper. */
@@ -69,13 +76,23 @@ export const quoteTokenDoc = (id: string) => db().doc(`quoteTokens/${id}`);
 export const quotePdfPath = (orgId: string, id: string, revision: number) => `quotes/${orgId}/${id}-r${revision}.pdf`;
 
 export type SendQuoteOutcome =
-  | { readonly kind: "sent"; readonly quote: StoredQuote }
+  /** `quoteId` is the draft's id for a new quote, the revised quote's for a revision. */
+  | { readonly kind: "sent"; readonly quote: StoredQuote; readonly quoteId: string }
   | { readonly kind: "alreadySent"; readonly quote: StoredQuote }
   | { readonly kind: "notFound" }
   | { readonly kind: "notEnabled" }
   | { readonly kind: "refused"; readonly message: string };
 
-type QuoteOrg = OrgDoc & { readonly quoteValidDays?: number; readonly quoteTerms?: string; readonly modules?: unknown; readonly features?: unknown };
+type QuoteOrg = OrgDoc & QuoteSettings & { readonly modules?: unknown; readonly features?: unknown };
+
+/** A link works until 60 days after its valid-until day ends, in the org's time. */
+const linkExpiry = (validUntil: CalendarDate, timezone: string): Timestamp =>
+  Timestamp.fromDate(zonedInstant(addDays(validUntil, QUOTE_LINK_DAYS_AFTER + 1), 0, timezone));
+
+const followUpOf = (sentAt: Date, org: QuoteOrg): Timestamp | null => {
+  const at = followUpAtOf(sentAt, org);
+  return at === null ? null : Timestamp.fromDate(at);
+};
 
 /** Quotes need one-off invoicing too: an accepted quote becomes a one-off invoice. */
 export const quotesOn = (org: QuoteOrg): boolean => hasFeature(org, "quotes") && hasFeature(org, "oneOff");
@@ -96,32 +113,53 @@ export async function sendQuote(orgId: string, draftId: string, req: { readonly 
     if (!quotesOn(org)) return { kind: "notEnabled" };
 
     const draft = quoteDraftOf(draftSnap.data() ?? {});
-    const customerSnap = draft.customerId === "" ? null : await tx.get(r.tenant(draft.customerId));
+    const revisedRef = draft.revises === null ? null : quotesOf(orgId).doc(draft.revises);
+    const [customerSnap, revisedSnap] = await Promise.all([
+      draft.customerId === "" ? null : tx.get(r.tenant(draft.customerId)),
+      revisedRef === null ? null : tx.get(revisedRef),
+    ]);
     const customer = customerSnap?.exists === true ? customerOf(customerSnap.data() ?? {}) : null;
     const problem = Object.values(quoteProblems(draft, customer))[0];
     if (problem !== undefined || customer === null) return { kind: "refused", message: problem ?? "Choose who this quote is for." };
-
-    const seq = nextNumberOf(counterSnap.data() ?? {}, "quote");
-    const number = documentNumber("quote", seq, org);
-    const issued = issuedQuote({ draft, org, today: localDate(req.now, org.timezone) });
     const templates = Object.fromEntries(templateSnap.docs.map((d) => [d.id, d.data() as InvoiceTemplate]));
     const at = Timestamp.fromDate(req.now);
     const id = tokenId(req.token);
+    const issued = issuedQuote({ draft, org, today: localDate(req.now, org.timezone) });
+    const snapshot = oneOffSnapshot(org, customer, { poNumber: "", notes: draft.notes }, templateFor({ org }, templates));
 
+    if (revisedRef !== null) {
+      // G2q-c: the next revision of the same quote. The one before is kept as it was; its link stops accepting.
+      const before = revisedSnap?.data() as StoredQuote | undefined;
+      if (before === undefined) return { kind: "refused", message: "The quote this revises is not there any more." };
+      const was = quoteLabel(before.number, before.revision);
+      if (!quoteAllows(before, req.now, org.timezone).revise) {
+        return { kind: "refused", message: before.status === "accepted" ? `${was} was accepted, so it cannot be revised. Undo the acceptance first.` : `${was} has been invoiced, so it cannot be revised.` };
+      }
+      const revision = before.revision + 1;
+      const quote: StoredQuote = {
+        ...issued, customerName: customer.name, number: before.number, numberSeq: before.numberSeq, revision, status: "sent",
+        snapshot, pdfPath: "", tokenId: id, sentAt: at, sentBy: req.actor, followUpAt: followUpOf(req.now, org),
+      };
+      tx.set(revisedRef.collection("revisions").doc(String(before.revision)), { ...before, supersededAt: at });
+      tx.set(revisedRef, quote); // a fresh start: no view, answer, expiry or follow-up carried over
+      tx.create(quoteTokenDoc(id), { orgId, quoteId: revisedRef.id, revision, expiresAt: linkExpiry(issued.validUntil, org.timezone) });
+      tx.delete(draftRef);
+      tx.create(r.events.doc(), { actor: req.actor, kind: "quoteRevised", at, target: `quotes/${revisedRef.id}`, note: `${quoteLabel(before.number, revision)}, ${customer.name}` });
+      return { kind: "sent", quote, quoteId: revisedRef.id };
+    }
+
+    const seq = nextNumberOf(counterSnap.data() ?? {}, "quote");
+    const number = documentNumber("quote", seq, org);
     const quote: StoredQuote = {
       ...issued, customerName: customer.name, number, numberSeq: seq, revision: 1, status: "sent",
-      snapshot: oneOffSnapshot(org, customer, { poNumber: "", notes: draft.notes }, templateFor({ org }, templates)),
-      pdfPath: "", tokenId: id, sentAt: at, sentBy: req.actor,
+      snapshot, pdfPath: "", tokenId: id, sentAt: at, sentBy: req.actor, followUpAt: followUpOf(req.now, org),
     };
     tx.create(quoteRef, quote);
-    tx.create(quoteTokenDoc(id), {
-      orgId, quoteId: draftId, revision: 1,
-      expiresAt: Timestamp.fromDate(zonedInstant(addDays(issued.validUntil, QUOTE_LINK_DAYS_AFTER + 1), 0, org.timezone)),
-    });
+    tx.create(quoteTokenDoc(id), { orgId, quoteId: draftId, revision: 1, expiresAt: linkExpiry(issued.validUntil, org.timezone) });
     tx.set(r.counter, { nextQuoteNumber: seq + 1 }, { merge: true });
     tx.delete(draftRef);
     tx.create(r.events.doc(), { actor: req.actor, kind: "quoteSent", at, target: `quotes/${draftId}`, note: `${number}, ${customer.name}` });
-    return { kind: "sent", quote };
+    return { kind: "sent", quote, quoteId: draftId };
   });
 }
 
@@ -185,6 +223,18 @@ export async function lookupQuoteToken(token: string, now: Date): Promise<QuoteL
 const quoteTimezone = async (tx: FirebaseFirestore.Transaction, orgId: string): Promise<string> =>
   ((await tx.get(refs(orgId).org)).get("timezone") as string | undefined) ?? "Pacific/Port_Moresby";
 
+const draftRefOf = (orgId: string, id: string) => refs(orgId).org.collection("drafts").doc(id);
+const scheduleRefOf = (orgId: string, id: string) => refs(orgId).org.collection("sendLater").doc(id);
+
+/** An accepted quote as core converts it. */
+const acceptedOf = (q: StoredQuote, acceptance: QuoteAcceptance, timezone: string): AcceptedQuote => ({
+  customerId: q.customerId, lines: q.lines, number: q.number, revision: q.revision, notes: q.snapshot.notes ?? "",
+  acceptance: { name: acceptance.name, poNumber: acceptance.poNumber, acceptedOn: localDate(acceptance.at.toDate(), timezone) },
+});
+
+/** A draft as the rules let the owner keep editing it: exactly its five fields, lines as plain maps. */
+const draftDoc = (d: OneOffDraft) => ({ customerId: d.customerId, lines: d.lines.map((l) => ({ ...l })), poNumber: d.poNumber, notes: d.notes, dueDays: d.dueDays });
+
 /** The customer opened it: sent becomes viewed, once, with the time. Nothing else changes. */
 export async function markViewed(orgId: string, quoteId: string, revision: number, now: Date): Promise<void> {
   const ref = quotesOf(orgId).doc(quoteId);
@@ -196,7 +246,8 @@ export async function markViewed(orgId: string, quoteId: string, revision: numbe
 }
 
 export type AnswerOutcome =
-  | { readonly kind: "recorded"; readonly quote: StoredQuote }
+  /** `draftId`: the invoice draft an acceptance made (D14), if it made one. */
+  | { readonly kind: "recorded"; readonly quote: StoredQuote; readonly draftId?: string }
   | { readonly kind: "notFound" }
   /** The link is for an earlier revision (G2q-c). */
   | { readonly kind: "superseded"; readonly revision: number }
@@ -214,11 +265,16 @@ export async function answerQuote(
   const r = refs(orgId);
   const ref = quotesOf(orgId).doc(quoteId);
   return db().runTransaction(async (tx): Promise<AnswerOutcome> => {
-    const snap = await tx.get(ref);
-    const timezone = await quoteTimezone(tx, orgId);
+    const [snap, orgSnap] = await Promise.all([tx.get(ref), tx.get(r.org)]);
+    const org = orgSnap.data() as QuoteOrg;
+    const timezone = org.timezone ?? "Pacific/Port_Moresby";
     if (!snap.exists) return { kind: "notFound" };
     const q = snap.data() as StoredQuote;
     if (req.revision !== undefined && req.revision !== q.revision) return { kind: "superseded", revision: q.revision };
+    const ids = { full: quoteInvoiceId(quoteId, q.revision, "full"), deposit: quoteInvoiceId(quoteId, q.revision, "deposit") };
+    const drafted = answer.kind === "accept"
+      ? (await Promise.all([tx.get(draftRefOf(orgId, ids.full)), tx.get(draftRefOf(orgId, ids.deposit))])).some((d) => d.exists)
+      : true;
     const label = quoteLabel(q.number, q.revision);
     const why = noAnswerReason(q, label, req.now, timezone);
     if (why !== null) return { kind: "refused", message: why };
@@ -238,6 +294,12 @@ export async function answerQuote(
     }
     tx.update(ref, update);
     tx.create(r.events.doc(), { actor: req.actor, ...event, at, target: `quotes/${quoteId}` });
+    if (update.acceptance !== undefined && !drafted) {
+      // D14: the invoice is drafted at once, in full or as a deposit (D13), and waits for the owner's Send.
+      const kind = depositApplies(org, q.totalToea) ? "deposit" : "full";
+      tx.create(draftRefOf(orgId, ids[kind]), draftDoc(invoiceDraftFromQuote(acceptedOf(q, update.acceptance, timezone), kind, org)));
+      return { kind: "recorded", quote: { ...q, ...update }, draftId: ids[kind] };
+    }
     return { kind: "recorded", quote: { ...q, ...update } };
   });
 }
@@ -255,9 +317,15 @@ export async function undoAcceptance(orgId: string, quoteId: string, req: { read
     const q = snap.data() as StoredQuote;
     const label = quoteLabel(q.number, q.revision);
     if (!quoteAllows(q, req.now, timezone).undo) {
-      return { kind: "refused", message: q.status === "accepted" ? `${label} has been invoiced, so its acceptance stays.` : `${label} is not accepted.` };
+      return { kind: "refused", message: q.status === "accepted" || q.status === "invoiced" ? `${label} has been invoiced, so its acceptance stays.` : `${label} is not accepted.` };
     }
     tx.update(ref, { status: "sent", acceptance: FieldValue.delete() });
+    // Its invoice draft goes too: nothing was sent from it (undo is refused once anything is).
+    for (const kind of ["full", "deposit"] as const) {
+      const id = quoteInvoiceId(quoteId, q.revision, kind);
+      tx.delete(draftRefOf(orgId, id));
+      tx.delete(scheduleRefOf(orgId, id));
+    }
     tx.create(r.events.doc(), {
       actor: req.actor, kind: "quoteAcceptanceUndone", at: Timestamp.fromDate(req.now), target: `quotes/${quoteId}`,
       note: `${label}, was accepted by ${q.acceptance?.name ?? "someone"}`,
@@ -299,5 +367,110 @@ export async function expireQuote(q: QuoteRef, now: Date): Promise<boolean> {
     tx.update(ref, { status: "expired", expiredAt: at });
     tx.create(r.events.doc(), { actor: "tick", kind: "quoteExpired", at, target: `quotes/${q.quoteId}`, note: quoteLabel(quote.number, quote.revision) });
     return true;
+  });
+}
+
+// ---------------------------------------------------------------- converting to an invoice (G2q-c)
+
+export type DraftFromQuoteOutcome =
+  | { readonly kind: "drafted"; readonly draftId: string; readonly label: string }
+  | { readonly kind: "notFound" }
+  | { readonly kind: "refused"; readonly message: string };
+
+/**
+ * The owner's choice of invoice for an accepted quote: in full or a deposit (switching the
+ * unsent draft), or the final invoice once the deposit invoice is sent. Each kind is made
+ * once per revision (the draft and its invoice share the id).
+ */
+export async function draftFromQuote(orgId: string, quoteId: string, kind: QuoteInvoiceKind, _req: { readonly actor: string; readonly now: Date }): Promise<DraftFromQuoteOutcome> {
+  const r = refs(orgId);
+  const ref = quotesOf(orgId).doc(quoteId);
+  return db().runTransaction(async (tx): Promise<DraftFromQuoteOutcome> => {
+    const [snap, orgSnap] = await Promise.all([tx.get(ref), tx.get(r.org)]);
+    if (!snap.exists) return { kind: "notFound" };
+    const q = snap.data() as StoredQuote;
+    const org = orgSnap.data() as QuoteOrg;
+    const label = quoteLabel(q.number, q.revision);
+    const acceptance = q.acceptance;
+    if (acceptance === undefined || (q.status !== "accepted" && q.status !== "invoiced")) return { kind: "refused", message: `${label} is not accepted.` };
+    const id = (k: QuoteInvoiceKind) => quoteInvoiceId(quoteId, q.revision, k);
+    const [wanted, wantedInvoice] = await Promise.all([tx.get(draftRefOf(orgId, id(kind))), tx.get(r.invoice(id(kind)))]);
+    const accepted = acceptedOf(q, acceptance, org.timezone);
+
+    if (kind === "final") {
+      const deposit = await tx.get(r.invoice(id("deposit")));
+      if (!deposit.exists) return { kind: "refused", message: `Send the deposit invoice for ${label} first.` };
+      if (wantedInvoice.exists) return { kind: "refused", message: `The final invoice for ${label} was already sent.` };
+      if (!wanted.exists) {
+        const d = deposit.data() as InvoiceDocument;
+        tx.create(draftRefOf(orgId, id("final")), draftDoc(finalDraftFromQuote(accepted, { number: d.number ?? "the deposit", lines: d.lines })));
+      }
+      return { kind: "drafted", draftId: id("final"), label };
+    }
+
+    if ((q.invoiceIds ?? []).length > 0) return { kind: "refused", message: `Part of ${label} is already invoiced, so its draft stays as it is.` };
+    const other = kind === "full" ? id("deposit") : id("full");
+    tx.delete(draftRefOf(orgId, other));
+    tx.delete(scheduleRefOf(orgId, other));
+    if (!wanted.exists) tx.create(draftRefOf(orgId, id(kind)), draftDoc(invoiceDraftFromQuote(accepted, kind, org)));
+    return { kind: "drafted", draftId: id(kind), label };
+  });
+}
+
+/**
+ * Inside issueOneOff's transaction: an invoice sent from a quote's draft counts against the
+ * quote (quoted vs invoiced). Read first (`read`), write after (`write`), as a transaction
+ * needs. Nothing for an invoice that was not made from a quote, or a quote no longer accepted.
+ */
+export async function quoteInvoicing(tx: FirebaseFirestore.Transaction, orgId: string, invoiceId: string) {
+  const from = quoteFromDraftId(invoiceId);
+  const ref = from === null ? null : quotesOf(orgId).doc(from.quoteId);
+  const q = ref === null ? undefined : ((await tx.get(ref)).data() as StoredQuote | undefined);
+  const counts = from !== null && q?.acceptance !== undefined && q.acceptance.revision === from.revision && (q.status === "accepted" || q.status === "invoiced");
+  return {
+    label: q === undefined ? null : quoteLabel(q.number, q.revision),
+    write(totalToea: number): void {
+      if (!counts || ref === null || q === undefined) return;
+      const invoicedToea = (q.invoicedToea ?? 0) + totalToea;
+      tx.update(ref, {
+        invoiceIds: FieldValue.arrayUnion(invoiceId), invoicedToea,
+        status: quoteInvoiced({ acceptance: q.acceptance, invoicedToea }).invoiced ? "invoiced" : "accepted",
+      });
+    },
+  };
+}
+
+// ---------------------------------------------------------------- the follow-up (G2q-c)
+
+/** Open quotes whose follow-up time has come (the collection-group index on status and followUpAt). */
+export async function quotesToFollowUp(now: Date, orgIds?: readonly string[]): Promise<QuoteRef[]> {
+  const snap = await db().collectionGroup("quotes").where("status", "in", ["sent", "viewed"]).where("followUpAt", "<=", Timestamp.fromDate(now)).get();
+  const all = snap.docs.map((d) => ({ orgId: d.ref.parent.parent?.id ?? "", quoteId: d.id }));
+  return orgIds === undefined ? all : all.filter((q) => orgIds.includes(q.orgId));
+}
+
+/**
+ * Claim a quote's one follow-up: mark it followed up and record a fresh link to the same
+ * revision (only the link's hash is kept, I10, so the first link cannot be sent again).
+ * The quote for the call that claimed it, null otherwise. A crash can lose the email, never send it twice.
+ */
+export async function claimFollowUp(q: QuoteRef, now: Date, token: string): Promise<StoredQuote | null> {
+  const r = refs(q.orgId);
+  const ref = quotesOf(q.orgId).doc(q.quoteId);
+  return db().runTransaction(async (tx) => {
+    const [snap, orgSnap] = await Promise.all([tx.get(ref), tx.get(r.org)]);
+    const quote = snap.data() as StoredQuote | undefined;
+    const org = orgSnap.data() as QuoteOrg | undefined;
+    if (quote === undefined || org === undefined) return null;
+    const due = followUpDue(
+      { status: quote.status, validUntil: quote.validUntil, followUpAt: quote.followUpAt?.toDate() ?? null, followedUp: quote.followedUpAt !== undefined },
+      org, now, org.timezone,
+    );
+    if (!due) return null;
+    const at = Timestamp.fromDate(now);
+    tx.update(ref, { followedUpAt: at });
+    tx.create(quoteTokenDoc(tokenId(token)), { orgId: q.orgId, quoteId: q.quoteId, revision: quote.revision, expiresAt: linkExpiry(quote.validUntil, org.timezone) });
+    tx.create(r.events.doc(), { actor: "tick", kind: "quoteFollowedUp", at, target: `quotes/${q.quoteId}`, note: `${quoteLabel(quote.number, quote.revision)}, ${quote.customerName}` });
+    return { ...quote, followedUpAt: at };
   });
 }
