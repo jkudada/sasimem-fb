@@ -96,6 +96,37 @@ export function sentScheduledNotice(req: { to: string; orgName: string; customer
   });
 }
 
+/** The customer answered a quote on its link (G2q-b): to the owner, at once. */
+export function quoteAnsweredNotice(req: {
+  to: string; orgName: string; label: string; customerName: string; totalToea: Toea;
+  answer: { kind: "accept"; name: string; poNumber: string } | { kind: "decline"; reason: string };
+  at: Date; timezone: string; link: string;
+}): Mail {
+  const when = whenLabel(req.at, req.timezone);
+  const price = formatKina(req.totalToea);
+  if (req.answer.kind === "accept") {
+    const a = req.answer;
+    return toLandlord(req.to, `${req.label} accepted by ${a.name}`, {
+      greeting: `Hello ${req.orgName},`,
+      blocks: [
+        { p: `${a.name} accepted your quote ${req.label} to ${req.customerName}, for ${price}, at ${when}.` },
+        ...(a.poNumber === "" ? [] : [{ rows: [["Order number", a.poNumber]] as [string, string][] }]),
+        { p: "See the quote:", link: req.link },
+        { p: "If it was not your customer who accepted (a forwarded email, say), you can undo the acceptance there." },
+      ],
+    });
+  }
+  const reason = req.answer.reason;
+  return toLandlord(req.to, `${req.label} declined by ${req.customerName}`, {
+    greeting: `Hello ${req.orgName},`,
+    blocks: [
+      { p: `${req.customerName} declined your quote ${req.label}, for ${price}, at ${when}.` },
+      reason === "" ? { p: "They gave no reason." } : { note: `Their reason: ${reason}` },
+      { p: "See the quote:", link: req.link },
+    ],
+  });
+}
+
 export interface DispatchLine {
   readonly tenantName: string;
   readonly number: string;

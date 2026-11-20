@@ -7,7 +7,7 @@ import { totals } from "./billing.js";
 import type { Customer } from "./customers.js";
 import { itemLine } from "./lines.js";
 import { lineOf, linesProblem } from "./oneoff.js";
-import { addDays, type CalendarDate } from "./period.js";
+import { addDays, type CalendarDate, dateLabel, localDate } from "./period.js";
 import { wholeIn } from "./setup.js";
 import type { ItemLineInput, Line, Problems, Totals } from "./types.js";
 
@@ -125,3 +125,73 @@ export const quoteLabel = (number: string, revision: number): string => (revisio
 export const QUOTE_STATUS_LABELS: Readonly<Record<QuoteStatus, string>> = {
   sent: "Sent", viewed: "Viewed", accepted: "Accepted", declined: "Declined", expired: "Expired",
 };
+
+// ---------------------------------------------------------------- answering (G2q-b)
+
+/** The customer's answer on the quote's page, or the one the owner records for them. */
+export type QuoteAnswer =
+  | { readonly kind: "accept"; readonly name: string; readonly poNumber: string }
+  | { readonly kind: "decline"; readonly reason: string };
+
+export type QuoteAnswerField = "answer" | "name" | "agree" | "poNumber" | "reason";
+
+export type ReadQuoteAnswer =
+  | { readonly ok: true; readonly answer: QuoteAnswer }
+  | { readonly ok: false; readonly problems: Problems<QuoteAnswerField> };
+
+/** As on an invoice, where the order number goes next (G2q-c). */
+const PO_MAX = 40;
+
+/**
+ * Read an answer: `answer` is "accept" or "decline". Accepting needs a name and, from the
+ * customer, the "I accept these terms" tick (`agree`); the owner recording a phone call
+ * or signed paper needs only the name. Declining takes an optional reason.
+ */
+export function readQuoteAnswer(form: Readonly<Record<string, string | undefined>>, by: "customer" | "owner"): ReadQuoteAnswer {
+  const field = (k: QuoteAnswerField) => (form[k] ?? "").trim();
+  const p: Problems<QuoteAnswerField> = {};
+  if (form.answer === "decline") {
+    const reason = field("reason");
+    if (reason.length > 500) return { ok: false, problems: { reason: "Keep the reason to 500 characters or fewer." } };
+    return { ok: true, answer: { kind: "decline", reason } };
+  }
+  if (form.answer !== "accept") return { ok: false, problems: { answer: "Choose to accept or decline." } };
+  const name = field("name");
+  const poNumber = field("poNumber");
+  if (name === "") p.name = by === "customer" ? "Type your name." : "Type the name of the person who accepted.";
+  else if (name.length > 100) p.name = "Keep the name to 100 characters or fewer.";
+  if (poNumber.length > PO_MAX) p.poNumber = `Keep the order number to ${PO_MAX} characters or fewer.`;
+  if (by === "customer" && form.agree === undefined) p.agree = 'Tick "I accept these terms" to accept.';
+  return Object.keys(p).length > 0 ? { ok: false, problems: p } : { ok: true, answer: { kind: "accept", name, poNumber } };
+}
+
+/** Past its valid-until day, in the org's time. */
+export const quoteExpired = (q: { readonly validUntil: CalendarDate }, now: Date, timezone: string): boolean =>
+  localDate(now, timezone) > q.validUntil;
+
+export interface QuoteState {
+  readonly status: QuoteStatus;
+  readonly validUntil: CalendarDate;
+  /** The invoices sent from it (G2q-c). */
+  readonly invoiceIds?: readonly string[];
+}
+
+/**
+ * What a quote takes now: an answer while sent or viewed and not past its day; an undone
+ * acceptance until anything is invoiced from it. Declined and expired quotes take neither
+ * (they can be revised, G2q-c).
+ */
+export function quoteAllows(q: QuoteState, now: Date, timezone: string): { readonly answer: boolean; readonly undo: boolean } {
+  return {
+    answer: (q.status === "sent" || q.status === "viewed") && !quoteExpired(q, now, timezone),
+    undo: q.status === "accepted" && (q.invoiceIds ?? []).length === 0,
+  };
+}
+
+/** Why a quote takes no answer, or null when it does. `label` is "QUO-0012" or "QUO-0012 rev 2". */
+export function noAnswerReason(q: QuoteState, label: string, now: Date, timezone: string): string | null {
+  if (q.status === "accepted") return `${label} was already accepted.`;
+  if (q.status === "declined") return `${label} was already declined.`;
+  if (q.status === "expired" || quoteExpired(q, now, timezone)) return `${label} expired on ${dateLabel(q.validUntil)}.`;
+  return null;
+}

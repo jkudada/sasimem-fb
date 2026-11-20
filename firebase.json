@@ -24,6 +24,13 @@
         }
       },
       {
+        "source": "/q/**",
+        "function": {
+          "functionId": "quotePage",
+          "region": "australia-southeast1"
+        }
+      },
+      {
         "source": "/x/**",
         "function": {
           "functionId": "exportDownload",
@@ -38,6 +45,15 @@
     "headers": [
       {
         "source": "/a/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, no-store"
+          }
+        ]
+      },
+      {
+        "source": "/q/**",
         "headers": [
           {
             "key": "Cache-Control",

@@ -75,3 +75,65 @@ describe("sending", () => {
     expect(quotes.quoteLabel("QUO-0012", 2)).toBe("QUO-0012 rev 2");
   });
 });
+
+describe("answering a quote (G2q-b)", () => {
+  const accept = { answer: "accept", name: " Peter Kila ", poNumber: " PO-4471 ", agree: "on" };
+
+  test("accept: a name and the tick; the PO is optional; all trimmed", () => {
+    expect(quotes.readQuoteAnswer(accept, "customer")).toEqual({ ok: true, answer: { kind: "accept", name: "Peter Kila", poNumber: "PO-4471" } });
+    expect(quotes.readQuoteAnswer({ ...accept, poNumber: undefined }, "customer")).toEqual({ ok: true, answer: { kind: "accept", name: "Peter Kila", poNumber: "" } });
+  });
+
+  test("accept refused: no name, no tick, a long name or order number", () => {
+    expect(quotes.readQuoteAnswer({ answer: "accept" }, "customer")).toEqual({
+      ok: false, problems: { name: "Type your name.", agree: "Tick \"I accept these terms\" to accept." },
+    });
+    expect(quotes.readQuoteAnswer({ ...accept, name: "x".repeat(101), poNumber: "x".repeat(41) }, "customer")).toEqual({
+      ok: false, problems: { name: "Keep the name to 100 characters or fewer.", poNumber: "Keep the order number to 40 characters or fewer." },
+    });
+  });
+
+  test("the owner records an acceptance without the tick, naming who accepted", () => {
+    expect(quotes.readQuoteAnswer({ answer: "accept", name: "Peter Kila" }, "owner")).toEqual({ ok: true, answer: { kind: "accept", name: "Peter Kila", poNumber: "" } });
+    expect(quotes.readQuoteAnswer({ answer: "accept" }, "owner")).toEqual({ ok: false, problems: { name: "Type the name of the person who accepted." } });
+  });
+
+  test("decline: an optional reason up to 500 characters; anything else is no answer", () => {
+    expect(quotes.readQuoteAnswer({ answer: "decline", reason: " Too dear " }, "customer")).toEqual({ ok: true, answer: { kind: "decline", reason: "Too dear" } });
+    expect(quotes.readQuoteAnswer({ answer: "decline" }, "owner")).toEqual({ ok: true, answer: { kind: "decline", reason: "" } });
+    expect(quotes.readQuoteAnswer({ answer: "decline", reason: "x".repeat(501) }, "customer")).toEqual({ ok: false, problems: { reason: "Keep the reason to 500 characters or fewer." } });
+    expect(quotes.readQuoteAnswer({ answer: "maybe" }, "customer")).toEqual({ ok: false, problems: { answer: "Choose to accept or decline." } });
+  });
+
+  test("expired once its valid-until day has ended in the org's time", () => {
+    const q = { validUntil: "2026-12-19" as CalendarDate };
+    const tz = "Pacific/Port_Moresby"; // UTC+10
+    expect(quotes.quoteExpired(q, new Date("2026-12-19T13:59:59Z"), tz)).toBe(false);
+    expect(quotes.quoteExpired(q, new Date("2026-12-19T14:00:00Z"), tz)).toBe(true);
+  });
+
+  test("which answers each status allows: sent and viewed take one until expired; accepted can be undone until invoiced", () => {
+    const now = new Date("2026-11-20T00:00:00Z");
+    const tz = "Pacific/Port_Moresby";
+    const q = (status: quotes.QuoteStatus, more: { validUntil?: string; invoiceIds?: string[] } = {}) =>
+      quotes.quoteAllows({ status, validUntil: (more.validUntil ?? "2026-12-19") as CalendarDate, ...(more.invoiceIds === undefined ? {} : { invoiceIds: more.invoiceIds }) }, now, tz);
+    expect(q("sent")).toEqual({ answer: true, undo: false });
+    expect(q("viewed")).toEqual({ answer: true, undo: false });
+    expect(q("viewed", { validUntil: "2026-11-19" })).toEqual({ answer: false, undo: false });
+    expect(q("accepted")).toEqual({ answer: false, undo: true });
+    expect(q("accepted", { invoiceIds: ["inv1"] })).toEqual({ answer: false, undo: false });
+    expect(q("declined")).toEqual({ answer: false, undo: false });
+    expect(q("expired")).toEqual({ answer: false, undo: false });
+  });
+
+  test("why a quote takes no answer, in words for the customer and the owner", () => {
+    const now = new Date("2026-11-20T00:00:00Z");
+    const tz = "Pacific/Port_Moresby";
+    const why = (status: quotes.QuoteStatus, validUntil = "2026-12-19") => quotes.noAnswerReason({ status, validUntil: validUntil as CalendarDate }, "QUO-0001", now, tz);
+    expect(why("sent")).toBeNull();
+    expect(why("accepted")).toBe("QUO-0001 was already accepted.");
+    expect(why("declined")).toBe("QUO-0001 was already declined.");
+    expect(why("expired", "2026-11-18")).toBe("QUO-0001 expired on 18 November 2026.");
+    expect(why("sent", "2026-11-19")).toBe("QUO-0001 expired on 19 November 2026.");
+  });
+});

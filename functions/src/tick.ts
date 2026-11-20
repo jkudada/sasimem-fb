@@ -1,6 +1,6 @@
 /**
- * The hourly tick (plan §6.4). Six steps in order - draft, request approval,
- * release, hold, send scheduled one-offs (G2d), remind - each safe to run twice or concurrently: every state change
+ * The hourly tick (plan §6.4). Seven steps in order - draft, request approval,
+ * release, hold, send scheduled one-offs (G2d), remind, expire quotes (G2q-b) - each safe to run twice or concurrently: every state change
  * is a create() or a compare-and-set, and only the tick that wins it sends email.
  *
  * One landlord's failure does not stop another's: each unit of work runs on its own,
@@ -13,6 +13,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { type NotifyDeps, sendDigest, sendDispatch, sendHeld, sendNotSent, sendReminder, sendSentScheduled, sendTenantInvoice } from "./notify.js";
 import type { DispatchLine } from "./mail/templates.js";
 import { issueOneOff } from "./store/oneoff.js";
+import { expireQuote, openQuotesPast } from "./store/quotes.js";
 import { renderMissingPdfs, renderPdfOf } from "./store/pdfs.js";
 import { claimReminder, unremindedInvoices } from "./store/reminders.js";
 import { releaseRun } from "./store/release.js";
@@ -34,6 +35,8 @@ export interface Tally {
   reminded: number;
   /** One-off invoices sent on the day they were scheduled for (G2d). */
   scheduled: number;
+  /** Quotes past their valid-until day, marked expired (G2q-b). */
+  expired: number;
   /** Orgs whose subscription stops new months (restricted, cancelled): step 1 passed them by. */
   skipped: number;
 }
@@ -45,7 +48,7 @@ export interface TickOptions {
 
 export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<Tally> {
   const now = deps.now();
-  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, scheduled: 0, skipped: 0 };
+  const tally: Tally = { drafted: 0, requested: 0, sent: 0, held: 0, reminded: 0, scheduled: 0, expired: 0, skipped: 0 };
   const errors: unknown[] = [];
   const orgs = new Map<string, Promise<OrgDoc & BillingOrg>>();
   const orgOf = (orgId: string) => {
@@ -150,6 +153,11 @@ export async function runTick(deps: TickDeps, opts: TickOptions = {}): Promise<T
     if (invoice === null) return;
     tally.reminded++;
     await sendReminder(deps, orgId, ref.id, invoice);
+  });
+
+  // 7. Expire quotes past their day (G2q-b). No email: the owner sees it in the list.
+  await each(await openQuotesPast(now, opts.orgIds), async (q) => {
+    if (await expireQuote(q, now)) tally.expired++;
   });
 
   logger.info("tick", { ...tally, errors: errors.length });

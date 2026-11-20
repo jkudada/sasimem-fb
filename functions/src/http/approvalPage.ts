@@ -265,7 +265,7 @@ function numberedList(v: View): string {
 }
 
 // The page's only style and its optional script, allowed by hash in the CSP (no 'unsafe-inline').
-const STYLE = `body{font:16px/1.45 system-ui,sans-serif;color:#1c2321;background:#fbfbf9;margin:0}main{max-width:32rem;margin:0 auto;padding:16px}
+export const STYLE = `body{font:16px/1.45 system-ui,sans-serif;color:#1c2321;background:#fbfbf9;margin:0}main{max-width:32rem;margin:0 auto;padding:16px}
 h1{font-size:1.4rem;margin:.5rem 0}.m{color:#5b6662;font-size:.9rem}.r{border-bottom:1px solid #c9d1ce;padding:12px 0}.r p{margin:0 0 8px}
 label{display:block;margin:6px 0}input[inputmode]{display:block;width:100%;min-height:44px;padding:8px 12px;font:inherit;border:1px solid #c9d1ce;border-radius:8px;box-sizing:border-box}
 .c{display:flex;gap:12px;align-items:center;min-height:44px}.c input{width:22px;height:22px}.p,.w{color:#a3261b}.ok{color:#0d6b4f;font-weight:600}
