@@ -2,8 +2,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { DEFAULT_QUOTE_TERMS, type Item, type QuoteDraft, type Toea } from "@sasimem/core";
 import { describe, expect, test, vi } from "vitest";
-import type { Quotes as List, Outcome, Setup, WithId } from "../setup.js";
+import type { Quotes as List, Outcome, QuoteDetail, Setup, WithId } from "../setup.js";
 import { Home } from "./Home.js";
+import { Quote } from "./Quote.js";
 import { QuoteEditor } from "./QuoteEditor.js";
 import { Quotes } from "./Quotes.js";
 import { Settings } from "./Settings.js";
@@ -119,15 +120,87 @@ describe("the list of quotes", () => {
       sent: [
         { id: "q2", label: "QUO-0002", customerName: "Mine Services", issueDate: "2026-11-19" as never, validUntil: "2026-12-19" as never, totalToea: 28_050 as Toea, status: "sent" },
         { id: "q1", label: "QUO-0001", customerName: "Kila Trading", issueDate: "2026-11-01" as never, validUntil: "2026-12-01" as never, totalToea: 11_000 as Toea, status: "viewed" },
+        ...(["accepted", "declined", "expired"] as const).map((status, i) => ({ id: `o${i}`, label: `QUO-000${i + 3}`, customerName: "Other", issueDate: "2026-10-01" as never, validUntil: "2026-10-31" as never, totalToea: 5_000 as Toea, status })),
       ],
     };
     render(<Quotes list={list} setup={setup()} />);
     expect(screen.getByRole("link", { name: "Kila Trading" }).getAttribute("href")).toBe("/quotes/d1");
     expect(screen.getByText(/Draft · 1 line K88\.00/)).toBeTruthy();
-    expect(screen.getByText("QUO-0002 · Mine Services")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "QUO-0002 · Mine Services" }).getAttribute("href")).toBe("/quotes/sent/q2");
     expect(screen.getByText("K280.50 · valid until 19 December 2026 · Sent")).toBeTruthy();
     expect(screen.getByText("K110.00 · valid until 1 December 2026 · Viewed")).toBeTruthy();
+    for (const s of ["Accepted", "Declined", "Expired"]) expect(screen.getByText(`K50.00 · valid until 31 October 2026 · ${s}`)).toBeTruthy();
     expect(screen.getByRole("link", { name: "New quote" }).getAttribute("href")).toBe("/quotes/new");
+  });
+});
+
+describe("a sent quote (G2q-b)", () => {
+  const NOW = new Date("2026-11-20T02:00:00Z");
+  const TZ = "Pacific/Port_Moresby";
+  const base: QuoteDetail = {
+    id: "q1", label: "QUO-0001", customerName: "Kila Trading", issueDate: "2026-11-19" as never, validUntil: "2026-12-19" as never,
+    totalToea: 28_050 as Toea, status: "sent", viewedAt: null, acceptance: null, decline: null, invoiceIds: [],
+  };
+  const show = (quote: Partial<QuoteDetail> = {}, over: { mark?: () => Promise<Outcome>; undo?: () => Promise<Outcome> } = {}) => {
+    const onMark = vi.fn(over.mark ?? (async (): Promise<Outcome> => ({ ok: true, message: "Recorded: QUO-0001 accepted by Peter Kila." })));
+    const onUndo = vi.fn(over.undo ?? (async (): Promise<Outcome> => ({ ok: true, message: "QUO-0001 is open again." })));
+    const onChanged = vi.fn();
+    render(<Quote quote={{ ...base, ...quote }} timezone={TZ} now={NOW} onMark={onMark} onUndo={onUndo} onChanged={onChanged} />);
+    return { onMark, onUndo, onChanged };
+  };
+
+  test("viewed: the status, when it was first opened; Record an answer, no Undo", () => {
+    show({ status: "viewed", viewedAt: new Date("2026-11-19T22:30:00Z") });
+    expect(screen.getByRole("heading", { name: "QUO-0001" })).toBeTruthy();
+    expect(screen.getByText("Kila Trading · K280.50 · valid until 19 December 2026")).toBeTruthy();
+    expect(screen.getByText(/first opened/).textContent).toBe("Viewed · first opened at 8:30 am on 20 November 2026");
+    expect(screen.getByRole("button", { name: "Record an answer" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo the acceptance" })).toBeNull();
+  });
+
+  test("accepted on the link: who, when and the PO; Undo, which reloads it", async () => {
+    const { onUndo, onChanged } = show({ status: "accepted", acceptance: { by: "customer", name: "Peter Kila", poNumber: "PO-4471", at: new Date("2026-11-20T02:00:00Z") } });
+    expect(screen.getByText(/Accepted by/).textContent).toBe("Accepted by Peter Kila at 12:00 pm on 20 November 2026, on the quote's link. Order number PO-4471.");
+    expect(screen.queryByRole("button", { name: "Record an answer" })).toBeNull();
+    click("Undo the acceptance");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("QUO-0001 is open again."));
+    expect(onUndo).toHaveBeenCalledWith("q1");
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  test("declined, recorded by the owner, with the reason; nothing to do", () => {
+    show({ status: "declined", decline: { by: "owner", reason: "Went elsewhere", at: new Date("2026-11-20T02:00:00Z") } });
+    expect(screen.getByText(/Declined at/).textContent).toBe("Declined at 12:00 pm on 20 November 2026, recorded by you. Reason: Went elsewhere");
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  test("invoiced or expired: no Undo, no answer", () => {
+    show({ status: "accepted", acceptance: { by: "owner", name: "Peter Kila", poNumber: "", at: NOW }, invoiceIds: ["inv1"] });
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    cleanup();
+    show({ status: "sent", validUntil: "2026-11-19" as never });
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  test("Record an answer: accepted with who and the order number, or declined with a reason; a refusal shows", async () => {
+    const { onMark, onChanged } = show();
+    click("Record an answer");
+    type("Who accepted", "Peter Kila");
+    type(/order number/i, "4471");
+    click("Record");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Recorded: QUO-0001 accepted by Peter Kila."));
+    expect(onMark).toHaveBeenCalledWith("q1", { answer: "accept", name: "Peter Kila", poNumber: "4471", reason: "" });
+    expect(onChanged).toHaveBeenCalled();
+    cleanup();
+
+    const refused = show({}, { mark: async () => ({ ok: false, message: "QUO-0001 was already accepted." }) });
+    click("Record an answer");
+    fireEvent.change(screen.getByLabelText("Declined"));
+    type(/their reason/i, "Too dear");
+    click("Record");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("QUO-0001 was already accepted."));
+    expect(refused.onMark).toHaveBeenCalledWith("q1", { answer: "decline", name: "", poNumber: "", reason: "Too dear" });
+    expect(refused.onChanged).not.toHaveBeenCalled();
   });
 });
 

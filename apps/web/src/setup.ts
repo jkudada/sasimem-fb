@@ -141,6 +141,12 @@ export interface SetupStore {
   deleteQuoteDraft(id: string): Promise<string | null>;
   /** Number, freeze and email a saved quote draft (the sendQuote callable). */
   sendQuote(draftId: string): Promise<Outcome>;
+  /** One sent quote with its answer (G2q-b); null when it is not there. A string is a problem. */
+  quote(id: string): Promise<QuoteDetail | null | string>;
+  /** Record the customer's answer by hand (the markQuote callable). */
+  markQuote(id: string, answer: QuoteAnswerForm): Promise<Outcome>;
+  /** Set an accepted quote back to sent (the undoAcceptance callable). */
+  undoAcceptance(id: string): Promise<Outcome>;
   /** One saved draft, with its schedule if it has one; null when it is gone (sent or deleted). A string is a problem. */
   draft(id: string): Promise<ScheduledDraft | null | string>;
   /** Save a draft; the result is its ID, or a problem. */
@@ -239,6 +245,24 @@ export interface SentQuote {
   readonly validUntil: CalendarDate;
   readonly totalToea: Toea;
   readonly status: QuoteStatus;
+}
+
+/** A sent quote as its own screen shows it (G2q-b). */
+export interface QuoteDetail extends SentQuote {
+  /** When the customer first opened the link. */
+  readonly viewedAt: Date | null;
+  readonly acceptance: { readonly by: "customer" | "owner"; readonly name: string; readonly poNumber: string; readonly at: Date } | null;
+  readonly decline: { readonly by: "customer" | "owner"; readonly reason: string; readonly at: Date } | null;
+  /** The invoices sent from it (G2q-c). */
+  readonly invoiceIds: readonly string[];
+}
+
+/** What the owner records, as markQuote reads it. */
+export interface QuoteAnswerForm {
+  readonly answer: "accept" | "decline";
+  readonly name: string;
+  readonly poNumber: string;
+  readonly reason: string;
 }
 
 export interface OneOffInvoice {

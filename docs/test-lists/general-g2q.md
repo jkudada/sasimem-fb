@@ -40,7 +40,8 @@ three slices, each its own PR or pair of PRs:
 - **Owner notices** (accepted, declined) go to the org's address on file, like every other
   owner email.
 - **Between G2q-a and G2q-b** the email's `/q/` link has no page behind it yet. Nothing is
-  deployed until G2q-b is merged too.
+  deployed until G2q-b is merged too. Then the deploy needs `functions`, `hosting` (the `/q/**`
+  rewrite) and `firestore:indexes` (quotes by status and validUntil).
 
 ### N11: default quote terms (Claude's first version; have an accountant or lawyer check it)
 
@@ -133,11 +134,11 @@ three slices, each its own PR or pair of PRs:
 - [x] the tick marks quotes expired after their day, once, and leaves answered ones alone
 
 ### Web (T1 web)
-- [ ] the quote screen: status, acceptance (who, when, PO) or the decline reason; Record an answer; Undo the acceptance
-- [ ] the quotes list shows Viewed, Accepted, Declined and Expired
+- [x] the quote screen: status, acceptance (who, when, PO) or the decline reason; Record an answer; Undo the acceptance
+- [x] the quotes list shows Viewed, Accepted, Declined and Expired
 
 ### End to end (T4)
-- [ ] the customer opens the link, accepts with a PO number; the owner gets the email and the quote shows Accepted
+- [x] the customer opens the link, accepts with a PO number; the owner gets the email and the quote shows Accepted
 
 ## G2q-c: revisions and converting to an invoice
 

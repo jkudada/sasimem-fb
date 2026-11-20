@@ -43,7 +43,7 @@ export function Quotes(props: { list: List; setup: Setup }) {
       <ul class="links">
         {sent.map((q) => (
           <li key={q.id}>
-            <strong>{q.label} · {q.customerName}</strong>
+            <a href={`/quotes/sent/${q.id}`}>{q.label} · {q.customerName}</a>
             <span class="note">{formatKina(q.totalToea)} · valid until {dateLabel(q.validUntil)} · {QUOTE_STATUS_LABELS[q.status]}</span>
           </li>
         ))}

@@ -14,7 +14,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { app, usingEmulators } from "./firebase.js";
 import { db, functions } from "./data.js";
-import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, SendLater, SentQuote, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
+import type { CreditNoteRow, CreditableRow, EmailEntry, Month, MonthSummary, Numbering, OneOffInvoice, Org, Outcome, OwedInvoice, PaymentRow, ProfileEdit, QuoteDetail, SendLater, SentQuote, Setup, SetupStore, SubscriptionPayment, TenancyEdit, WithId } from "./setup.js";
 
 const OFFLINE = "You need a connection to do this. Check your signal and try again.";
 
@@ -49,6 +49,12 @@ let connected = false;
 
 const withIds = <T,>(snap: Awaited<ReturnType<typeof getDocs>>): WithId<T>[] =>
   snap.docs.map((d) => ({ ...(d.data() as T), id: d.id }));
+
+/** A sent quote's list fields, from its document. */
+const sentQuoteOf = (id: string, q: Record<string, unknown>): SentQuote => ({
+  id, label: quoteLabel(q["number"] as string, q["revision"] as number), customerName: q["customerName"] as string,
+  issueDate: q["issueDate"] as CalendarDate, validUntil: q["validUntil"] as CalendarDate, totalToea: q["totalToea"] as Toea, status: q["status"] as QuoteStatus,
+});
 
 /** Call a run callable; its own message is plain English, a dropped connection gets ours. */
 async function call(name: string, data: Record<string, unknown>, success: (reply: { message?: string }) => string): Promise<Outcome> {
@@ -360,13 +366,7 @@ export function setupStore(orgId: string): SetupStore {
         return {
           drafts: drafts.docs.map((d) => ({ ...quoteDraftOf(d.data()), id: d.id })),
           sent: sent.docs
-            .map((d): SentQuote & { readonly number: string } => {
-              const q = d.data();
-              return {
-                id: d.id, number: q["number"] as string, label: quoteLabel(q["number"] as string, q["revision"] as number), customerName: q["customerName"] as string,
-                issueDate: q["issueDate"] as CalendarDate, validUntil: q["validUntil"] as CalendarDate, totalToea: q["totalToea"] as Toea, status: q["status"] as QuoteStatus,
-              };
-            })
+            .map((d) => ({ ...sentQuoteOf(d.id, d.data()), number: d.get("number") as string }))
             .sort((a, b) => b.number.localeCompare(a.number)),
         };
       } catch {
@@ -388,6 +388,28 @@ export function setupStore(orgId: string): SetupStore {
     },
     deleteQuoteDraft: (id) => attempt(() => deleteDoc(ref(`quoteDrafts/${id}`))),
     sendQuote: (draftId) => call("sendQuote", { orgId, draftId }, (r) => r.message ?? "Sent."),
+    async quote(id) {
+      try {
+        const d = await getDoc(ref(`quotes/${id}`));
+        if (!d.exists()) return null;
+        const q = d.data();
+        const at = (v: unknown): Date => (v as Timestamp).toDate();
+        const a = q["acceptance"] as Record<string, unknown> | undefined;
+        const n = q["decline"] as Record<string, unknown> | undefined;
+        const detail: QuoteDetail = {
+          ...sentQuoteOf(id, q),
+          viewedAt: q["viewedAt"] === undefined ? null : at(q["viewedAt"]),
+          acceptance: a === undefined ? null : { by: a["by"] as "customer" | "owner", name: a["name"] as string, poNumber: a["poNumber"] as string, at: at(a["at"]) },
+          decline: n === undefined ? null : { by: n["by"] as "customer" | "owner", reason: n["reason"] as string, at: at(n["at"]) },
+          invoiceIds: (q["invoiceIds"] as string[] | undefined) ?? [],
+        };
+        return detail;
+      } catch {
+        return OFFLINE;
+      }
+    },
+    markQuote: (quoteId, answer) => call("markQuote", { orgId, quoteId, ...answer }, (r) => r.message ?? "Recorded."),
+    undoAcceptance: (quoteId) => call("undoAcceptance", { orgId, quoteId }, (r) => r.message ?? "It is open again."),
 
     async payments() {
       try {
