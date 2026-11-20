@@ -15,6 +15,7 @@ const PATHS = {
   items: "M9 6h11M9 12h11M9 18h11M4.5 6h0M4.5 12h0M4.5 18h0",
   oneOff: "M7 3h7l5 5v13H7zM14 3v5h5M13 11v6M10 14h6",
   creditNote: "M7 3h7l5 5v13H7zM14 3v5h5M10 14h6",
+  quote: "M7 3h7l5 5v13H7zM14 3v5h5M10 12h6M10 16h4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

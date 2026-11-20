@@ -39,6 +39,8 @@ three slices, each its own PR or pair of PRs:
 - **Quotes do not count against invoice limits** (§7) and are not in the CSV export of invoices.
 - **Owner notices** (accepted, declined) go to the org's address on file, like every other
   owner email.
+- **Between G2q-a and G2q-b** the email's `/q/` link has no page behind it yet. Nothing is
+  deployed until G2q-b is merged too.
 
 ### N11: default quote terms (Claude's first version; have an accountant or lawyer check it)
 
@@ -74,13 +76,14 @@ three slices, each its own PR or pair of PRs:
 - [x] the PDF prints "QUOTATION", the number, valid until, the lines, GST and total, and the terms
 
 ### Web (T1 web)
-- [ ] Home and the menu show Quotes only with `quotes` on
-- [ ] the quote editor: customer, lines from the price list, notes, valid for (days, the org's by default); Save draft; Send quote checks, saves, sends and shows "Sent QUO-0001 to Kila Trading"
-- [ ] the quotes list: drafts, then sent quotes with number, customer, total, valid until and status
-- [ ] Settings: "Days a quote is valid" and "Quote terms" (the default filled in), with quotes on only
+- [x] Home and the menu show Quotes only with `quotes` on
+- [x] the quote editor: customer, lines from the price list, notes, valid for (days, the org's by default); Save draft; Send quote checks, saves, sends and shows "Sent QUO-0001 to Kila Trading"
+- [x] the quotes list: drafts, then sent quotes with number, customer, total, valid until and status
+- [x] Settings: "Days a quote is valid" and "Quote terms" (the default filled in), with quotes on only
+- [x] the line editing is shared with the invoice editor (`LinesEditor`); the invoice editor's tests pass unchanged
 
 ### End to end (T4)
-- [ ] an owner writes a quote and sends it; the customer's email has the PDF and a `/q/` link
+- [x] an owner writes a quote and sends it; the customer's email has the PDF and a `/q/` link
 
 ## G2q-b: the customer's page
 

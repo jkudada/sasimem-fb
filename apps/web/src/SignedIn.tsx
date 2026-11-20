@@ -4,7 +4,7 @@
  * screen shows what was actually stored.
  */
 import { type ReadonlySignal, signal, useSignal } from "@preact/signals";
-import { type CalendarDate, type Period, hasFeature, periodOf } from "@sasimem/core";
+import { type CalendarDate, type Period, type QuoteDraft, hasFeature, periodOf } from "@sasimem/core";
 import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
@@ -38,6 +38,8 @@ const InvoiceEditor = lazyScreen(() => import("./screens/InvoiceEditor.js").then
 const Payments = lazyScreen(() => import("./screens/Payments.js").then((m) => m.Payments));
 const PaymentForm = lazyScreen(() => import("./screens/PaymentForm.js").then((m) => m.PaymentForm));
 const CreditNotes = lazyScreen(() => import("./screens/CreditNotes.js").then((m) => m.CreditNotes));
+const Quotes = lazyScreen(() => import("./screens/Quotes.js").then((m) => m.Quotes));
+const QuoteEditor = lazyScreen(() => import("./screens/QuoteEditor.js").then((m) => m.QuoteEditor));
 const CreditNoteForm = lazyScreen(() => import("./screens/CreditNoteForm.js").then((m) => m.CreditNoteForm));
 
 const OFFLINE = "Your details could not be loaded. Check your signal, then reload the page.";
@@ -108,6 +110,8 @@ export function SignedIn(props: { orgId: string; actions: Actions; today: Calend
           <Route path="/items/:id" component={ItemRoute} />
           <Route path="/one-off" component={OneOffsRoute} />
           <Route path="/one-off/:id" component={EditorRoute} />
+          <Route path="/quotes" component={QuotesRoute} />
+          <Route path="/quotes/:id" component={QuoteEditorRoute} />
           <Route path="/payments" component={PaymentsRoute} />
           <Route path="/payments/new" component={PaymentFormRoute} />
           <Route path="/credit-notes" component={CreditNotesRoute} />
@@ -472,5 +476,47 @@ function EditorRoute(props: Params) {
             onSave={c.store.saveDraft} onDelete={c.store.deleteDraft} onSend={c.store.issueInvoice}
             onSchedule={c.store.scheduleInvoice} onCancelSchedule={c.store.cancelSchedule} onDone={() => route("/one-off")} />}
     </OneOffOnly>
+  );
+}
+
+/** Quotes (G2q) are for orgs with quotes and one-off invoices on (an accepted quote becomes a one-off invoice). */
+function QuotesOnly(props: { children: preact.ComponentChildren }) {
+  const { setup } = useSignedIn();
+  const org = setup.value.org;
+  if (!hasFeature(org, "quotes") || !hasFeature(org, "oneOff")) return <main class="narrow"><p>Quotes are not switched on for your account. <a href="/">Back home</a></p></main>;
+  return <>{props.children}</>;
+}
+
+function QuotesRoute() {
+  const c = useSignedIn();
+  const list = useSignal<Awaited<ReturnType<SetupStore["quotes"]>> | null>(null);
+  useEffect(() => void c.store.quotes().then((l) => (list.value = l)), [c.store]);
+  const l = list.value;
+  return (
+    <QuotesOnly>
+      {l === null ? <main class="narrow"><p>Loading…</p></main>
+        : typeof l === "string" ? <main class="narrow"><p role="alert">{l}</p></main>
+        : <Quotes list={l} setup={c.setup.value} />}
+    </QuotesOnly>
+  );
+}
+
+/** A new quote, or a saved draft loaded first. A draft that was sent or deleted meanwhile says so. */
+function QuoteEditorRoute(props: Params) {
+  const c = useSignedIn();
+  const { route } = useLocation();
+  const id = idOf(props);
+  const draft = useSignal<QuoteDraft | null | string | undefined>(id === null ? null : undefined);
+  useEffect(() => {
+    if (id !== null) void c.store.quoteDraft(id).then((d) => (draft.value = d ?? "That draft is not there any more. It may have been sent or deleted."));
+  }, [id]);
+  const d = draft.value;
+  return (
+    <QuotesOnly>
+      {d === undefined ? <main class="narrow"><p>Loading…</p></main>
+        : typeof d === "string" ? <main class="narrow"><p role="alert">{d}</p><p><a href="/quotes">Quotes</a></p></main>
+        : <QuoteEditor key={props.params["id"]} id={id} draft={d} setup={c.setup.value}
+            onSave={c.store.saveQuoteDraft} onDelete={c.store.deleteQuoteDraft} onSend={c.store.sendQuote} onDone={() => route("/quotes")} />}
+    </QuotesOnly>
   );
 }

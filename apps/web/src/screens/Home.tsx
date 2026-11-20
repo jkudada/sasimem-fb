@@ -22,11 +22,15 @@ const ONE_OFF_MENU: readonly MenuEntry[] = [
   { href: "/credit-notes", icon: "creditNote", title: "Credit notes", hint: "Take money off an invoice already sent" },
 ];
 
+/** With quotes on as well (G2q): before the invoices they turn into. */
+const QUOTES: MenuEntry = { href: "/quotes", icon: "quote", title: "Quotes", hint: "Price the work first; the customer accepts online" };
+
 export function menuFor(org: Setup["org"]): readonly MenuEntry[] {
   if (!hasFeature(org, "oneOff")) return MENU;
   const [invoices, properties, , settings] = MENU as [MenuEntry, MenuEntry, MenuEntry, MenuEntry];
   const customers: MenuEntry = { href: "/tenants", icon: "tenants", title: "Tenants and customers", hint: "Who you invoice, and their details" };
-  return [...ONE_OFF_MENU, { ...invoices, title: "Rent invoices" }, properties, customers, settings];
+  const quotes = hasFeature(org, "quotes") ? [QUOTES] : [];
+  return [...quotes, ...ONE_OFF_MENU, { ...invoices, title: "Rent invoices" }, properties, customers, settings];
 }
 
 /** Home (plan §7, screen 3): this month's one action (the card, as children), the amount owed, then setup. */
