@@ -141,28 +141,96 @@ three slices, each its own PR or pair of PRs:
 
 ## G2q-c: revisions and converting to an invoice
 
-### Choices
-- **Revise:** on a sent, viewed, declined or expired quote, **Revise** opens a draft copy
-  (`quoteDrafts/{id}` with `revises: quoteId`). Sending it makes the next revision of the same
-  quote: the same number, `revision` + 1, a new snapshot, PDF and link, valid-until from the
-  new send day. The earlier revision is kept in `quotes/{id}/revisions/{n}`, marked
-  superseded, and its link shows "This quote was replaced by revision 2" and stops accepting.
-  An accepted quote is not revised (undo the acceptance first).
-- **On acceptance an invoice draft is made automatically (D14)** in `drafts/`, with the
-  customer, the lines, the PO number and the notes, and the id `{quoteId}_r{rev}_full` (or
-  `_deposit`), so it can only be made once per revision. The owner reviews it and presses Send
-  (D7). Nothing is invoiced without their say-so.
-- **Deposits (D13), off by default:** a per-org setting "ask for a deposit of __% on quotes over
-  K__" (`depositPercent` 1-100, `depositOverToea`). When it applies, the draft is a deposit
-  invoice: one line "Deposit for QUO-0012" at that share of the total, tax worked out per line
-  as normal. At conversion the owner can also choose "deposit now" or "in full" themselves.
-  The **final** invoice (`_final`) has the quote's lines and deducts the deposit as one
-  negative line, so GST is counted once.
-- **Quoted vs invoiced:** the quote keeps `invoicedToea` and `invoiceIds` (server-written as
-  each invoice from it is sent). It shows *Invoiced* once the total sent reaches the accepted
-  total; over that it is flagged ("K1,200.00 more than the accepted quote").
-- **Home:** "2 accepted quotes not invoiced" after 7 days (AR-1).
-- **Follow-up, off by default:** one reminder to the customer N days after sending (default 7)
-  if nobody answered, with the same link. Per org (`quoteFollowUpDays`, absent = off).
+Built as two PRs, server then web (stacked), as G2q-b was.
 
-### Lists for G2q-c are written when G2q-b is merged.
+### Choices
+- **Revise:** on a sent, viewed, declined or expired quote, **Revise** copies it into a draft,
+  `quoteDrafts/{quoteId}_rev` with `revises: quoteId` (one revision draft per quote, so
+  pressing Revise twice opens the same draft). It is edited like any quote draft. Sending it
+  makes the next revision of the same quote: the same number, `revision` + 1, a new snapshot,
+  PDF and link, valid-until from the new send day, terms as they are now. The earlier revision
+  is kept in `quotes/{id}/revisions/{n}` (its snapshot, totals, answer and PDF path). Its link
+  shows "This quote was replaced" (G2q-b) and stops accepting. The new revision starts `sent`,
+  with no view, answer or expiry. An accepted quote is not revised (undo the acceptance first).
+  The email says "QUO-0012 rev 2 (replaces rev 1)".
+- **A revision and an answer at once:** whichever lands first wins. A customer accepting rev 1
+  while the owner sends rev 2 either accepts rev 1 (and the send is refused: "QUO-0012 was
+  accepted while you were revising it") or is told the quote was replaced.
+- **On acceptance an invoice draft is made automatically (D14)**, in the same transaction as
+  the acceptance (by the customer's link or recorded by the owner). It is an ordinary
+  `drafts/` draft with the id `{quoteId}_r{rev}_full` (or `_deposit`), so it is made once per
+  revision and the invoice it becomes has that id too. It has the customer, the lines, the PO
+  number, and the quote's notes followed by "Quote QUO-0012 rev 2, accepted by Peter Kila on
+  20 November 2026." The quote's terms are not copied: the invoice has its own payment terms.
+  The owner can edit it, and presses Send (D7). Nothing is invoiced without their say-so.
+- **Undoing an acceptance** deletes its draft if it is still a draft. Once an invoice from the
+  quote is sent, the acceptance cannot be undone (G2q-b).
+- **Deposits (D13), off by default:** a per-org setting "Ask for a deposit of __% on quotes
+  over K__" (`depositPercent` 1-100, `depositOverToea` K0.00 or more; no percent means off).
+  When the accepted total is over that amount, the draft is a deposit invoice
+  (`_deposit`): a line "Deposit for QUO-0012" at that share of the lines' amount before GST,
+  **one line per tax code** the quote uses (standard, zero, exempt), so GST on the deposit is
+  exactly what it would be on that share of the work. The quote screen lets the owner switch
+  the draft between "deposit" and "in full" while nothing from the quote has been sent.
+- **The final invoice** (`_final`) is drafted when the owner presses "Invoice the rest" on the
+  quote, after the deposit invoice is sent. It has the quote's lines, then the deposit's lines
+  again as negative lines ("Less deposit, INV-0040"). A negative line's GST mirrors the
+  charge, so the deposit and final invoices together charge exactly the quote's total and GST,
+  each counted once.
+- **Quoted vs invoiced:** when an invoice made from a quote is sent (`issueOneOff`, known by
+  its id), the same transaction adds it to the quote's `invoiceIds` and its total to
+  `invoicedToea`. The quote becomes **Invoiced** (a new status) once `invoicedToea` reaches the
+  accepted total. More than that is allowed but flagged on the quote: "K1,200.00 more than the
+  accepted quote". Credit notes against those invoices are not taken off `invoicedToea`
+  (a credited invoice was still invoiced; the credit note shows on the invoice).
+- **Home:** "2 accepted quotes not invoiced" for quotes accepted more than 7 days ago with
+  nothing sent from them (AR-1). It links to the quotes list.
+- **Follow-up, off by default:** one reminder to the customer, N days after sending
+  (`quoteFollowUpDays`, 1-60, Settings, absent = off), if the quote is still `sent` or
+  `viewed` and not expired. Once per revision (`followedUpAt`). It is the hourly tick's step
+  8, with the same link and copy-to as the quote: "A reminder about quote QUO-0012 from
+  {business}". Turning the setting off stops reminders not yet sent. The send time is fixed
+  when the quote is sent (`followUpAt`), so the tick's query needs a new index on `quotes`
+  (status, followUpAt).
+- **Deploy:** `functions`, `firestore:rules` (the new settings and `revises`), and
+  `firestore:indexes`.
+
+### core (T1)
+- [ ] `quoteDraftOf` keeps `revises`; `quoteProblems` is unchanged for a revision
+- [ ] `quoteAllows(q).revise`: sent, viewed, declined and expired; not accepted or invoiced
+- [ ] `revisionDraftOf(quote)`: the lines, customer, notes and valid days of the quote, with `revises`
+- [ ] `quoteSettingsProblems`: `depositPercent` whole 1-100, `depositOverToea` whole toea 0 or more, `quoteFollowUpDays` whole 1-60
+- [ ] `depositApplies(org, totalToea)`: off without a percent; on only over the amount
+- [ ] `invoiceDraftFromQuote(quote, "full" | "deposit", acceptance, org)`: the full draft (lines, customer, PO, notes with the acceptance line); the deposit draft (one line per tax code, at the share of each code's amount, rounded to the toea)
+- [ ] `finalDraftFromQuote(quote, depositInvoice)`: the quote's lines and the deposit's lines negated; property: deposit + final = the quote's subtotal, GST and total, for any lines and percent
+- [ ] `quoteInvoiced(q)`: Invoiced at the accepted total; the amount over it, if any
+- [ ] `quoteFromDraftId(id)`: reads `{quoteId}_r{rev}_{full|deposit|final}` back; null for any other id
+- [ ] `followUpDue(q, org, now)`: sent or viewed, not expired, not followed up, past `followUpAt`, the setting still on
+
+### Security rules (T2)
+- [ ] the owner writes a quote draft with `revises` (a string); others' shape rules unchanged
+- [ ] the owner sets `depositPercent`, `depositOverToea` and `quoteFollowUpDays` (whole, in range) and clears them
+- [ ] the owner edits and deletes a draft made from a quote, as any draft; nobody writes `quotes/{id}/revisions`; members read them
+
+### Functions (T3)
+- [ ] `sendQuote` with `revises`: the same number, revision 2, a new token, PDF and valid-until; rev 1 kept under `revisions/1`; the old link says replaced and refuses a post; the draft gone; an event
+- [ ] revising is refused for an accepted quote, a quote of another org, or a draft whose quote is gone
+- [ ] a revision and an acceptance at once: exactly one wins
+- [ ] accepting (link or owner) makes the draft `{id}_r1_full`, once, with the lines, PO and acceptance note; two accepts still make one
+- [ ] with a deposit setting that applies, the draft is `_deposit` with one line per tax code
+- [ ] `draftFromQuote(id, "full" | "deposit")`: switches the draft while nothing is sent; refused after
+- [ ] `draftFromQuote(id, "final")`: after the deposit invoice is sent; made once
+- [ ] sending an invoice from a quote adds it to `invoiceIds` and `invoicedToea`; the quote becomes Invoiced at the accepted total; flagged over it
+- [ ] undoing an acceptance deletes its unsent draft; refused once an invoice from it is sent
+- [ ] the tick's follow-up: sent once after N days, with the link; not for answered, expired or followed-up quotes, or with the setting off; the email logged
+
+### Web (T1 web)
+- [ ] the quote screen: Revise (sent, viewed, declined, expired) opens the revision draft; the revisions listed with their dates
+- [ ] the quote screen after acceptance: the invoice draft linked; "Deposit" / "In full" switch while nothing is sent; Invoice the rest after the deposit is sent; invoices from the quote with their totals; Invoiced, or the amount over
+- [ ] the quote editor shows "Revising QUO-0012" and sends as "Send revision 2"
+- [ ] Settings: the deposit percent and amount, and follow-up days, with quotes on only
+- [ ] Home: "2 accepted quotes not invoiced" after 7 days
+- [ ] the quotes list shows Invoiced
+
+### End to end (T4)
+- [ ] the owner revises a sent quote; the customer's new link accepts it and the old one says replaced; the invoice draft is there; the owner sends it and the quote shows Invoiced
