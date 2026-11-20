@@ -17,6 +17,8 @@ export function QuoteEditor(props: {
   /** The saved draft's ID; null for a new quote. */
   id: string | null;
   draft: QuoteDraft | null;
+  /** A revision draft (G2q-c): the quote it revises, and the revision it will be. */
+  revising?: { readonly label: string; readonly next: number };
   setup: Setup;
   onSave: (id: string | null, draft: QuoteDraft) => Promise<{ readonly id: string } | { readonly problem: string }>;
   onDelete: (id: string) => Promise<string | null>;
@@ -109,7 +111,8 @@ export function QuoteEditor(props: {
   return (
     <main class="narrow">
       <Back href="/quotes" label="Quotes" />
-      <h1>{props.id === null ? "New quote" : "Edit draft quote"}</h1>
+      <h1>{props.revising !== undefined ? `Revising ${props.revising.label}` : props.id === null ? "New quote" : "Edit draft quote"}</h1>
+      {props.revising !== undefined && <p class="note">Sending it makes revision {props.revising.next}, with a new link. The link you sent before stops working.</p>}
       <form onSubmit={saveDraft} noValidate>
         <Field label="Customer" problem={p.customerId}>
           <select value={customerId} onChange={(e) => (customerId.value = value(e))}>
@@ -133,7 +136,7 @@ export function QuoteEditor(props: {
         <p class="note">Your quote terms print under the lines. Change them in <a href="/settings">Settings</a>.</p>
 
         {failure.value !== null && <p role="alert">{failure.value}</p>}
-        <button type="button" disabled={busy} onClick={() => void send()}>Send quote</button>
+        <button type="button" disabled={busy} onClick={() => void send()}>{props.revising !== undefined ? `Send revision ${props.revising.next}` : "Send quote"}</button>
         <button type="submit" class="quiet" disabled={busy}>Save draft</button>
         {id.value !== null && <button type="button" class="danger" disabled={busy} onClick={() => void remove()}>Delete this draft</button>}
       </form>

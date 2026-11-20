@@ -1,11 +1,11 @@
 import { useSignal } from "@preact/signals";
-import { DEFAULT_QUOTE_TERMS, DEFAULT_QUOTE_VALID_DAYS, DEFAULT_TERMS_DAYS, MAX_LOGO_BYTES, quoteSettingsProblems, type OrgProfile, firstInvoiceNumberProblem, hasFeature, logoProblem, logoTypeProblem, profileProblems, wholeIn } from "@sasimem/core";
+import { DEFAULT_QUOTE_TERMS, DEFAULT_QUOTE_VALID_DAYS, DEFAULT_TERMS_DAYS, MAX_LOGO_BYTES, type Toea, formatKina, quoteSettingsProblems, type OrgProfile, firstInvoiceNumberProblem, hasFeature, logoProblem, logoTypeProblem, profileProblems, wholeIn } from "@sasimem/core";
 import { shrinkLogo } from "../logo/shrink.js";
 import type { Numbering, Org, ProfileEdit } from "../setup.js";
 import { Icon, type IconName } from "./icons.js";
 import { Back } from "./Back.js";
 import { Field, value } from "./Field.js";
-import { whole } from "./read.js";
+import { readKina, whole } from "./read.js";
 
 type Problems = ReturnType<typeof profileProblems> & ReturnType<typeof quoteSettingsProblems> & { defaultTermsDays?: string };
 
@@ -43,6 +43,10 @@ export function Settings(props: {
   const quotes = oneOff && hasFeature(o, "quotes");
   const quoteDays = useSignal(String(o.quoteValidDays ?? DEFAULT_QUOTE_VALID_DAYS));
   const quoteTerms = useSignal(o.quoteTerms ?? DEFAULT_QUOTE_TERMS);
+  // G2q-c: blank means off.
+  const depositPercent = useSignal(o.depositPercent === undefined ? "" : String(o.depositPercent));
+  const depositOver = useSignal(o.depositOverToea === undefined ? "" : formatKina(o.depositOverToea as Toea));
+  const followUpDays = useSignal(o.quoteFollowUpDays === undefined ? "" : String(o.quoteFollowUpDays));
   const problems = useSignal<Problems>({});
   const message = useSignal<string | null>(null);
   const logoMessage = useSignal<string | null>(null);
@@ -61,11 +65,23 @@ export function Settings(props: {
     // One-off invoices' usual terms (G2a) and the sent-as-scheduled note (G2d), only where that part is shown.
     const terms = whole(termsDays.value);
     // Quotes' validity and terms (G2q), only where that part is shown.
-    const quoteSettings = { quoteValidDays: whole(quoteDays.value), quoteTerms: quoteTerms.value.trim() };
+    const blank = (t: string) => t.trim() === "";
+    const over = blank(depositOver.value) ? null : readKina(depositOver.value);
+    const overToea = over === null ? null : "toea" in over ? over.toea : Number.NaN;
+    const quoteSettings = {
+      quoteValidDays: whole(quoteDays.value), quoteTerms: quoteTerms.value.trim(),
+      depositPercent: blank(depositPercent.value) ? null : whole(depositPercent.value),
+      // An amount without a percent asks for nothing, so it is not kept.
+      depositOverToea: blank(depositPercent.value) ? null : overToea,
+      quoteFollowUpDays: blank(followUpDays.value) ? null : whole(followUpDays.value),
+    };
+    // Core checks the settings that are on; off (null) is always fine.
+    const on = Object.fromEntries(Object.entries(quoteSettings).filter(([, v]) => v !== null)) as unknown as Parameters<typeof quoteSettingsProblems>[0];
     problems.value = {
       ...profileProblems(profile),
       ...(oneOff && !wholeIn(terms, 0, 90) ? { defaultTermsDays: "Choose from 0 to 90 days." } : {}),
-      ...(quotes ? quoteSettingsProblems(quoteSettings) : {}),
+      ...(quotes ? quoteSettingsProblems(on) : {}),
+      ...(over !== null && "problem" in over ? { depositOverToea: over.problem } : {}),
     };
     message.value = null;
     if (Object.keys(problems.value).length > 0) return;
@@ -174,6 +190,15 @@ export function Settings(props: {
               </Field>
               <Field label="Quote terms" hint="Printed on every quote, and shown where the customer accepts it. Leave it empty to print none." problem={p.quoteTerms}>
                 <textarea rows={8} value={quoteTerms} onInput={(e) => (quoteTerms.value = value(e))} />
+              </Field>
+              <Field label="Deposit on accepted quotes, per cent (optional)" hint="When a customer accepts, the invoice drafted for you asks for this share first. Leave it blank for none." problem={p.depositPercent}>
+                <input inputMode="numeric" value={depositPercent} onInput={(e) => (depositPercent.value = value(e))} />
+              </Field>
+              <Field label="Only on quotes over (optional)" hint="Smaller quotes are invoiced in full. Leave it blank to ask on every quote." problem={p.depositOverToea}>
+                <input inputMode="decimal" value={depositOver} onInput={(e) => (depositOver.value = value(e))} />
+              </Field>
+              <Field label="Remind customers about a quote after, in days (optional)" hint="One email, if they have not answered. Leave it blank for none." problem={p.quoteFollowUpDays}>
+                <input inputMode="numeric" value={followUpDays} onInput={(e) => (followUpDays.value = value(e))} />
               </Field>
             </>
           )}

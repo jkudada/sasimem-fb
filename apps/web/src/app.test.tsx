@@ -49,7 +49,7 @@ const fakeStore = (): SetupStore => ({
   exportEverything: vi.fn(), cancelSubscription: vi.fn(),
   saveItem: vi.fn(), deleteItem: vi.fn(), oneOffs: vi.fn().mockResolvedValue({ drafts: [], invoices: [] }), draft: vi.fn().mockResolvedValue(null),
   saveDraft: vi.fn(), deleteDraft: vi.fn(), issueInvoice: vi.fn(), scheduleInvoice: vi.fn(), cancelSchedule: vi.fn(),
-  quotes: vi.fn(), quoteDraft: vi.fn(), saveQuoteDraft: vi.fn(), deleteQuoteDraft: vi.fn(), sendQuote: vi.fn(), quote: vi.fn(), markQuote: vi.fn(), undoAcceptance: vi.fn(),
+  quotes: vi.fn(), quoteDraft: vi.fn(), saveQuoteDraft: vi.fn(), deleteQuoteDraft: vi.fn(), sendQuote: vi.fn(), quote: vi.fn(), markQuote: vi.fn(), undoAcceptance: vi.fn(), reviseQuote: vi.fn(), draftFromQuote: vi.fn(), quotesToInvoice: vi.fn(),
   payments: vi.fn().mockResolvedValue([]), recordPayment: vi.fn(), undoPayment: vi.fn(), resendReceipt: vi.fn(),
   credits: vi.fn().mockResolvedValue(new Map()), creditNotes: vi.fn().mockResolvedValue([]), creditable: vi.fn().mockResolvedValue(null), issueCreditNote: vi.fn(), resendCreditNote: vi.fn(), openCreditNotePdf: vi.fn(),
 });

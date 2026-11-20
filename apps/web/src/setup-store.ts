@@ -6,7 +6,8 @@
  */
 import {
   type BankDetails, type InvoiceDocument, type Item, type OneOffDraft, type SubscriptionFields, type InvoiceTemplate, type Period, type PropertyInput, type RunStatus, type TenancyDocument, type TenantInput, type Toea,
-  arrears, draftOf, hasFeature, logoExtension, quoteDraftOf, quoteLabel, sourceOf, type QuoteDraft, type QuoteStatus, type CalendarDate,
+  arrears, draftOf, hasFeature, logoExtension, quoteDraftOf, quoteFromDraftId, quoteInvoiceId, quoteLabel, revisionDraftOf, sourceOf,
+  type CalendarDate, type Line, type QuoteDraft, type QuoteInvoiceKind, type QuoteStatus,
 } from "@sasimem/core";
 import {
   type Timestamp, addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch,
@@ -128,7 +129,9 @@ export function setupStore(orgId: string): SetupStore {
     updateTenancy: (id, { templateId, ...edit }: TenancyEdit) =>
       attempt(() => updateDoc(ref(`tenancies/${id}`), { ...edit, templateId: templateId ?? deleteField() })),
     deleteTenancy: (id) => attempt(() => deleteDoc(ref(`tenancies/${id}`))),
-    saveProfile: (profile: ProfileEdit) => attempt(() => updateDoc(doc(db, org), { ...profile })),
+    // A setting switched off (null) is deleted, so the org reads as never set (G2q-c).
+    saveProfile: (profile: ProfileEdit) =>
+      attempt(() => updateDoc(doc(db, org), Object.fromEntries(Object.entries(profile).map(([k, v]) => [k, v === null ? deleteField() : v])))),
 
     uploadLogo: (file) => attempt(async () => {
       const path = await upload(logoExtension(file.type), file, file.type);
@@ -398,12 +401,32 @@ export function setupStore(orgId: string): SetupStore {
         const at = (v: unknown): Date => (v as Timestamp).toDate();
         const a = q["acceptance"] as Record<string, unknown> | undefined;
         const n = q["decline"] as Record<string, unknown> | undefined;
+        const revision = q["revision"] as number;
+        const invoiceIds = (q["invoiceIds"] as string[] | undefined) ?? [];
+        const kinds: readonly QuoteInvoiceKind[] = ["full", "deposit", "final"];
+        const [revisions, drafts, invoices] = await Promise.all([
+          getDocs(collection(db, `${org}/quotes/${id}/revisions`)),
+          Promise.all(kinds.map((k) => getDoc(ref(`drafts/${quoteInvoiceId(id, revision, k)}`)))),
+          Promise.all(invoiceIds.map((i) => getDoc(ref(`invoices/${i}`)))),
+        ]);
         const detail: QuoteDetail = {
           ...sentQuoteOf(id, q),
+          number: q["number"] as string,
+          revision,
           viewedAt: q["viewedAt"] === undefined ? null : at(q["viewedAt"]),
-          acceptance: a === undefined ? null : { by: a["by"] as "customer" | "owner", name: a["name"] as string, poNumber: a["poNumber"] as string, at: at(a["at"]) },
+          acceptance: a === undefined ? null : {
+            by: a["by"] as "customer" | "owner", name: a["name"] as string, poNumber: a["poNumber"] as string, at: at(a["at"]), totalToea: a["totalToea"] as Toea,
+          },
           decline: n === undefined ? null : { by: n["by"] as "customer" | "owner", reason: n["reason"] as string, at: at(n["at"]) },
-          invoiceIds: (q["invoiceIds"] as string[] | undefined) ?? [],
+          invoiceIds,
+          invoicedToea: ((q["invoicedToea"] as number | undefined) ?? 0) as Toea,
+          invoices: invoices.filter((i) => i.exists()).map((i) => ({
+            id: i.id, number: i.get("number") as string, totalToea: i.get("totalToea") as Toea, kind: quoteFromDraftId(i.id)?.kind ?? "full",
+          })),
+          drafts: kinds.filter((_, i) => drafts[i]?.exists() === true),
+          revisions: revisions.docs
+            .map((r) => ({ revision: r.get("revision") as number, issueDate: r.get("issueDate") as CalendarDate, totalToea: r.get("totalToea") as Toea, status: r.get("status") as QuoteStatus }))
+            .sort((x, y) => x.revision - y.revision),
         };
         return detail;
       } catch {
@@ -412,6 +435,38 @@ export function setupStore(orgId: string): SetupStore {
     },
     markQuote: (quoteId, answer) => call("markQuote", { orgId, quoteId, ...answer }, (r) => r.message ?? "Recorded."),
     undoAcceptance: (quoteId) => call("undoAcceptance", { orgId, quoteId }, (r) => r.message ?? "It is open again."),
+    draftFromQuote: (quoteId, kind) => call("draftFromQuote", { orgId, quoteId, kind }, (r) => r.message ?? "Drafted."),
+
+    async reviseQuote(quoteId) {
+      // One revision draft per quote: pressing Revise again opens the one already there.
+      const draftId = `${quoteId}_rev`;
+      try {
+        const [existing, quote] = await Promise.all([getDoc(ref(`quoteDrafts/${draftId}`)), getDoc(ref(`quotes/${quoteId}`))]);
+        if (existing.exists()) return { id: draftId };
+        if (!quote.exists()) return { problem: "That quote is not there any more." };
+        const q = quote.data();
+        const draft = revisionDraftOf({
+          customerId: q["customerId"] as string, lines: q["lines"] as Line[], issueDate: q["issueDate"] as CalendarDate,
+          validUntil: q["validUntil"] as CalendarDate, notes: ((q["snapshot"] as { notes?: string } | undefined)?.notes ?? ""),
+        }, quoteId);
+        await setDoc(ref(`quoteDrafts/${draftId}`), { ...draft, lines: draft.lines.map((l) => ({ ...l })) });
+        return { id: draftId };
+      } catch {
+        return { problem: OFFLINE };
+      }
+    },
+
+    async quotesToInvoice(before) {
+      try {
+        const snap = await getDocs(query(collection(db, `${org}/quotes`), where("status", "==", "accepted")));
+        return snap.docs.filter((d) => {
+          const at = (d.get("acceptance") as { at?: Timestamp } | undefined)?.at;
+          return at !== undefined && at.toMillis() < before.getTime() && ((d.get("invoiceIds") as string[] | undefined) ?? []).length === 0;
+        }).length;
+      } catch {
+        return OFFLINE;
+      }
+    },
 
     async payments() {
       try {
